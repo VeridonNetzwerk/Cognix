@@ -15,6 +15,7 @@ STATS_STREAM = "cognix:stats"
 # Audit log actions
 AUDIT_LOGIN = "auth.login"
 AUDIT_LOGIN_FAILED = "auth.login_failed"
+AUDIT_LOGOUT = "auth.logout"
 AUDIT_BOT_TOKEN_CHANGED = "bot.token_changed"
 AUDIT_COG_RELOAD = "bot.cog_reload"
 AUDIT_BACKUP_CREATE = "backup.create"

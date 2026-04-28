@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Giveaways · CogniX{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Giveaways</h1>
+
+<div class="mb-6 text-sm text-slate-400">
+  Use <code class="text-brand-500">/giveaway start</code> in Discord to create a new giveaway.
+  Use this page to monitor, end early, reroll, or delete records.
+</div>
+
+<div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-800 text-slate-300 text-xs uppercase">
+      <tr>
+        <th class="px-3 py-2 text-left">Prize</th>
+        <th class="px-3 py-2 text-left">Server</th>
+        <th class="px-3 py-2 text-left">Winners</th>
+        <th class="px-3 py-2 text-left">Ends</th>
+        <th class="px-3 py-2 text-left">Status</th>
+        <th class="px-3 py-2"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for g in giveaways %}
+        <tr class="border-t border-slate-800">
+          <td class="px-3 py-2">{{ g.prize }}</td>
+          <td class="px-3 py-2 text-slate-400">
+            {% set sname = (servers | selectattr('id','equalto', g.server_id) | list | first).name if (servers | selectattr('id','equalto', g.server_id) | list) else g.server_id %}
+            {{ sname }}
+          </td>
+          <td class="px-3 py-2">{{ g.winner_count }}</td>
+          <td class="px-3 py-2 text-slate-400">{{ g.ends_at.strftime('%Y-%m-%d %H:%M UTC') }}</td>
+          <td class="px-3 py-2">
+            {% if g.ended %}
+              <span class="px-2 py-0.5 rounded bg-slate-700 text-slate-300 text-xs">Ended</span>
+            {% else %}
+              <span class="px-2 py-0.5 rounded bg-emerald-700/40 text-emerald-300 text-xs">Active</span>
+            {% endif %}
+          </td>
+          <td class="px-3 py-2 text-right">
+            {% if not g.ended %}
+              <form method="post" action="/giveaways/{{ g.id }}/end" class="inline">
+                <button class="text-xs px-2 py-1 rounded bg-amber-600 hover:bg-amber-500">End</button>
+              </form>
+            {% endif %}
+            <form method="post" action="/giveaways/{{ g.id }}/delete" class="inline"
+                  onsubmit="return confirm('Delete giveaway record?');">
+              <button class="text-xs px-2 py-1 rounded bg-rose-600 hover:bg-rose-500">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6" class="px-3 py-6 text-center text-slate-500">No giveaways yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

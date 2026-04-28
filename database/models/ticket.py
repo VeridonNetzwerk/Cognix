@@ -32,6 +32,7 @@ class Ticket(Base, TimestampMixin):
 
     title: Mapped[str] = mapped_column(String(128), default="", nullable=False)
     category: Mapped[str] = mapped_column(String(64), default="general", nullable=False)
+    ticket_type_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
     status: Mapped[TicketStatus] = mapped_column(
         Enum(TicketStatus, name="ticket_status"), default=TicketStatus.OPEN, nullable=False
     )

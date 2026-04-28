@@ -83,7 +83,7 @@ def get_bot_info() -> dict[str, Any]:
         "uptime_seconds": int(uptime_seconds),
         "latency_ms": round(bot.latency * 1000, 1) if bot.latency else 0.0,
         "guild_count": len(bot.guilds),
-        "user_count": sum(g.member_count or 0 for g in bot.guilds),
+        "user_count": len({m.id for g in bot.guilds for m in g.members}) or sum(g.member_count or 0 for g in bot.guilds),
         "version": "0.1.0",
         "footer": "Powered by Cognix \u00b7 Made by \u98df\u3079\u7269",
     }
@@ -133,3 +133,75 @@ def invalidate_cog_state_cache(server_id: int | None = None, cog_name: str | Non
     for k in list(_COG_STATE_CACHE.keys()):
         if (server_id is None or k[0] == server_id) and (cog_name is None or k[1] == cog_name):
             _COG_STATE_CACHE.pop(k, None)
+
+
+# --- bot lifecycle control (used by the dashboard buttons) ----------------
+
+_BOT_PAUSED: bool = False
+
+
+def set_bot_paused(paused: bool) -> None:
+    """Toggle whether the supervisor in main._serve_bot should reconnect."""
+    global _BOT_PAUSED
+    _BOT_PAUSED = bool(paused)
+
+
+def is_bot_paused() -> bool:
+    return _BOT_PAUSED
+
+
+async def request_bot_stop() -> None:
+    """Close the running bot (stays disconnected until start is requested)."""
+    set_bot_paused(True)
+    bot = _BOT
+    if bot is not None:
+        try:
+            await bot.close()
+        except Exception:
+            pass
+
+
+async def request_bot_restart() -> None:
+    """Close the running bot. The supervisor will reconnect automatically."""
+    set_bot_paused(False)
+    bot = _BOT
+    if bot is not None:
+        try:
+            await bot.close()
+        except Exception:
+            pass
+
+
+def request_bot_start() -> None:
+    """Allow the supervisor loop to reconnect."""
+    set_bot_paused(False)
+
+
+# --- per-server config cache (FEAT #10) -----------------------------------
+
+_GUILD_CFG_CACHE: dict[tuple[int, str], tuple[Any, float]] = {}
+_GUILD_CFG_TTL = 60.0
+
+
+def cache_guild_value(guild_id: int, key: str, value: Any) -> None:
+    _GUILD_CFG_CACHE[(guild_id, key)] = (value, time.time())
+
+
+def get_cached_guild_value(guild_id: int, key: str) -> Any | None:
+    item = _GUILD_CFG_CACHE.get((guild_id, key))
+    if item is None:
+        return None
+    value, ts = item
+    if (time.time() - ts) > _GUILD_CFG_TTL:
+        _GUILD_CFG_CACHE.pop((guild_id, key), None)
+        return None
+    return value
+
+
+def invalidate_guild_cache(guild_id: int | None = None) -> None:
+    if guild_id is None:
+        _GUILD_CFG_CACHE.clear()
+        return
+    for k in list(_GUILD_CFG_CACHE.keys()):
+        if k[0] == guild_id:
+            _GUILD_CFG_CACHE.pop(k, None)

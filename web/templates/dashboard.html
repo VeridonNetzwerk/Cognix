@@ -1,7 +1,20 @@
 {% extends "base.html" %}
 {% block title %}Dashboard · CogniX{% endblock %}
 {% block content %}
-<h1 class="text-2xl font-semibold mb-6">Dashboard</h1>
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-semibold">Dashboard</h1>
+  {% if user and user.role and user.role.value == 'admin' %}
+  <div class="flex gap-2 text-sm" x-data="{ busy: false, msg: '' }">
+    <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/lifecycle/start',{method:'POST'}).then(r=>r.json()).then(j=>{msg='start: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
+            class="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 px-3 py-1.5 rounded-md">Start</button>
+    <button :disabled="busy" @click="if(!confirm('Stop the bot?'))return; busy=true; fetch('/api/v1/bot/lifecycle/stop',{method:'POST'}).then(r=>r.json()).then(j=>{msg='stop: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
+            class="bg-rose-600 hover:bg-rose-500 disabled:opacity-50 px-3 py-1.5 rounded-md">Stop</button>
+    <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/lifecycle/restart',{method:'POST'}).then(r=>r.json()).then(j=>{msg='restart: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
+            class="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 px-3 py-1.5 rounded-md">Restart</button>
+    <span x-text="msg" class="text-xs text-slate-400 self-center ml-2"></span>
+  </div>
+  {% endif %}
+</div>
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
   {% set stats = [
     ('Servers', metrics.servers, 'text-emerald-400'),

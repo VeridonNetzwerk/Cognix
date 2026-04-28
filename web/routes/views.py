@@ -18,6 +18,12 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import desc, func, select
 
 from bot.runtime import get_bot, get_bot_info
+from config.constants import (
+    AUDIT_LOGOUT,
+    AUDIT_USER_CREATED,
+    AUDIT_USER_DELETED,
+    AUDIT_USER_UPDATED,
+)
 from database.models.audit_log import AuditLog
 from database.models.backup import Backup
 from database.models.cog_state import CogState
@@ -94,23 +100,35 @@ async def login_page(request: Request,
 async def login_submit(request: Request,
                        username: str = Form(...),
                        password: str = Form(...),
-                       totp: str | None = Form(default=None)) -> Response:
+                       totp: str | None = Form(default=None),
+                       remember_me: str | None = Form(default=None)) -> Response:
+    remember = bool(remember_me) and str(remember_me).lower() in ("on", "true", "1", "yes")
+    ip = (request.client.host if request.client else "") or ""
+    ua = request.headers.get("user-agent", "")[:255]
     try:
         async with db_session() as s:
             user = await authenticate(s, LoginRequest(username=username, password=password,
-                                                     otp=totp or None))
-            ip = (request.client.host if request.client else "") or ""
-            ua = request.headers.get("user-agent", "")[:255]
+                                                     otp=totp or None, remember_me=remember))
             access, refresh, exp = await issue_session(s, user, user_agent=ua, ip=ip)
+            s.add(AuditLog(actor_id=user.id, action="auth.login", target=user.username,
+                           ip_address=ip, user_agent=ua))
     except AuthError as exc:
+        async with db_session() as s2:
+            s2.add(AuditLog(action="auth.login_failed", target=username,
+                            ip_address=ip, user_agent=ua))
         return _render(request, "login.html", error=str(exc))
     response = RedirectResponse("/", status_code=303)
-    _set_cookies(response, access, refresh, exp)
+    _set_cookies(response, access, refresh, exp, remember_me=remember)
     return response
 
 
 @router.post("/logout")
-async def logout(response: Response) -> Response:
+async def logout(request: Request, response: Response,
+                 access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
+    user = await _current_user(access_token)
+    if user is not None:
+        async with db_session() as s:
+            s.add(AuditLog(actor_id=user.id, action=AUDIT_LOGOUT, target=user.username))
     r = RedirectResponse("/login", status_code=303)
     _clear_cookies(r)
     return r
@@ -170,9 +188,6 @@ async def index(request: Request,
 
     async with db_session() as s:
         servers_count = (await s.scalar(select(func.count(Server.id)))) or 0
-        users_count = (await s.scalar(
-            select(func.coalesce(func.sum(Server.member_count), 0))
-        )) or 0
         cogs_count = (await s.scalar(
             select(func.count(CogState.id)).where(CogState.enabled.is_(True))
         )) or 0
@@ -182,6 +197,23 @@ async def index(request: Request,
         recent = (await s.scalars(
             select(AuditLog).order_by(desc(AuditLog.created_at)).limit(8)
         )).all()
+
+    # BUG #2 fix: dedup users across guilds via member set
+    bot = get_bot()
+    if bot is not None:
+        unique_ids: set[int] = set()
+        for g in bot.guilds:
+            for m in g.members:
+                unique_ids.add(m.id)
+        users_count = len(unique_ids)
+        # If member cache is empty (intent disabled / not yet populated), fall back to summed counts but de-dup is best-effort.
+        if users_count == 0:
+            users_count = sum(g.member_count or 0 for g in bot.guilds)
+    else:
+        async with db_session() as s2:
+            users_count = (await s2.scalar(
+                select(func.coalesce(func.sum(Server.member_count), 0))
+            )) or 0
 
     info = get_bot_info()
     metrics = {
@@ -193,7 +225,7 @@ async def index(request: Request,
         "uptime": info["uptime"],
         "latency_ms": info["latency_ms"],
         "guild_count": info["guild_count"],
-        "user_count": info["user_count"],
+        "user_count": users_count,
         "version": info["version"],
     }
     return _render(request, "dashboard.html", user=user, metrics=metrics, recent_audit=recent)
@@ -564,13 +596,15 @@ async def users_create(username: str = Form(...),
     except ValueError:
         wrole = WebRole.VIEWER
     async with db_session() as s:
-        s.add(WebUser(
+        new_u = WebUser(
             username=username.strip()[:64],
             email=(email.strip() or None),
             password_hash=hash_password(password),
             role=wrole,
             is_active=True,
-        ))
+        )
+        s.add(new_u)
+        s.add(AuditLog(actor_id=me.id, action=AUDIT_USER_CREATED, target=username.strip()[:64]))
     return RedirectResponse("/users", status_code=303)
 
 
@@ -598,6 +632,7 @@ async def users_edit(user_id: str,
         target.is_active = is_active in ("on", "true", "1", "yes")
         if password.strip():
             target.password_hash = hash_password(password)
+        s.add(AuditLog(actor_id=me.id, action=AUDIT_USER_UPDATED, target=target.username))
     return RedirectResponse("/users", status_code=303)
 
 
@@ -613,7 +648,9 @@ async def users_delete(user_id: str,
             return RedirectResponse("/users", status_code=303)
         if target.username == "admin":
             raise HTTPException(403, "admin account is locked")
+        deleted_username = target.username
         await s.delete(target)
+        s.add(AuditLog(actor_id=me.id, action=AUDIT_USER_DELETED, target=deleted_username))
     return RedirectResponse("/users", status_code=303)
 
 
@@ -1158,3 +1195,386 @@ async def user_settings_me(
     if row is None:
         return {"theme": "dark", "accent_color": "#60A5FA", "font_size": "medium"}
     return {"theme": row.theme, "accent_color": row.accent_color, "font_size": row.font_size}
+
+
+# ============================================================================
+# Phase 3: giveaways, members, combined log, ticket types/panels, server events
+# ============================================================================
+
+from database.models.giveaway import Giveaway, GiveawayStatus  # noqa: E402
+from database.models.server_event_config import ServerEventConfig  # noqa: E402
+from database.models.ticket_panel import TicketPanel, TicketType  # noqa: E402
+from database.models.embed_template import EmbedTemplate  # noqa: E402
+
+
+# ---------- Giveaways -------------------------------------------------------
+
+@router.get("/giveaways", response_class=HTMLResponse)
+async def giveaways_view(request: Request,
+                         access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
+    user = await _require_user(access_token)
+    async with db_session() as s:
+        rows = (
+            await s.scalars(
+                select(Giveaway).order_by(desc(Giveaway.created_at)).limit(200)
+            )
+        ).all()
+        servers = (await s.scalars(select(Server).order_by(Server.name))).all()
+    return _render(request, "giveaways.html", user=user, giveaways=rows, servers=servers)
+
+
+@router.post("/giveaways/{giveaway_id}/end")
+async def giveaways_end(giveaway_id: str,
+                         access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
+    user = await _require_user(access_token)
+    async with db_session() as s:
+        g = await s.get(Giveaway, uuid.UUID(giveaway_id))
+        if g is None:
+            raise HTTPException(404)
+        g.ended = True
+        g.status = GiveawayStatus.ENDED
+        s.add(AuditLog(actor_id=user.id, action="giveaway.end", target=str(g.id)))
+    bot = get_bot()
+    if bot is not None:
+        cog = bot.get_cog("Giveaways")
+        if cog is not None:
+            try:
+                await cog._end_giveaway(uuid.UUID(giveaway_id))  # type: ignore[attr-defined]
+            except Exception:
+                pass
+    return RedirectResponse("/giveaways", status_code=303)
+
+
+@router.post("/giveaways/{giveaway_id}/delete")
+async def giveaways_delete(giveaway_id: str,
+                           access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
+    user = await _require_user(access_token)
+    async with db_session() as s:
+        g = await s.get(Giveaway, uuid.UUID(giveaway_id))
+        if g is not None:
+            s.add(AuditLog(actor_id=user.id, action="giveaway.delete", target=str(g.id)))
+            await s.delete(g)
+    return RedirectResponse("/giveaways", status_code=303)
+
+
+# ---------- Members (per-server live view) ---------------------------------
+
+@router.get("/members", response_class=HTMLResponse)
+async def members_view(request: Request,
+                       server_id: str | None = None,
+                       q: str = "",
+                       access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
+    user = await _require_user(access_token)
+    async with db_session() as s:
+        servers = (await s.scalars(select(Server).order_by(Server.name))).all()
+    members: list[dict[str, Any]] = []
+    selected: int | None = None
+    bot = get_bot()
+    if server_id and bot is not None:
+        try:
+            sid = int(server_id)
+        except ValueError:
+            sid = 0
+        guild = bot.get_guild(sid) if sid else None
+        if guild is not None:
+            selected = guild.id
+            ql = (q or "").strip().lower()
+            for m in guild.members:
+                if ql and ql not in m.name.lower() and ql not in str(m.id):
+                    continue
+                members.append({
+                    "id": m.id,
+                    "name": m.name,
+                    "display_name": m.display_name,
+                    "discriminator": m.discriminator,
+                    "joined_at": m.joined_at.isoformat() if m.joined_at else "",
+                    "roles": [{"id": r.id, "name": r.name, "color": r.colour.value} for r in m.roles if not r.is_default()],
+                    "bot": m.bot,
+                    "avatar": m.display_avatar.url if m.display_avatar else "",
+                })
+                if len(members) >= 500:
+                    break
+    return _render(
+        request, "members.html", user=user, servers=servers,
+        members=members, selected_server_id=selected, query=q,
+    )
+
+
+@router.post("/members/{server_id}/{member_id}/kick")
+async def members_kick(server_id: str, member_id: str, reason: str = Form(default=""),
+                       access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
+    user = await _require_user(access_token)
+    bot = get_bot()
+    if bot is not None:
+        guild = bot.get_guild(int(server_id))
+        if guild is not None:
+            member = guild.get_member(int(member_id))
+            if member is not None:
+                try:
+                    await member.kick(reason=f"web by {user.username}: {reason}")
+                except Exception:
+                    pass
+    async with db_session() as s:
+        s.add(AuditLog(actor_id=user.id, action="member.kick", target=member_id))
+    return RedirectResponse(f"/members?server_id={server_id}", status_code=303)
+
+
+@router.post("/members/{server_id}/{member_id}/ban")
+async def members_ban(server_id: str, member_id: str, reason: str = Form(default=""),
+                      access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
+    user = await _require_user(access_token)
+    bot = get_bot()
+    if bot is not None:
+        guild = bot.get_guild(int(server_id))
+        if guild is not None:
+            try:
+                await guild.ban(discord_obj_for(int(member_id)), reason=f"web by {user.username}: {reason}")
+            except Exception:
+                pass
+    async with db_session() as s:
+        s.add(AuditLog(actor_id=user.id, action="member.ban", target=member_id))
+    return RedirectResponse(f"/members?server_id={server_id}", status_code=303)
+
+
+def discord_obj_for(user_id: int) -> Any:
+    import discord as _d
+    return _d.Object(id=user_id)
+
+
+# ---------- Combined log view (FEAT #9) -----------------------------------
+
+@router.get("/log", response_class=HTMLResponse)
+async def log_view(request: Request, tab: str = "web",
+                   access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
+    user = await _require_user(access_token)
+    web_rows: list[Any] = []
+    discord_rows: list[Any] = []
+    async with db_session() as s:
+        if tab in ("web", "both"):
+            web_rows = (await s.scalars(
+                select(AuditLog).order_by(desc(AuditLog.created_at)).limit(200)
+            )).all()
+        if tab in ("discord", "both"):
+            discord_rows = (await s.scalars(
+                select(DiscordEvent).order_by(desc(DiscordEvent.created_at)).limit(200)
+            )).all()
+    return _render(
+        request, "log.html", user=user, tab=tab, web_rows=web_rows,
+        discord_rows=discord_rows,
+    )
+
+
+# ---------- Ticket types & panels (FEAT #6) -------------------------------
+
+@router.get("/ticket-types", response_class=HTMLResponse)
+async def ticket_types_view(request: Request,
+                            access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
+    user = await _require_user(access_token)
+    async with db_session() as s:
+        types = (await s.scalars(select(TicketType).order_by(TicketType.created_at))).all()
+        servers = (await s.scalars(select(Server).order_by(Server.name))).all()
+    return _render(request, "ticket_types.html", user=user, types=types, servers=servers)
+
+
+@router.post("/ticket-types/create")
+async def ticket_types_create(server_id: int = Form(...), name: str = Form(...),
+                              description: str = Form(default=""), emoji: str = Form(default=""),
+                              category_id: str = Form(default=""), ping_role_id: str = Form(default=""),
+                              access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
+    user = await _require_user(access_token)
+    async with db_session() as s:
+        t = TicketType(
+            server_id=int(server_id), name=name[:64], description=description[:256],
+            emoji=emoji[:16],
+            category_id=int(category_id) if category_id.strip().isdigit() else None,
+            ping_role_id=int(ping_role_id) if ping_role_id.strip().isdigit() else None,
+            welcome_embed={},
+        )
+        s.add(t)
+        s.add(AuditLog(actor_id=user.id, action="ticket_type.create", target=name))
+    return RedirectResponse("/ticket-types", status_code=303)
+
+
+@router.post("/ticket-types/{type_id}/delete")
+async def ticket_types_delete(type_id: str,
+                              access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
+    user = await _require_user(access_token)
+    async with db_session() as s:
+        t = await s.get(TicketType, uuid.UUID(type_id))
+        if t is not None:
+            s.add(AuditLog(actor_id=user.id, action="ticket_type.delete", target=t.name))
+            await s.delete(t)
+    return RedirectResponse("/ticket-types", status_code=303)
+
+
+@router.get("/ticket-panels", response_class=HTMLResponse)
+async def ticket_panels_view(request: Request,
+                             access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
+    user = await _require_user(access_token)
+    async with db_session() as s:
+        panels = (await s.scalars(select(TicketPanel).order_by(TicketPanel.created_at))).all()
+        types = (await s.scalars(select(TicketType).order_by(TicketType.name))).all()
+        servers = (await s.scalars(select(Server).order_by(Server.name))).all()
+    return _render(request, "ticket_panels.html", user=user, panels=panels, types=types, servers=servers)
+
+
+@router.post("/ticket-panels/create")
+async def ticket_panels_create(server_id: int = Form(...), name: str = Form(...),
+                               access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
+    user = await _require_user(access_token)
+    async with db_session() as s:
+        p = TicketPanel(server_id=int(server_id), name=name[:64], embed={}, buttons=[])
+        s.add(p)
+        s.add(AuditLog(actor_id=user.id, action="ticket_panel.create", target=name))
+    return RedirectResponse("/ticket-panels", status_code=303)
+
+
+@router.post("/ticket-panels/{panel_id}/delete")
+async def ticket_panels_delete(panel_id: str,
+                               access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
+    user = await _require_user(access_token)
+    async with db_session() as s:
+        p = await s.get(TicketPanel, uuid.UUID(panel_id))
+        if p is not None:
+            s.add(AuditLog(actor_id=user.id, action="ticket_panel.delete", target=p.name))
+            await s.delete(p)
+    return RedirectResponse("/ticket-panels", status_code=303)
+
+
+# ---------- Welcome / leave / boost (FEAT #4) ------------------------------
+
+@router.get("/welcome", response_class=HTMLResponse)
+async def welcome_view(request: Request, server_id: int | None = None,
+                       access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
+    user = await _require_user(access_token)
+    async with db_session() as s:
+        servers = (await s.scalars(select(Server).order_by(Server.name))).all()
+        cfg: ServerEventConfig | None = None
+        if server_id:
+            cfg = await s.get(ServerEventConfig, int(server_id))
+    return _render(
+        request, "welcome.html", user=user, servers=servers, cfg=cfg,
+        selected_server_id=server_id,
+    )
+
+
+@router.post("/welcome/save")
+async def welcome_save(
+    server_id: int = Form(...),
+    join_enabled: str = Form(default=""),
+    join_channel_id: str = Form(default=""),
+    join_title: str = Form(default=""),
+    join_description: str = Form(default=""),
+    join_color: str = Form(default="#60a5fa"),
+    leave_enabled: str = Form(default=""),
+    leave_channel_id: str = Form(default=""),
+    leave_title: str = Form(default=""),
+    leave_description: str = Form(default=""),
+    leave_color: str = Form(default="#f43f5e"),
+    boost_enabled: str = Form(default=""),
+    boost_channel_id: str = Form(default=""),
+    boost_title: str = Form(default=""),
+    boost_description: str = Form(default=""),
+    boost_color: str = Form(default="#a855f7"),
+    access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
+) -> Response:
+    user = await _require_user(access_token)
+
+    def _hex_to_int(h: str, fallback: int) -> int:
+        try:
+            return int(h.lstrip("#"), 16)
+        except ValueError:
+            return fallback
+
+    def _bool(v: str) -> bool:
+        return v.lower() in ("on", "true", "1", "yes")
+
+    def _ch(v: str) -> int | None:
+        return int(v) if v.strip().isdigit() else None
+
+    async with db_session() as s:
+        cfg = await s.get(ServerEventConfig, int(server_id))
+        if cfg is None:
+            cfg = ServerEventConfig(server_id=int(server_id),
+                                    join_embed={}, leave_embed={}, boost_embed={})
+            s.add(cfg)
+        cfg.join_enabled = _bool(join_enabled)
+        cfg.join_channel_id = _ch(join_channel_id)
+        cfg.join_embed = {
+            "title": join_title, "description": join_description,
+            "color": _hex_to_int(join_color, 0x60A5FA),
+        }
+        cfg.leave_enabled = _bool(leave_enabled)
+        cfg.leave_channel_id = _ch(leave_channel_id)
+        cfg.leave_embed = {
+            "title": leave_title, "description": leave_description,
+            "color": _hex_to_int(leave_color, 0xF43F5E),
+        }
+        cfg.boost_enabled = _bool(boost_enabled)
+        cfg.boost_channel_id = _ch(boost_channel_id)
+        cfg.boost_embed = {
+            "title": boost_title, "description": boost_description,
+            "color": _hex_to_int(boost_color, 0xA855F7),
+        }
+        s.add(AuditLog(actor_id=user.id, action="welcome.save", target=str(server_id)))
+    return RedirectResponse(f"/welcome?server_id={server_id}", status_code=303)
+
+
+# ---------- Info-embed editor (FEAT #7) -----------------------------------
+
+@router.post("/info-embed/save")
+async def info_embed_save(server_id: int = Form(...), name: str = Form("info"),
+                          title: str = Form(default=""), description: str = Form(default=""),
+                          color: str = Form(default="#60a5fa"),
+                          access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
+    user = await _require_user(access_token)
+    try:
+        color_int = int(color.lstrip("#"), 16)
+    except ValueError:
+        color_int = 0x60A5FA
+    async with db_session() as s:
+        existing = await s.scalar(
+            select(EmbedTemplate).where(
+                EmbedTemplate.server_id == int(server_id),
+                EmbedTemplate.key == name,
+            )
+        )
+        if existing is None:
+            s.add(EmbedTemplate(
+                server_id=int(server_id), key=name[:64],
+                title=title[:256], description=description, color=color_int,
+            ))
+        else:
+            existing.title = title[:256]
+            existing.description = description
+            existing.color = color_int
+        s.add(AuditLog(actor_id=user.id, action="info_embed.save", target=name))
+    return RedirectResponse(f"/embeds", status_code=303)
+
+
+# ---------- Bot lifecycle (FEAT #2) ---------------------------------------
+
+@router.post("/api/v1/bot/lifecycle/{action}")
+async def bot_lifecycle(action: str,
+                        access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> dict:
+    user = await _require_user(access_token)
+    if user.role != WebRole.ADMIN:
+        raise HTTPException(403)
+    from bot.runtime import (
+        request_bot_restart as _rr,
+        request_bot_start as _rs,
+        request_bot_stop as _rt,
+    )
+    if action == "start":
+        _rs()
+    elif action == "stop":
+        await _rt()
+    elif action == "restart":
+        await _rr()
+    else:
+        raise HTTPException(400, "unknown action")
+    async with db_session() as s:
+        s.add(AuditLog(actor_id=user.id, action=f"bot.{action}", target=""))
+    return {"ok": True, "action": action}
+
+

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Ticket Types · CogniX{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Ticket Types</h1>
+
+<form method="post" action="/ticket-types/create"
+      class="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-6 grid md:grid-cols-3 gap-3 text-sm">
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">Server</label>
+    <select name="server_id" required class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2">
+      {% for s in servers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">Name</label>
+    <input name="name" required maxlength="64" class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2" />
+  </div>
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">Emoji</label>
+    <input name="emoji" maxlength="16" class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2" />
+  </div>
+  <div class="md:col-span-2">
+    <label class="block text-xs uppercase text-slate-400 mb-1">Description</label>
+    <input name="description" maxlength="256" class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2" />
+  </div>
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">Category ID</label>
+    <input name="category_id" class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 font-mono text-xs" />
+  </div>
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">Ping Role ID</label>
+    <input name="ping_role_id" class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 font-mono text-xs" />
+  </div>
+  <div class="md:col-span-3">
+    <button class="bg-brand-600 hover:bg-brand-700 px-4 py-2 rounded-md">Create type</button>
+  </div>
+</form>
+
+<div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-800 text-slate-300 text-xs uppercase">
+      <tr>
+        <th class="px-3 py-2 text-left">Name</th>
+        <th class="px-3 py-2 text-left">Server</th>
+        <th class="px-3 py-2 text-left">Description</th>
+        <th class="px-3 py-2 text-left">Category</th>
+        <th class="px-3 py-2"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in types %}
+        <tr class="border-t border-slate-800">
+          <td class="px-3 py-2">{{ t.emoji }} {{ t.name }}</td>
+          <td class="px-3 py-2 text-slate-500 text-xs">{{ t.server_id }}</td>
+          <td class="px-3 py-2 text-slate-400">{{ t.description }}</td>
+          <td class="px-3 py-2 text-slate-500 text-xs font-mono">{{ t.category_id or '—' }}</td>
+          <td class="px-3 py-2 text-right">
+            <form method="post" action="/ticket-types/{{ t.id }}/delete" class="inline"
+                  onsubmit="return confirm('Delete ticket type?');">
+              <button class="text-xs px-2 py-1 rounded bg-rose-600 hover:bg-rose-500">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="px-3 py-6 text-center text-slate-500">No ticket types yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

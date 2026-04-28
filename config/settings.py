@@ -37,8 +37,9 @@ class Settings(BaseSettings):
     master_key: str = Field(default="", description="Base64 32-byte key for AES-GCM")
     jwt_secret: str = Field(default="", min_length=0)
     auth_pepper: str = ""
-    access_token_ttl_minutes: int = 15
+    access_token_ttl_minutes: int = 480
     refresh_token_ttl_days: int = 7
+    remember_me_ttl_days: int = 30
 
     # ---- Database ----
     database_url: str = "sqlite+aiosqlite:///./data/cognix.db"

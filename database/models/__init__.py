@@ -7,15 +7,18 @@ from database.models.cog_state import CogState
 from database.models.discord_event import DiscordEvent, DiscordEventType
 from database.models.discord_message_cache import DiscordMessageCache
 from database.models.embed_template import EmbedTemplate
+from database.models.giveaway import Giveaway, GiveawayStatus
 from database.models.moderation import ModerationAction, ModerationActionType, Warning_
 from database.models.music_playlist import MusicPlaylist
 from database.models.role_permission import RolePermission
 from database.models.server import Server
 from database.models.server_cog_state import ServerCogState
 from database.models.server_config import ServerConfig
+from database.models.server_event_config import ServerEventConfig
 from database.models.stats import AggregatedStat, StatEvent, StatEventType
 from database.models.system_config import SystemConfig
 from database.models.ticket import Ticket, TicketMessage, TicketStatus
+from database.models.ticket_panel import TicketPanel, TicketType
 from database.models.user import DiscordUser
 from database.models.web_user import (
     BackupCode,
@@ -43,6 +46,8 @@ __all__ = [
     "DiscordMessageCache",
     "DiscordUser",
     "EmbedTemplate",
+    "Giveaway",
+    "GiveawayStatus",
     "ModerationAction",
     "ModerationActionType",
     "MusicPlaylist",
@@ -52,12 +57,15 @@ __all__ = [
     "Server",
     "ServerCogState",
     "ServerConfig",
+    "ServerEventConfig",
     "StatEvent",
     "StatEventType",
     "SystemConfig",
     "Ticket",
     "TicketMessage",
+    "TicketPanel",
     "TicketStatus",
+    "TicketType",
     "Warning_",
     "WebRole",
     "WebUser",

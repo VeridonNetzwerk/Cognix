@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Welcome / Leave / Boost · CogniX{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Welcome / Leave / Boost messages</h1>
+
+<form method="get" action="/welcome" class="mb-4 flex gap-2 items-end">
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">Server</label>
+    <select name="server_id" onchange="this.form.submit()"
+            class="bg-slate-800 border border-slate-700 rounded-md px-3 py-2 min-w-[16rem]">
+      <option value="">— pick —</option>
+      {% for s in servers %}
+        <option value="{{ s.id }}" {% if selected_server_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</form>
+
+{% if selected_server_id %}
+<form method="post" action="/welcome/save" class="space-y-6">
+  <input type="hidden" name="server_id" value="{{ selected_server_id }}" />
+
+  {% set sections = [
+    ('join',  'Join (Welcome)', '#60a5fa'),
+    ('leave', 'Leave',          '#f43f5e'),
+    ('boost', 'Boost',          '#a855f7'),
+  ] %}
+  {% for key, label, default_color in sections %}
+    {% set enabled_attr = key ~ '_enabled' %}
+    {% set channel_attr = key ~ '_channel_id' %}
+    {% set embed_attr = key ~ '_embed' %}
+    {% set is_enabled = cfg and cfg[enabled_attr] %}
+    {% set channel_id = (cfg[channel_attr] if cfg else '') or '' %}
+    {% set embed = (cfg[embed_attr] if cfg else {}) or {} %}
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-semibold">{{ label }}</h2>
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="{{ key }}_enabled" value="on" {% if is_enabled %}checked{% endif %} />
+          Enabled
+        </label>
+      </div>
+      <div class="grid md:grid-cols-2 gap-3 text-sm">
+        <div>
+          <label class="block text-xs uppercase text-slate-400 mb-1">Channel ID</label>
+          <input name="{{ key }}_channel_id" value="{{ channel_id }}"
+                 class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 font-mono text-xs" />
+        </div>
+        <div>
+          <label class="block text-xs uppercase text-slate-400 mb-1">Color</label>
+          <input type="color" name="{{ key }}_color"
+                 value="{% if embed.color %}#{{ '%06x'|format(embed.color) }}{% else %}{{ default_color }}{% endif %}"
+                 class="w-20 h-10 bg-slate-800 border border-slate-700 rounded-md" />
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs uppercase text-slate-400 mb-1">Title</label>
+          <input name="{{ key }}_title" value="{{ embed.title or '' }}"
+                 class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2" />
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs uppercase text-slate-400 mb-1">Description</label>
+          <textarea name="{{ key }}_description" rows="3"
+                    class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2">{{ embed.description or '' }}</textarea>
+          <p class="text-xs text-slate-500 mt-1">
+            Variables: <code>{user}</code> <code>{user.mention}</code> <code>{user.name}</code>
+            <code>{user.id}</code> <code>{guild.name}</code> <code>{guild.member_count}</code>
+          </p>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+
+  <button class="bg-brand-600 hover:bg-brand-700 px-5 py-2 rounded-md">Save</button>
+</form>
+{% else %}
+<div class="text-slate-500 text-sm">Pick a server to configure its welcome / leave / boost embeds.</div>
+{% endif %}
+{% endblock %}

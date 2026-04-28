@@ -6,7 +6,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Cookie, HTTPException, Request, Response, status
 
-from config.constants import AUDIT_LOGIN, AUDIT_LOGIN_FAILED
+from config.constants import AUDIT_LOGIN, AUDIT_LOGIN_FAILED, AUDIT_LOGOUT
 from config.settings import get_settings
 from database.models.audit_log import AuditLog
 from web.deps import ACCESS_COOKIE, REFRESH_COOKIE, CurrentUser, SessionDep
@@ -22,16 +22,27 @@ from web.services.auth_service import (
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-def _set_cookies(response: Response, access: str, refresh: str, refresh_exp: datetime) -> None:
+def _set_cookies(
+    response: Response,
+    access: str,
+    refresh: str,
+    refresh_exp: datetime,
+    *,
+    remember_me: bool = False,
+) -> None:
     settings = get_settings()
     secure = settings.cookies_secure
+    if remember_me:
+        access_max_age = settings.remember_me_ttl_days * 24 * 3600
+    else:
+        access_max_age = settings.access_token_ttl_minutes * 60
     response.set_cookie(
         ACCESS_COOKIE,
         access,
         httponly=True,
         secure=secure,
         samesite="lax",
-        max_age=settings.access_token_ttl_minutes * 60,
+        max_age=access_max_age,
         path="/",
     )
     response.set_cookie(
@@ -71,7 +82,7 @@ async def login(req: LoginRequest, request: Request, response: Response, session
     session.add(
         AuditLog(actor_id=user.id, action=AUDIT_LOGIN, target=user.username, ip_address=ip, user_agent=ua)
     )
-    _set_cookies(response, access, refresh, exp)
+    _set_cookies(response, access, refresh, exp, remember_me=bool(getattr(req, "remember_me", False)))
     return {
         "user": UserOut(
             id=str(user.id),
@@ -106,6 +117,7 @@ async def refresh_endpoint(
 @router.post("/logout")
 async def logout(response: Response, session: SessionDep, user: CurrentUser) -> dict:
     await revoke_all_sessions(session, user.id)
+    session.add(AuditLog(actor_id=user.id, action=AUDIT_LOGOUT, target=user.username))
     _clear_cookies(response)
     return {"ok": True}
 

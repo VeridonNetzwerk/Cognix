@@ -87,8 +87,16 @@ class Moderation(commands.Cog):
         reason: str = "",
         delete_days: app_commands.Range[int, 0, 7] = 0,
     ) -> None:
+        # BUG #5 fix: always respond. Defer first to avoid timeout, then followup.
+        try:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+        except discord.InteractionResponded:
+            pass
         if interaction.guild is None:
-            await interaction.response.send_message("Guild only", ephemeral=True)
+            try:
+                await interaction.followup.send("Guild only", ephemeral=True)
+            except Exception:  # noqa: BLE001
+                pass
             return
         try:
             await interaction.guild.ban(user, reason=reason, delete_message_days=delete_days)
@@ -99,12 +107,15 @@ class Moderation(commands.Cog):
                 target_id=user.id,
                 reason=reason,
             )
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=ok_embed("User banned", f"{user.mention} – {reason or 'no reason'}"),
                 ephemeral=True,
             )
         except discord.HTTPException as exc:
-            await interaction.response.send_message(embed=err_embed("Ban failed", str(exc)), ephemeral=True)
+            try:
+                await interaction.followup.send(embed=err_embed("Ban failed", str(exc)), ephemeral=True)
+            except Exception:  # noqa: BLE001
+                pass
 
     @app_commands.command(name="unban", description="Unban a user")
     @app_commands.describe(user_id="User ID", reason="Reason")

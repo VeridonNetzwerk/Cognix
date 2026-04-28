@@ -586,7 +586,10 @@ class Backups(commands.Cog):
         if payload is None:
             return {"status": "error", "error": "no payload or backup_id"}
 
-        await self._restore_into(guild, payload)
+        # BUG #8 fix: web-triggered restores must also purge so the server
+        # ends up in the exact state of the backup (not merely additive).
+        purge = bool(p.get("purge", True))
+        await self._restore_into(guild, payload, purge=purge)
         return {"status": "ok"}
 
 

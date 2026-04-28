@@ -6,7 +6,14 @@ import time
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from bot.runtime import get_bot, get_bot_info
+from bot.runtime import (
+    get_bot,
+    get_bot_info,
+    is_bot_paused,
+    request_bot_restart,
+    request_bot_start,
+    request_bot_stop,
+)
 from web.deps import require_admin
 from web.schemas.common import BotStatus
 from web.services.bot_ipc import get_ipc
@@ -48,11 +55,27 @@ async def status_endpoint() -> BotStatus:
 
 @router.post("/restart")
 async def restart() -> dict:
+    # Prefer in-process control when the bot lives in this process.
+    if get_bot() is not None or is_bot_paused():
+        await request_bot_restart()
+        return {"ok": True, "mode": "in-process"}
     ipc = get_ipc()
     try:
         await ipc.call("restart", {"requested_at": time.time()}, timeout=3.0)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "bot offline") from exc
+    return {"ok": True, "mode": "ipc"}
+
+
+@router.post("/start")
+async def bot_start() -> dict:
+    request_bot_start()
+    return {"ok": True}
+
+
+@router.post("/stop")
+async def bot_stop() -> dict:
+    await request_bot_stop()
     return {"ok": True}
 
 

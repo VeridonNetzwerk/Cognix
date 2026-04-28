@@ -30,7 +30,7 @@ aiomysql>=0.2.0                 # MySQL / MariaDB
 # redis>=5.0.0
 
 # ---- Discord bot ----
-discord.py>=2.4.0
+discord.py[voice]>=2.4.0
 psutil>=6.0.0                   # memory/CPU stats in bot status
 
 # ---- Security & auth ----

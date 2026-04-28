@@ -28,6 +28,8 @@
       body { font-size: var(--font-size); }
       a.brand-accent, .brand-accent { color: var(--accent); }
       body.theme-light { background: #f8fafc !important; color: #0f172a !important; }
+      .cognix-watermark { position: fixed; right: 14px; bottom: 8px; font-size: 11px; opacity: 0.07; pointer-events: none; z-index: 0; user-select: none; letter-spacing: 0.05em; white-space: nowrap; }
+      body.theme-light .cognix-watermark { color: #000; }
     </style>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script>
@@ -74,9 +76,13 @@
             ('/embeds', 'Embeds'),
             ('/music', 'Music'),
             ('/tickets', 'Tickets'),
+            ('/ticket-types', 'Ticket Types'),
+            ('/ticket-panels', 'Ticket Panels'),
             ('/backups', 'Backups'),
-            ('/audit', 'Audit'),
-            ('/discord-log', 'Discord Log'),
+            ('/giveaways', 'Giveaways'),
+            ('/welcome', 'Welcome / Boost'),
+            ('/members', 'Members'),
+            ('/log', 'Log'),
             ('/users', 'Web Users'),
             ('/bot-profile', 'Bot Profile'),
           ] %}
@@ -112,10 +118,9 @@
         {% block content %}{% endblock %}
       </main>
     </div>
-    <footer class="border-t border-slate-800 text-center py-3 text-xs text-slate-500 bg-slate-900/50">
-      <div>Powered by Cognix</div>
-      <div>Made by 食べ物</div>
-    </footer>
+    <div aria-hidden="true" class="cognix-watermark">
+      Powered by Cognix · Made by 食べ物
+    </div>
     {% block scripts %}{% endblock %}
   </body>
 </html>

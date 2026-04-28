@@ -174,7 +174,111 @@ class Tickets(commands.Cog):
                 select(ServerConfig).where(ServerConfig.server_id == interaction.guild.id)
             )
             support_role_ids: list[int] = list(cfg.ticket_support_role_ids) if cfg else []
+            category_id: int | None = cfg.ticket_category_id if cfg else None
 
+        guild = interaction.guild
+
+        # Try to create a TextChannel inside the configured category. This
+        # allows explicit permission overwrites (BUG #1 fix: ticket opener
+        # gets explicit send/read/attach/embed permissions).
+        category: discord.CategoryChannel | None = None
+        if category_id:
+            ch = guild.get_channel(category_id)
+            if isinstance(ch, discord.CategoryChannel):
+                category = ch
+
+        if category is not None:
+            try:
+                overwrites: dict[discord.abc.Snowflake, discord.PermissionOverwrite] = {
+                    guild.default_role: discord.PermissionOverwrite(view_channel=False),
+                    interaction.user: discord.PermissionOverwrite(
+                        view_channel=True,
+                        read_messages=True,
+                        send_messages=True,
+                        attach_files=True,
+                        embed_links=True,
+                        read_message_history=True,
+                    ),
+                }
+                if guild.me is not None:
+                    overwrites[guild.me] = discord.PermissionOverwrite(
+                        view_channel=True,
+                        send_messages=True,
+                        manage_channels=True,
+                        manage_messages=True,
+                        read_message_history=True,
+                        embed_links=True,
+                        attach_files=True,
+                    )
+                for rid in support_role_ids:
+                    role = guild.get_role(rid)
+                    if role is not None:
+                        overwrites[role] = discord.PermissionOverwrite(
+                            view_channel=True,
+                            send_messages=True,
+                            attach_files=True,
+                            embed_links=True,
+                            read_message_history=True,
+                            manage_messages=True,
+                        )
+                channel = await guild.create_text_channel(
+                    name=f"ticket-{interaction.user.name}-{uuid.uuid4().hex[:6]}",
+                    category=category,
+                    overwrites=overwrites,
+                    reason=f"Ticket opened by {interaction.user}",
+                    topic=f"Ticket for {interaction.user} ({interaction.user.id})",
+                )
+            except discord.Forbidden:
+                await interaction.response.send_message(
+                    embed=err_embed(
+                        "Cannot open ticket",
+                        "I am missing permissions to create channels in the configured ticket category.",
+                    ),
+                    ephemeral=True,
+                )
+                return
+            except discord.HTTPException as exc:
+                await interaction.response.send_message(
+                    embed=err_embed("Cannot open ticket", str(exc)), ephemeral=True
+                )
+                return
+
+            try:
+                async with db_session() as s:
+                    t = Ticket(
+                        server_id=guild.id,
+                        opener_id=interaction.user.id,
+                        thread_id=channel.id,
+                        channel_id=channel.id,
+                        title=f"Ticket from {interaction.user.name}",
+                        last_activity_at=datetime.now(tz=timezone.utc),
+                    )
+                    s.add(t)
+                    await s.flush()
+                    ticket_id = str(t.id)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("ticket_persist_failed", error=str(exc))
+                ticket_id = "(not persisted)"
+
+            role_mentions = " ".join(f"<@&{rid}>" for rid in support_role_ids)
+            embed = info_embed(
+                "Ticket opened",
+                f"Hi {interaction.user.mention}, support has been notified.\n"
+                f"Use the buttons below to manage this ticket.\n\nID: `{ticket_id}`",
+            )
+            embed.set_footer(text=FOOTER_TEXT)
+            await channel.send(
+                content=role_mentions or None,
+                allowed_mentions=discord.AllowedMentions(roles=True),
+                embed=embed,
+                view=TicketControlView(),
+            )
+            await interaction.response.send_message(
+                f"Ticket opened: {channel.mention}", ephemeral=True
+            )
+            return
+
+        # Fallback: private thread (legacy behaviour)
         try:
             thread = await interaction.channel.create_thread(
                 name=f"ticket-{interaction.user.name}-{uuid.uuid4().hex[:6]}",

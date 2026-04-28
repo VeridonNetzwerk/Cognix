@@ -25,6 +25,8 @@ INITIAL_COGS = (
     "bot.cogs.backups",
     "bot.cogs.music",
     "bot.cogs.activity_log",
+    "bot.cogs.giveaway",
+    "bot.cogs.welcome",
 )
 
 
@@ -162,7 +164,7 @@ class CogniXBot(commands.Bot):
             "online": self.is_ready(),
             "latency_ms": round(self.latency * 1000, 2) if self.latency else None,
             "guild_count": len(self.guilds),
-            "user_count": sum(g.member_count or 0 for g in self.guilds),
+            "user_count": len({m.id for g in self.guilds for m in g.members}) or sum(g.member_count or 0 for g in self.guilds),
             "uptime_seconds": time.time() - (self.start_time or time.time()),
             "memory_mb": round(mem, 2),
             "version": "0.1.0",

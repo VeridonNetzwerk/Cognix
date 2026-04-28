@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Ticket Panels · CogniX{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Ticket Panels</h1>
+
+<form method="post" action="/ticket-panels/create"
+      class="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-6 grid md:grid-cols-2 gap-3 text-sm">
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">Server</label>
+    <select name="server_id" required class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2">
+      {% for s in servers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">Name</label>
+    <input name="name" required maxlength="64" class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2" />
+  </div>
+  <div class="md:col-span-2">
+    <button class="bg-brand-600 hover:bg-brand-700 px-4 py-2 rounded-md">Create panel</button>
+  </div>
+</form>
+
+<div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-800 text-slate-300 text-xs uppercase">
+      <tr>
+        <th class="px-3 py-2 text-left">Name</th>
+        <th class="px-3 py-2 text-left">Server</th>
+        <th class="px-3 py-2 text-left">Channel</th>
+        <th class="px-3 py-2 text-left">Buttons</th>
+        <th class="px-3 py-2"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in panels %}
+        <tr class="border-t border-slate-800">
+          <td class="px-3 py-2">{{ p.name }}</td>
+          <td class="px-3 py-2 text-slate-500 text-xs">{{ p.server_id }}</td>
+          <td class="px-3 py-2 text-slate-500 font-mono text-xs">{{ p.channel_id or '—' }}</td>
+          <td class="px-3 py-2 text-slate-400">{{ p.buttons|length }}</td>
+          <td class="px-3 py-2 text-right">
+            <form method="post" action="/ticket-panels/{{ p.id }}/delete" class="inline"
+                  onsubmit="return confirm('Delete panel?');">
+              <button class="text-xs px-2 py-1 rounded bg-rose-600 hover:bg-rose-500">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="px-3 py-6 text-center text-slate-500">No panels yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="mt-6 text-xs text-slate-500">
+  Available ticket types: {{ types|length }}. Create types on
+  <a class="text-brand-500 hover:underline" href="/ticket-types">/ticket-types</a> first.
+</p>
+{% endblock %}

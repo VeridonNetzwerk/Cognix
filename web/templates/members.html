@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Members · CogniX{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Members</h1>
+
+<form method="get" action="/members" class="mb-4 flex flex-wrap gap-2 items-end">
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">Server</label>
+    <select name="server_id" class="bg-slate-800 border border-slate-700 rounded-md px-3 py-2 min-w-[16rem]"
+            onchange="this.form.submit()">
+      <option value="">— pick a server —</option>
+      {% for s in servers %}
+        <option value="{{ s.id }}" {% if selected_server_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="flex-1 min-w-[12rem]">
+    <label class="block text-xs uppercase text-slate-400 mb-1">Search</label>
+    <input name="q" value="{{ query }}" placeholder="name or id"
+           class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2" />
+  </div>
+  <button class="bg-brand-600 hover:bg-brand-700 px-4 py-2 rounded-md">Filter</button>
+</form>
+
+{% if selected_server_id %}
+  <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-800 text-slate-300 text-xs uppercase">
+        <tr>
+          <th class="px-3 py-2 text-left">User</th>
+          <th class="px-3 py-2 text-left">ID</th>
+          <th class="px-3 py-2 text-left">Joined</th>
+          <th class="px-3 py-2 text-left">Roles</th>
+          <th class="px-3 py-2"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in members %}
+          <tr class="border-t border-slate-800">
+            <td class="px-3 py-2 flex items-center gap-2">
+              {% if m.avatar %}<img src="{{ m.avatar }}" class="w-6 h-6 rounded-full" />{% endif %}
+              <span>{{ m.display_name }}</span>
+              {% if m.bot %}<span class="text-xs px-1 bg-slate-700 rounded">BOT</span>{% endif %}
+            </td>
+            <td class="px-3 py-2 text-slate-500 font-mono text-xs">{{ m.id }}</td>
+            <td class="px-3 py-2 text-slate-500 text-xs">{{ m.joined_at[:10] }}</td>
+            <td class="px-3 py-2 text-xs">
+              {% for r in m.roles[:5] %}<span class="px-1 rounded bg-slate-800 mr-1">{{ r.name }}</span>{% endfor %}
+              {% if m.roles|length > 5 %}<span class="text-slate-500">+{{ m.roles|length - 5 }}</span>{% endif %}
+            </td>
+            <td class="px-3 py-2 text-right whitespace-nowrap">
+              <form method="post" action="/members/{{ selected_server_id }}/{{ m.id }}/kick" class="inline"
+                    onsubmit="return confirm('Kick {{ m.name }}?');">
+                <input name="reason" type="hidden" value="dashboard kick" />
+                <button class="text-xs px-2 py-1 rounded bg-amber-600 hover:bg-amber-500">Kick</button>
+              </form>
+              <form method="post" action="/members/{{ selected_server_id }}/{{ m.id }}/ban" class="inline"
+                    onsubmit="return confirm('Ban {{ m.name }}? This is hard to reverse.');">
+                <input name="reason" type="hidden" value="dashboard ban" />
+                <button class="text-xs px-2 py-1 rounded bg-rose-600 hover:bg-rose-500">Ban</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5" class="px-3 py-6 text-center text-slate-500">No members match.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div class="text-slate-500 text-sm">Pick a server above to load its members from the bot cache.</div>
+{% endif %}
+{% endblock %}

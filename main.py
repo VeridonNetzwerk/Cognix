@@ -73,6 +73,17 @@ async def _serve_bot(stop: asyncio.Event) -> None:
     while not stop.is_set():
         try:
             from bot.client import run_bot
+            from bot.runtime import is_bot_paused
+
+            if is_bot_paused():
+                # Wait for unpause or shutdown.
+                try:
+                    await asyncio.wait_for(stop.wait(), timeout=2)
+                except asyncio.TimeoutError:
+                    continue
+                if stop.is_set():
+                    break
+                continue
 
             await run_bot()
         except asyncio.CancelledError:
