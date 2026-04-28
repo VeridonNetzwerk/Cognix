@@ -1,0 +1,64 @@
+version: "3.9"
+
+services:
+  cognix:
+    build: .
+    image: cognix:latest
+    container_name: cognix
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://cognix:cognix@db:5432/cognix
+      REDIS_URL: redis://redis:6379/0
+      LAVALINK_URL: http://lavalink:2333
+    ports:
+      - "8080:8080"
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    volumes:
+      - cognix_data:/app/data
+
+  db:
+    image: postgres:16-alpine
+    container_name: cognix-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cognix
+      POSTGRES_PASSWORD: cognix
+      POSTGRES_DB: cognix
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cognix"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    volumes:
+      - cognix_pg:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: cognix-redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    volumes:
+      - cognix_redis:/data
+
+  lavalink:
+    image: ghcr.io/lavalink-devs/lavalink:4
+    container_name: cognix-lavalink
+    restart: unless-stopped
+    profiles: ["music"]
+    environment:
+      _JAVA_OPTIONS: "-Xmx512m"
+      LAVALINK_SERVER_PASSWORD: youshallnotpass
+    volumes:
+      - ./lavalink/application.yml:/opt/Lavalink/application.yml:ro
+
+volumes:
+  cognix_data:
+  cognix_pg:
+  cognix_redis:

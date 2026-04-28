@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Tickets · {{ bot_info.name }}{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Tickets</h1>
+
+<form method="get" action="/tickets" class="mb-6 flex flex-wrap items-end gap-3">
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">Status</label>
+    <select name="status_filter" class="bg-slate-800 border border-slate-700 rounded px-3 py-2">
+      <option value="" {% if not status_filter %}selected{% endif %}>All</option>
+      <option value="open" {% if status_filter == 'open' %}selected{% endif %}>Open</option>
+      <option value="closed" {% if status_filter == 'closed' %}selected{% endif %}>Closed</option>
+      <option value="archived" {% if status_filter == 'archived' %}selected{% endif %}>Archived</option>
+    </select>
+  </div>
+  <button class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded">Filter</button>
+</form>
+
+<div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden mb-8">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-800/60 text-xs uppercase text-slate-400">
+      <tr>
+        <th class="text-left px-4 py-2">Title</th>
+        <th class="text-left px-4 py-2">Server</th>
+        <th class="text-left px-4 py-2">Opener</th>
+        <th class="text-left px-4 py-2">Status</th>
+        <th class="text-left px-4 py-2">Created</th>
+        <th class="text-left px-4 py-2">Last activity</th>
+        <th class="px-4 py-2"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-800">
+      {% for t in tickets %}
+      <tr class="hover:bg-slate-800/40 cursor-pointer" onclick="if(!event.target.closest('form,button')){window.location='/tickets/{{ t.id }}'}">
+        <td class="px-4 py-2 font-medium">{{ t.title or '(untitled)' }}</td>
+        <td class="px-4 py-2 text-slate-400">{{ t.server_id }}</td>
+        <td class="px-4 py-2 text-slate-400">{{ t.opener_id }}</td>
+        <td class="px-4 py-2">
+          <span class="px-2 py-0.5 rounded text-xs
+            {% if t.status.value == 'open' %}bg-emerald-900/40 text-emerald-300
+            {% elif t.status.value == 'closed' %}bg-slate-800 text-slate-300
+            {% else %}bg-amber-900/30 text-amber-300{% endif %}">
+            {{ t.status.value }}
+          </span>
+        </td>
+        <td class="px-4 py-2 text-slate-400">{{ t.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td class="px-4 py-2 text-slate-400">{{ t.last_activity_at.strftime('%Y-%m-%d %H:%M') if t.last_activity_at else '—' }}</td>
+        <td class="px-4 py-2 text-right">
+          {% if t.status.value == 'open' %}
+          <form method="post" action="/tickets/{{ t.id }}/close" class="inline">
+            <button class="px-3 py-1 text-xs bg-rose-600 hover:bg-rose-500 rounded">Close</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="px-4 py-6 text-center text-slate-500">No tickets.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2 class="text-lg font-semibold mb-3">Ticket configuration</h2>
+<form method="post" action="/tickets/save" class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4 max-w-2xl">
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">Server</label>
+    <select name="server_id" required class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2">
+      {% for srv in servers %}
+        <option value="{{ srv.id }}">{{ srv.name }} ({{ srv.id }})</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">Ticket category ID</label>
+    <input name="ticket_category_id" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+  </div>
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">Support role IDs (comma-separated)</label>
+    <input name="ticket_support_role_ids" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+  </div>
+  <p class="text-sm text-slate-400">The ticket panel embed itself is configured under <a href="/embeds" class="text-brand-500">Embeds</a> with key <code>ticket_panel</code>.</p>
+  <button class="bg-brand-600 hover:bg-brand-700 rounded-md px-4 py-2">Save</button>
+</form>
+{% endblock %}

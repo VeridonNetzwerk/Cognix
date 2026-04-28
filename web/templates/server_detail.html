@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}{{ server.name or server.id }} · {{ bot_info.name }}{% endblock %}
+{% block content %}
+<a href="/servers" class="text-sm text-slate-400 hover:text-slate-200">&larr; Back to servers</a>
+<h1 class="text-2xl font-semibold mt-2 mb-6">{{ server.name or server.id }}</h1>
+
+<div class="bg-slate-900 border border-slate-800 rounded-xl p-5 max-w-2xl mb-6">
+  <dl class="grid grid-cols-2 gap-3 text-sm">
+    <dt class="text-slate-400">ID</dt><dd>{{ server.id }}</dd>
+    <dt class="text-slate-400">Members</dt><dd>{{ server.member_count or 0 }}</dd>
+    <dt class="text-slate-400">Locale</dt><dd>{{ config.locale if config and config.locale is defined else '—' }}</dd>
+    <dt class="text-slate-400">Mod log channel</dt><dd>{{ config.mod_log_channel_id if config and config.mod_log_channel_id is defined else '—' }}</dd>
+    <dt class="text-slate-400">Mute role</dt><dd>{{ config.mute_role_id if config and config.mute_role_id is defined else '—' }}</dd>
+    <dt class="text-slate-400">Welcome channel</dt><dd>{{ config.welcome_channel_id if config and config.welcome_channel_id is defined else '—' }}</dd>
+  </dl>
+</div>
+
+<h2 class="text-lg font-semibold mb-3">Role permissions</h2>
+<p class="text-sm text-slate-400 mb-4">Map a Discord role to a slash-command and decide whether it is allowed or denied. Empty = use default Discord permissions.</p>
+
+<form method="post" action="/servers/{{ server.id }}/permissions"
+      class="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">Discord role ID</label>
+    <input name="role_id" required pattern="[0-9]+"
+           class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+  </div>
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">Command</label>
+    <input name="command" required placeholder="ban, kick, music-panel, …"
+           class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+  </div>
+  <div class="flex items-end">
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" name="allowed" checked />
+      Allowed
+    </label>
+  </div>
+  <div class="flex items-end">
+    <button class="px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded">Save</button>
+  </div>
+</form>
+
+<div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-800/60 text-xs uppercase text-slate-400">
+      <tr>
+        <th class="text-left px-4 py-2">Role ID</th>
+        <th class="text-left px-4 py-2">Command</th>
+        <th class="text-left px-4 py-2">Allowed</th>
+        <th class="px-4 py-2"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-800">
+      {% for p in permissions %}
+      <tr>
+        <td class="px-4 py-2 font-mono">{{ p.discord_role_id }}</td>
+        <td class="px-4 py-2">{{ p.command }}</td>
+        <td class="px-4 py-2">
+          <span class="px-2 py-0.5 rounded text-xs {% if p.allowed %}bg-emerald-900/40 text-emerald-300{% else %}bg-rose-900/40 text-rose-300{% endif %}">
+            {{ 'Allowed' if p.allowed else 'Denied' }}
+          </span>
+        </td>
+        <td class="px-4 py-2 text-right">
+          <form method="post" action="/servers/{{ server.id }}/permissions/{{ p.id }}/delete" class="inline">
+            <button class="px-3 py-1 text-xs bg-rose-600 hover:bg-rose-500 rounded">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="px-4 py-6 text-center text-slate-500">No custom permissions configured.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

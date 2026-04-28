@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Web Users · {{ bot_info.name }}{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-semibold">Web Users</h1>
+  <button onclick="document.getElementById('createUser').showModal()"
+          class="px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded">+ New User</button>
+</div>
+
+<div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-800/60 text-xs uppercase text-slate-400">
+      <tr>
+        <th class="text-left px-4 py-2">Username</th>
+        <th class="text-left px-4 py-2">Email</th>
+        <th class="text-left px-4 py-2">Role</th>
+        <th class="text-left px-4 py-2">Status</th>
+        <th class="text-left px-4 py-2">Last login</th>
+        <th class="px-4 py-2"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-800">
+      {% for u in users %}
+      <tr>
+        <td class="px-4 py-2 font-medium">{{ u.username }}</td>
+        <td class="px-4 py-2 text-slate-400">{{ u.email or '—' }}</td>
+        <td class="px-4 py-2">{{ u.role.value }}</td>
+        <td class="px-4 py-2">
+          <span class="px-2 py-0.5 rounded text-xs {% if u.is_active %}bg-emerald-900/40 text-emerald-300{% else %}bg-slate-800 text-slate-400{% endif %}">
+            {{ 'Active' if u.is_active else 'Disabled' }}
+          </span>
+        </td>
+        <td class="px-4 py-2 text-slate-400">{{ u.last_login_at.strftime('%Y-%m-%d %H:%M') if u.last_login_at else 'never' }}</td>
+        <td class="px-4 py-2 text-right">
+          {% if u.username != 'admin' %}
+          <button onclick="document.getElementById('edit-{{ u.id }}').showModal()"
+                  class="px-3 py-1 text-xs bg-slate-800 hover:bg-slate-700 rounded">Edit</button>
+          {% else %}
+          <span class="px-2 py-0.5 rounded text-xs bg-amber-900/40 text-amber-300" title="Admin account is locked">
+            locked
+          </span>
+          {% endif %}
+          {% if u.id != user.id and u.username != 'admin' %}
+          <form method="post" action="/users/{{ u.id }}/delete" class="inline"
+                onsubmit="return confirm('Delete user {{ u.username }}?');">
+            <button class="px-3 py-1 text-xs bg-rose-600 hover:bg-rose-500 rounded">Delete</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<dialog id="createUser" class="bg-slate-900 text-slate-100 border border-slate-700 rounded-xl p-6 w-full max-w-md backdrop:bg-black/60">
+  <form method="post" action="/users/create" class="space-y-3">
+    <h2 class="text-lg font-semibold mb-3">Create user</h2>
+    <input name="username" placeholder="Username" required
+           class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+    <input name="email" type="email" placeholder="Email (optional)"
+           class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+    <input name="password" type="password" placeholder="Password" required minlength="8"
+           class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+    <select name="role" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2">
+      {% for r in roles %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+    </select>
+    <div class="flex justify-end gap-2 pt-2">
+      <button type="button" onclick="this.closest('dialog').close()"
+              class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded">Cancel</button>
+      <button class="px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded">Create</button>
+    </div>
+  </form>
+</dialog>
+
+{% for u in users %}
+<dialog id="edit-{{ u.id }}" class="bg-slate-900 text-slate-100 border border-slate-700 rounded-xl p-6 w-full max-w-md backdrop:bg-black/60">
+  <form method="post" action="/users/{{ u.id }}/edit" class="space-y-3">
+    <h2 class="text-lg font-semibold mb-3">Edit {{ u.username }}</h2>
+    <input name="email" type="email" value="{{ u.email or '' }}" placeholder="Email"
+           class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+    <input name="password" type="password" placeholder="New password (leave blank to keep)"
+           class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+    <select name="role" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2">
+      {% for r in roles %}<option value="{{ r }}" {% if u.role.value == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+    </select>
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" name="is_active" {% if u.is_active %}checked{% endif %} />
+      Active
+    </label>
+    <div class="flex justify-end gap-2 pt-2">
+      <button type="button" onclick="this.closest('dialog').close()"
+              class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded">Cancel</button>
+      <button class="px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded">Save</button>
+    </div>
+  </form>
+</dialog>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Discord Log · {{ bot_info.name }}{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-1">Discord activity log</h1>
+<p class="text-sm text-slate-400 mb-6">Per-server stream of Discord-side events: messages, member changes, voice, slash commands.</p>
+
+<form method="get" action="/discord-log" class="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-6 grid grid-cols-1 md:grid-cols-6 gap-3">
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">Server</label>
+    <select name="server_id" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2">
+      <option value="">All</option>
+      {% for sv in servers %}
+      <option value="{{ sv.id }}" {% if filters.server_id == (sv.id|string) %}selected{% endif %}>{{ sv.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">Event type</label>
+    <select name="event_type" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2">
+      <option value="">All</option>
+      {% for t in event_types %}
+      <option value="{{ t }}" {% if filters.event_type == t %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">User ID</label>
+    <input name="user_id" value="{{ filters.user_id }}" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+  </div>
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">From</label>
+    <input type="datetime-local" name="date_from" value="{{ filters.date_from }}" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+  </div>
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">To</label>
+    <input type="datetime-local" name="date_to" value="{{ filters.date_to }}" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+  </div>
+  <div class="flex items-end gap-2">
+    <button class="px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded">Apply</button>
+    <a href="/discord-log" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded">Reset</a>
+  </div>
+</form>
+
+{% set type_color = {
+  'message_sent': 'bg-slate-700',
+  'message_edited': 'bg-amber-700',
+  'message_deleted': 'bg-rose-700',
+  'member_join': 'bg-emerald-700',
+  'member_leave': 'bg-slate-600',
+  'member_ban': 'bg-rose-800',
+  'member_unban': 'bg-emerald-800',
+  'member_role_added': 'bg-sky-700',
+  'member_role_removed': 'bg-sky-800',
+  'channel_created': 'bg-violet-700',
+  'channel_deleted': 'bg-violet-800',
+  'voice_join': 'bg-teal-700',
+  'voice_leave': 'bg-teal-800',
+  'voice_move': 'bg-teal-600',
+  'slash_command': 'bg-indigo-700',
+  'ticket_opened': 'bg-fuchsia-700',
+  'ticket_closed': 'bg-fuchsia-800',
+} %}
+
+<div class="bg-slate-900 border border-slate-800 rounded-xl divide-y divide-slate-800">
+  {% for ev in events %}
+  <div class="p-3 text-sm flex items-start justify-between gap-3">
+    <div class="min-w-0 flex-1">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded {{ type_color.get(ev.event_type.value, 'bg-slate-700') }}">
+          {{ ev.event_type.value }}
+        </span>
+        <span class="font-medium truncate">{{ ev.summary or '—' }}</span>
+      </div>
+      <div class="text-xs text-slate-400 truncate">
+        srv={{ ev.server_id or '—' }} · ch={{ ev.channel_id or '—' }} · usr={{ ev.user_id or '—' }}
+        {% if ev.target_id %} · tgt={{ ev.target_id }}{% endif %}
+      </div>
+      {% if ev.content %}<pre class="text-xs text-slate-500 mt-1 whitespace-pre-wrap break-words">{{ ev.content[:400] }}{% if ev.content|length > 400 %}…{% endif %}</pre>{% endif %}
+    </div>
+    <div class="text-xs text-slate-500 whitespace-nowrap">{{ ev.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+  </div>
+  {% else %}
+  <div class="p-6 text-slate-400">No events yet.</div>
+  {% endfor %}
+</div>
+{% endblock %}

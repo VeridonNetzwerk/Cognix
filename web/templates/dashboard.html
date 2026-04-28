@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · CogniX{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Dashboard</h1>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+  {% set stats = [
+    ('Servers', metrics.servers, 'text-emerald-400'),
+    ('Total Users', metrics.users, 'text-brand-500'),
+    ('Cogs Loaded', metrics.cogs_loaded, 'text-amber-400'),
+    ('Open Tickets', metrics.open_tickets, 'text-rose-400'),
+  ] %}
+  {% for label, value, color in stats %}
+  <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+    <div class="text-xs uppercase text-slate-400">{{ label }}</div>
+    <div class="text-3xl font-semibold mt-1 {{ color }}">{{ value }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+  <section class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+    <h2 class="font-semibold mb-3">Bot status</h2>
+    <ul class="text-sm space-y-1.5">
+      <li class="flex justify-between"><span class="text-slate-400">Online</span><span class="{% if metrics.bot_online %}text-emerald-400{% else %}text-rose-400{% endif %}">{{ 'Yes' if metrics.bot_online else 'No' }}</span></li>
+      <li class="flex justify-between"><span class="text-slate-400">Uptime</span><span>{{ metrics.uptime }}</span></li>
+      <li class="flex justify-between"><span class="text-slate-400">Latency</span><span>{{ metrics.latency_ms }} ms</span></li>
+      <li class="flex justify-between"><span class="text-slate-400">Version</span><span>{{ metrics.version }}</span></li>
+    </ul>
+  </section>
+  <section class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+    <h2 class="font-semibold mb-3">Recent audit events</h2>
+    <ul class="text-sm space-y-1.5 max-h-56 overflow-y-auto scroll-thin">
+      {% for ev in recent_audit %}
+      <li class="flex justify-between gap-3"><span class="text-slate-300 truncate">{{ ev.action }}</span><span class="text-slate-500 text-xs whitespace-nowrap">{{ ev.created_at.strftime('%Y-%m-%d %H:%M') }}</span></li>
+      {% else %}
+      <li class="text-slate-500">No events yet.</li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+{% endblock %}

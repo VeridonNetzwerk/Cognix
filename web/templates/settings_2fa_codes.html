@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Backup codes · {{ bot_info.name }}{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-2">2FA Enabled</h1>
+<p class="text-sm text-slate-400 mb-6">Save these single-use backup codes somewhere safe. They will not be shown again.</p>
+<div class="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-xl grid grid-cols-2 gap-2 font-mono">
+  {% for c in codes %}
+    <div class="bg-slate-800 px-3 py-2 rounded text-center tracking-widest">{{ c }}</div>
+  {% endfor %}
+</div>
+<a href="/settings" class="inline-block mt-6 px-4 py-2 bg-brand-600 hover:bg-brand-500 rounded text-sm">Back to settings</a>
+{% endblock %}

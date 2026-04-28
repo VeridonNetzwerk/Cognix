@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Setup · CogniX{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto">
+  <h1 class="text-2xl font-semibold mb-2">First-run setup</h1>
+  <p class="text-slate-400 mb-6">Configure the bot token and create the initial admin user.</p>
+  <form method="post" action="/setup" class="space-y-4 bg-slate-900 border border-slate-800 rounded-xl p-6">
+    <div>
+      <label class="block text-xs uppercase text-slate-400 mb-1">Discord Bot Token</label>
+      <input name="bot_token" required class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2" />
+    </div>
+    <div>
+      <label class="block text-xs uppercase text-slate-400 mb-1">Application ID</label>
+      <input name="application_id" class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2" />
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-xs uppercase text-slate-400 mb-1">Admin Username</label>
+        <input name="admin_username" required class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2" />
+      </div>
+      <div>
+        <label class="block text-xs uppercase text-slate-400 mb-1">Admin Email</label>
+        <input name="admin_email" type="email" required class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2" />
+      </div>
+    </div>
+    <div>
+      <label class="block text-xs uppercase text-slate-400 mb-1">Admin Password</label>
+      <input name="admin_password" type="password" required minlength="12"
+             class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2" />
+    </div>
+    {% if error %}<div class="text-rose-300 text-sm">{{ error }}</div>{% endif %}
+    <button class="bg-brand-600 hover:bg-brand-700 rounded-md px-4 py-2 font-medium">Initialize</button>
+  </form>
+</div>
+{% endblock %}

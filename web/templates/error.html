@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Error · CogniX{% endblock %}
+{% block content %}
+<div class="max-w-xl mx-auto text-center py-20">
+  <div class="text-6xl font-bold text-rose-400">{{ status }}</div>
+  <h1 class="text-xl font-semibold mt-4">{{ title }}</h1>
+  <p class="text-slate-400 mt-2">{{ detail }}</p>
+  <a href="/" class="inline-block mt-6 bg-brand-600 hover:bg-brand-700 rounded-md px-4 py-2">Back to dashboard</a>
+</div>
+{% endblock %}

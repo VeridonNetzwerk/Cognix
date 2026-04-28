@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Servers · CogniX{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Servers</h1>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+  {% for s in servers %}
+  <a href="/servers/{{ s.id }}" class="bg-slate-900 border border-slate-800 rounded-xl p-5 hover:border-brand-600 transition">
+    <div class="font-medium truncate">{{ s.name or s.id }}</div>
+    <div class="text-xs text-slate-400 mt-1">ID {{ s.id }}</div>
+    <div class="text-xs text-slate-400 mt-1">{{ s.member_count or 0 }} members</div>
+  </a>
+  {% else %}
+    <div class="text-slate-400">Bot is not in any servers yet.</div>
+  {% endfor %}
+</div>
+{% endblock %}

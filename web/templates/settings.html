@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Settings · {{ bot_info.name }}{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Settings</h1>
+
+<section class="mb-8 bg-slate-900 border border-slate-800 rounded-xl p-6">
+  <h2 class="text-lg font-medium mb-4">Appearance</h2>
+  <form method="post" action="/settings/appearance" class="grid sm:grid-cols-3 gap-4">
+    <label class="block">
+      <span class="text-xs text-slate-400">Theme</span>
+      <select name="theme" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded px-3 py-2">
+        {% for t in ["dark","light","custom"] %}
+        <option value="{{ t }}" {% if settings.theme == t %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="block">
+      <span class="text-xs text-slate-400">Accent color</span>
+      <input type="color" name="accent_color" value="{{ settings.accent_color }}"
+             class="w-full mt-1 h-10 bg-slate-800 border border-slate-700 rounded">
+    </label>
+    <label class="block">
+      <span class="text-xs text-slate-400">Font size</span>
+      <select name="font_size" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded px-3 py-2">
+        {% for f in ["small","medium","large"] %}
+        <option value="{{ f }}" {% if settings.font_size == f %}selected{% endif %}>{{ f }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="sm:col-span-3">
+      <button class="px-4 py-2 bg-brand-600 hover:bg-brand-500 rounded text-sm">Save appearance</button>
+    </div>
+  </form>
+</section>
+
+<section class="mb-8 bg-slate-900 border border-slate-800 rounded-xl p-6">
+  <h2 class="text-lg font-medium mb-4">Two-Factor Authentication</h2>
+  {% if user.totp_enabled %}
+    <p class="text-sm text-emerald-300 mb-3">2FA is enabled for your account.</p>
+    <form method="post" action="/settings/2fa/disable" class="flex flex-wrap gap-2 items-end">
+      <label class="block">
+        <span class="text-xs text-slate-400">Password</span>
+        <input type="password" name="password" required
+               class="block bg-slate-800 border border-slate-700 rounded px-3 py-2">
+      </label>
+      <label class="block">
+        <span class="text-xs text-slate-400">Current OTP</span>
+        <input type="text" name="code" required minlength="6" maxlength="10"
+               class="block bg-slate-800 border border-slate-700 rounded px-3 py-2">
+      </label>
+      <button class="px-4 py-2 bg-rose-600 hover:bg-rose-500 rounded text-sm">Disable 2FA</button>
+    </form>
+  {% else %}
+    <p class="text-sm text-slate-400 mb-3">Add a TOTP authenticator (Google Authenticator, Authy, 1Password, ...) for an extra login factor.</p>
+    <form method="post" action="/settings/2fa/enable">
+      <button class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded text-sm">Enable 2FA</button>
+    </form>
+  {% endif %}
+</section>
+
+{% if user.role.value == "ADMIN" or user.username == "admin" %}
+<section class="mb-8 bg-slate-900 border border-slate-800 rounded-xl p-6">
+  <h2 class="text-lg font-medium mb-4">User permissions</h2>
+  <p class="text-xs text-slate-400 mb-3">Per-module access for each web user. Admin account is locked.</p>
+  <div class="space-y-6">
+    {% for u in all_users %}
+    <div class="border-b border-slate-800 pb-4">
+      <div class="flex items-center justify-between mb-2">
+        <div class="font-medium">{{ u.username }} <span class="text-xs text-slate-500">({{ u.role.value }})</span></div>
+        {% if u.username == 'admin' %}<span class="text-xs text-amber-400">locked</span>{% endif %}
+      </div>
+      {% if u.username != 'admin' %}
+      <form method="post" action="/settings/permissions/{{ u.id }}" class="overflow-x-auto">
+        <table class="text-xs">
+          <thead class="text-slate-500"><tr><th class="pr-3 text-left">Module</th>{% for lvl in levels %}<th class="px-2">{{ lvl }}</th>{% endfor %}</tr></thead>
+          <tbody>
+            {% for mod in modules %}
+            {% set cur = user_perms[u.id|string][mod] %}
+            <tr>
+              <td class="pr-3 py-1">{{ mod }}</td>
+              {% for lvl in levels %}
+              <td class="px-2 text-center">
+                <input type="radio" name="perm_{{ mod }}" value="{{ lvl }}" {% if cur == lvl %}checked{% endif %}>
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <button class="mt-3 px-3 py-1.5 text-xs bg-brand-600 hover:bg-brand-500 rounded">Save permissions for {{ u.username }}</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

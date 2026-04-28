@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Backups · {{ bot_info.name }}{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-semibold">Backups</h1>
+  <button onclick="document.getElementById('createBackup').showModal()"
+          class="px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded">+ New backup</button>
+</div>
+
+<div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-800/60 text-xs uppercase text-slate-400">
+      <tr>
+        <th class="text-left px-4 py-2">Name</th>
+        <th class="text-left px-4 py-2">Server</th>
+        <th class="text-left px-4 py-2">Size</th>
+        <th class="text-left px-4 py-2">Roles / Channels</th>
+        <th class="text-left px-4 py-2">Created</th>
+        <th class="px-4 py-2"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-800">
+      {% for b in backups %}
+      <tr>
+        <td class="px-4 py-2 font-medium">
+          {{ b.name }}
+          <div class="text-[10px] text-slate-500 font-mono">{{ b.id }}</div>
+        </td>
+        <td class="px-4 py-2 text-slate-400">{{ b.server_id }}</td>
+        <td class="px-4 py-2 text-slate-400">{{ '%.1f' % (b.payload_size_bytes / 1024) }} KB</td>
+        <td class="px-4 py-2 text-slate-400">
+          {{ b.summary.get('roles', 0) }} / {{ b.summary.get('channels', 0) }}
+        </td>
+        <td class="px-4 py-2 text-slate-400">{{ b.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td class="px-4 py-2 text-right space-x-1">
+          <button onclick="document.getElementById('load-{{ b.id }}').showModal()"
+                  class="px-3 py-1 text-xs bg-emerald-700 hover:bg-emerald-600 rounded">Load</button>
+          <form method="post" action="/backups/{{ b.id }}/delete" class="inline"
+                onsubmit="return confirm('Delete backup {{ b.name }}?');">
+            <button class="px-3 py-1 text-xs bg-rose-600 hover:bg-rose-500 rounded">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="px-4 py-6 text-center text-slate-500">No backups yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<dialog id="createBackup" class="bg-slate-900 text-slate-100 border border-slate-700 rounded-xl p-6 w-full max-w-md backdrop:bg-black/60">
+  <form method="post" action="/backups/create" class="space-y-3">
+    <h2 class="text-lg font-semibold mb-3">Create backup</h2>
+    <select name="server_id" required class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2">
+      {% for s in servers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+    </select>
+    <input name="name" placeholder="Backup name (optional)"
+           class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+    <input name="message_limit" type="number" min="0" value="0" placeholder="Message limit (reserved)"
+           class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+    <div class="flex justify-end gap-2 pt-2">
+      <button type="button" onclick="this.closest('dialog').close()"
+              class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded">Cancel</button>
+      <button class="px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded">Create</button>
+    </div>
+  </form>
+</dialog>
+
+{% for b in backups %}
+<dialog id="load-{{ b.id }}" class="bg-slate-900 text-slate-100 border border-slate-700 rounded-xl p-6 w-full max-w-md backdrop:bg-black/60">
+  <form method="post" action="/backups/{{ b.id }}/load" class="space-y-3">
+    <h2 class="text-lg font-semibold mb-3">Load &laquo;{{ b.name }}&raquo;</h2>
+    <p class="text-sm text-slate-400">Existing roles / channels with the same name are kept untouched. Missing ones are recreated.</p>
+    <label class="block text-xs uppercase text-slate-400 mb-1">Target server</label>
+    <select name="target_server_id" required class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2">
+      {% for s in servers %}<option value="{{ s.id }}" {% if s.id == b.server_id %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+    </select>
+    <div class="flex justify-end gap-2 pt-2">
+      <button type="button" onclick="this.closest('dialog').close()"
+              class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded">Cancel</button>
+      <button class="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 rounded">Restore</button>
+    </div>
+  </form>
+</dialog>
+{% endfor %}
+{% endblock %}
