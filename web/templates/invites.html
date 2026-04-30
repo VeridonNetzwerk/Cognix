@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Invites · CogniX{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Invite Tracker</h1>
+
+<form method="get" action="/invites" class="mb-6 flex gap-2 items-center">
+  <label class="text-sm text-slate-400">Server</label>
+  <select name="server_id" onchange="this.form.submit()"
+          class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm">
+    <option value="">All servers</option>
+    {% for s in servers %}
+      <option value="{{ s.id }}" {% if selected_server_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+    {% endfor %}
+  </select>
+</form>
+
+<div class="grid lg:grid-cols-2 gap-6">
+  <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+    <div class="px-4 py-3 border-b border-slate-800 text-sm uppercase text-slate-400">
+      Leaderboard
+    </div>
+    <table class="w-full text-sm">
+      <thead class="bg-slate-800/50 text-slate-400 text-xs uppercase">
+        <tr>
+          <th class="px-3 py-2 text-left">#</th>
+          <th class="px-3 py-2 text-left">Inviter</th>
+          <th class="px-3 py-2 text-right">Active</th>
+          <th class="px-3 py-2 text-right">Total</th>
+          <th class="px-3 py-2 text-right">Left</th>
+          <th class="px-3 py-2 text-right">Fake</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in stats %}
+        <tr class="border-t border-slate-800">
+          <td class="px-3 py-2 text-slate-500">{{ loop.index }}</td>
+          <td class="px-3 py-2">{{ user_names.get(r.inviter_id, r.inviter_id) }}</td>
+          <td class="px-3 py-2 text-right text-emerald-400">{{ r.active_uses }}</td>
+          <td class="px-3 py-2 text-right">{{ r.total_uses }}</td>
+          <td class="px-3 py-2 text-right text-slate-400">{{ r.left_uses }}</td>
+          <td class="px-3 py-2 text-right text-rose-400">{{ r.fake_uses }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="px-3 py-6 text-center text-slate-500">No invite data yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+    <div class="px-4 py-3 border-b border-slate-800 text-sm uppercase text-slate-400">
+      Recent joins
+    </div>
+    <table class="w-full text-sm">
+      <thead class="bg-slate-800/50 text-slate-400 text-xs uppercase">
+        <tr>
+          <th class="px-3 py-2 text-left">When</th>
+          <th class="px-3 py-2 text-left">Joined</th>
+          <th class="px-3 py-2 text-left">Invited by</th>
+          <th class="px-3 py-2 text-left">Code</th>
+          <th class="px-3 py-2 text-left">Left</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in recent %}
+        <tr class="border-t border-slate-800">
+          <td class="px-3 py-2 text-xs text-slate-500">{{ r.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td class="px-3 py-2">{{ user_names.get(r.invitee_id, r.invitee_id) }}</td>
+          <td class="px-3 py-2 text-slate-400">
+            {% if r.inviter_id %}{{ user_names.get(r.inviter_id, r.inviter_id) }}{% else %}—{% endif %}
+          </td>
+          <td class="px-3 py-2"><code class="text-brand-500">{{ r.code or '—' }}</code></td>
+          <td class="px-3 py-2 text-xs text-slate-500">
+            {% if r.left_at %}{{ r.left_at.strftime('%Y-%m-%d') }}{% else %}—{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="px-3 py-6 text-center text-slate-500">No joins recorded.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -8,6 +8,8 @@ from database.models.discord_event import DiscordEvent, DiscordEventType
 from database.models.discord_message_cache import DiscordMessageCache
 from database.models.embed_template import EmbedTemplate
 from database.models.giveaway import Giveaway, GiveawayStatus
+from database.models.invite_stats import InviteStats
+from database.models.invite_uses import InviteUse
 from database.models.moderation import ModerationAction, ModerationActionType, Warning_
 from database.models.music_playlist import MusicPlaylist
 from database.models.role_permission import RolePermission
@@ -48,6 +50,8 @@ __all__ = [
     "EmbedTemplate",
     "Giveaway",
     "GiveawayStatus",
+    "InviteStats",
+    "InviteUse",
     "ModerationAction",
     "ModerationActionType",
     "MusicPlaylist",

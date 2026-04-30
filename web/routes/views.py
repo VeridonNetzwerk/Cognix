@@ -8,6 +8,7 @@ endpoint, but we also accept HTML form posts here for ergonomics.
 
 from __future__ import annotations
 
+import json
 import uuid
 from pathlib import Path
 from typing import Any
@@ -109,7 +110,8 @@ async def login_submit(request: Request,
         async with db_session() as s:
             user = await authenticate(s, LoginRequest(username=username, password=password,
                                                      otp=totp or None, remember_me=remember))
-            access, refresh, exp = await issue_session(s, user, user_agent=ua, ip=ip)
+            access, refresh, exp = await issue_session(s, user, user_agent=ua, ip=ip,
+                                                       remember_me=remember)
             s.add(AuditLog(actor_id=user.id, action="auth.login", target=user.username,
                            ip_address=ip, user_agent=ua))
     except AuthError as exc:
@@ -197,6 +199,8 @@ async def index(request: Request,
         recent = (await s.scalars(
             select(AuditLog).order_by(desc(AuditLog.created_at)).limit(8)
         )).all()
+        from web.security.permissions import has_permission as _hp
+        can_servers_write = await _hp(s, user, "servers", level="write")
 
     # BUG #2 fix: dedup users across guilds via member set
     bot = get_bot()
@@ -228,7 +232,8 @@ async def index(request: Request,
         "user_count": users_count,
         "version": info["version"],
     }
-    return _render(request, "dashboard.html", user=user, metrics=metrics, recent_audit=recent)
+    return _render(request, "dashboard.html", user=user, metrics=metrics, recent_audit=recent,
+                   can_servers_write=can_servers_write)
 
 
 # ------------------------------------------------------------- servers
@@ -412,7 +417,12 @@ async def embeds_view(request: Request,
 async def music_view(request: Request,
                      access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
-    return _render(request, "music.html", user=user)
+    async with db_session() as s:
+        servers = (await s.scalars(select(Server).order_by(Server.name))).all()
+    servers_json = json.dumps(
+        [{"id": str(srv.id), "name": srv.name} for srv in servers]
+    )
+    return _render(request, "music.html", user=user, servers_json=servers_json)
 
 
 @router.get("/tickets", response_class=HTMLResponse)
@@ -579,7 +589,59 @@ async def users_view(request: Request,
                        title="Forbidden", detail="Admin only.")
     async with db_session() as s:
         rows = (await s.scalars(select(WebUser).order_by(WebUser.username))).all()
-    return _render(request, "users.html", user=user, users=rows, roles=[r.value for r in WebRole])
+        # Per-user permission map for the edit panel
+        perm_rows = (
+            await s.scalars(select(WebUserModulePermission))
+        ).all()
+    perms_by_user: dict[str, dict[str, str]] = {}
+    for p in perm_rows:
+        perms_by_user.setdefault(str(p.user_id), {})[p.module] = p.level
+    return _render(
+        request, "users.html", user=user, users=rows,
+        roles=[r.value for r in WebRole],
+        modules=MODULES, perms_by_user=perms_by_user,
+    )
+
+
+@router.post("/users/{user_id}/permissions")
+async def users_permissions_update(
+    user_id: str,
+    request: Request,
+    access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
+) -> Response:
+    """FEAT #6: save per-module permission matrix for a web user."""
+    me = await _require_user(access_token)
+    if me.role != WebRole.ADMIN:
+        raise HTTPException(403, "admin only")
+    form = await request.form()
+    target_id = uuid.UUID(user_id)
+    async with db_session() as s:
+        target = await s.get(WebUser, target_id)
+        if target is None:
+            raise HTTPException(404, "user not found")
+        if target.username == "admin":
+            raise HTTPException(403, "admin account is locked")
+        existing = {
+            r.module: r
+            for r in (
+                await s.scalars(
+                    select(WebUserModulePermission).where(
+                        WebUserModulePermission.user_id == target_id
+                    )
+                )
+            ).all()
+        }
+        for mod in MODULES:
+            level = str(form.get(f"perm_{mod}", "read")).lower()
+            if level not in ("none", "read", "write"):
+                level = "read"
+            row = existing.get(mod)
+            if row is None:
+                s.add(WebUserModulePermission(user_id=target_id, module=mod, level=level))
+            else:
+                row.level = level
+        s.add(AuditLog(actor_id=me.id, action="user.permissions.update", target=str(target_id)))
+    return RedirectResponse("/users", status_code=303)
 
 
 @router.post("/users/create")
@@ -1223,6 +1285,32 @@ async def giveaways_view(request: Request,
     return _render(request, "giveaways.html", user=user, giveaways=rows, servers=servers)
 
 
+@router.get("/giveaways/{giveaway_id}", response_class=HTMLResponse)
+async def giveaway_detail_view(
+    giveaway_id: str,
+    request: Request,
+    access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
+) -> HTMLResponse:
+    """FEAT #5: dedicated giveaway detail view with live countdown."""
+    user = await _require_user(access_token)
+    try:
+        gid = uuid.UUID(giveaway_id)
+    except ValueError as exc:
+        raise HTTPException(404) from exc
+    async with db_session() as s:
+        g = await s.get(Giveaway, gid)
+        if g is None:
+            raise HTTPException(404)
+        server = await s.get(Server, g.server_id)
+    return _render(
+        request,
+        "giveaway_detail.html",
+        user=user,
+        g=g,
+        server=server,
+    )
+
+
 @router.post("/giveaways/{giveaway_id}/end")
 async def giveaways_end(giveaway_id: str,
                          access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
@@ -1347,20 +1435,29 @@ def discord_obj_for(user_id: int) -> Any:
 async def log_view(request: Request, tab: str = "web",
                    access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
+    if tab not in ("web", "discord"):
+        tab = "web"
     web_rows: list[Any] = []
     discord_rows: list[Any] = []
+    actor_names: dict[str, str] = {}
     async with db_session() as s:
-        if tab in ("web", "both"):
+        if tab == "web":
             web_rows = (await s.scalars(
                 select(AuditLog).order_by(desc(AuditLog.created_at)).limit(200)
             )).all()
-        if tab in ("discord", "both"):
+            actor_ids = {r.actor_id for r in web_rows if r.actor_id is not None}
+            if actor_ids:
+                users = (await s.scalars(
+                    select(WebUser).where(WebUser.id.in_(actor_ids))
+                )).all()
+                actor_names = {str(u.id): u.username for u in users}
+        else:
             discord_rows = (await s.scalars(
                 select(DiscordEvent).order_by(desc(DiscordEvent.created_at)).limit(200)
             )).all()
     return _render(
         request, "log.html", user=user, tab=tab, web_rows=web_rows,
-        discord_rows=discord_rows,
+        discord_rows=discord_rows, actor_names=actor_names,
     )
 
 
@@ -1578,3 +1675,144 @@ async def bot_lifecycle(action: str,
     return {"ok": True, "action": action}
 
 
+
+
+# ---------- Invite Tracker (FEAT #8) ----------------------------------------
+
+from database.models.invite_stats import InviteStats  # noqa: E402
+from database.models.invite_uses import InviteUse  # noqa: E402
+
+
+@router.get("/invites", response_class=HTMLResponse)
+async def invites_view(
+    request: Request,
+    server_id: str | None = None,
+    access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
+) -> HTMLResponse:
+    """FEAT #8: dashboard tab for invite tracker stats."""
+    user = await _require_user(access_token)
+    async with db_session() as s:
+        servers = (await s.scalars(select(Server).order_by(Server.name))).all()
+        stmt = select(InviteStats).order_by(desc(InviteStats.active_uses)).limit(200)
+        if server_id:
+            try:
+                stmt = stmt.where(InviteStats.server_id == int(server_id))
+            except ValueError:
+                pass
+        rows = (await s.scalars(stmt)).all()
+        recent_stmt = select(InviteUse).order_by(desc(InviteUse.created_at)).limit(50)
+        if server_id:
+            try:
+                recent_stmt = recent_stmt.where(InviteUse.server_id == int(server_id))
+            except ValueError:
+                pass
+        recent = (await s.scalars(recent_stmt)).all()
+    # Resolve display names from bot cache
+    bot = get_bot()
+    user_names: dict[int, str] = {}
+    if bot is not None:
+        for r in rows:
+            u = bot.get_user(r.inviter_id)
+            user_names[r.inviter_id] = u.display_name if u else f"<@{r.inviter_id}>"
+        for r in recent:
+            for uid in (r.inviter_id, r.invitee_id):
+                if uid and uid not in user_names:
+                    u = bot.get_user(uid)
+                    user_names[uid] = u.display_name if u else f"<@{uid}>"
+    return _render(
+        request,
+        "invites.html",
+        user=user,
+        servers=servers,
+        stats=rows,
+        recent=recent,
+        user_names=user_names,
+        selected_server_id=int(server_id) if server_id and server_id.isdigit() else None,
+    )
+
+
+# ---- FEAT #7: extended member actions (timeout/mute/deafen/dm) -----------
+
+@router.post("/members/{server_id}/{member_id}/timeout")
+async def members_timeout(server_id: str, member_id: str,
+                           minutes: int = Form(default=10),
+                           reason: str = Form(default=""),
+                           access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
+    import discord as _d
+    me = await _require_user(access_token)
+    bot = get_bot()
+    if bot is not None:
+        guild = bot.get_guild(int(server_id))
+        if guild is not None:
+            member = guild.get_member(int(member_id))
+            if member is not None:
+                try:
+                    until = _dt2.now(tz=_tz2.utc) + __import__('datetime').timedelta(minutes=max(1, min(40320, minutes)))
+                    await member.edit(timed_out_until=until, reason=f"web by {me.username}: {reason}")
+                except Exception:
+                    pass
+    async with db_session() as s:
+        s.add(AuditLog(actor_id=me.id, action="member.timeout", target=member_id,
+                       details={"minutes": minutes, "reason": reason}))
+    return RedirectResponse(f"/members?server_id={server_id}", status_code=303)
+
+
+@router.post("/members/{server_id}/{member_id}/mute")
+async def members_mute(server_id: str, member_id: str,
+                        muted: str = Form(default="1"),
+                        access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
+    me = await _require_user(access_token)
+    bot = get_bot()
+    flag = muted not in ("0", "false", "no", "")
+    if bot is not None:
+        guild = bot.get_guild(int(server_id))
+        if guild is not None:
+            member = guild.get_member(int(member_id))
+            if member is not None and member.voice is not None:
+                try:
+                    await member.edit(mute=flag, reason=f"web by {me.username}")
+                except Exception:
+                    pass
+    async with db_session() as s:
+        s.add(AuditLog(actor_id=me.id, action="member.mute", target=member_id, details={"mute": flag}))
+    return RedirectResponse(f"/members?server_id={server_id}", status_code=303)
+
+
+@router.post("/members/{server_id}/{member_id}/deafen")
+async def members_deafen(server_id: str, member_id: str,
+                          deafened: str = Form(default="1"),
+                          access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
+    me = await _require_user(access_token)
+    bot = get_bot()
+    flag = deafened not in ("0", "false", "no", "")
+    if bot is not None:
+        guild = bot.get_guild(int(server_id))
+        if guild is not None:
+            member = guild.get_member(int(member_id))
+            if member is not None and member.voice is not None:
+                try:
+                    await member.edit(deafen=flag, reason=f"web by {me.username}")
+                except Exception:
+                    pass
+    async with db_session() as s:
+        s.add(AuditLog(actor_id=me.id, action="member.deafen", target=member_id, details={"deafen": flag}))
+    return RedirectResponse(f"/members?server_id={server_id}", status_code=303)
+
+
+@router.post("/members/{server_id}/{member_id}/dm")
+async def members_dm(server_id: str, member_id: str,
+                      message: str = Form(...),
+                      access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
+    me = await _require_user(access_token)
+    bot = get_bot()
+    if bot is not None and message.strip():
+        try:
+            user_obj = bot.get_user(int(member_id)) or await bot.fetch_user(int(member_id))
+            if user_obj is not None:
+                await user_obj.send(message[:1900])
+        except Exception:
+            pass
+    async with db_session() as s:
+        s.add(AuditLog(actor_id=me.id, action="member.dm", target=member_id,
+                       details={"length": len(message)}))
+    return RedirectResponse(f"/members?server_id={server_id}", status_code=303)

@@ -3,17 +3,6 @@
 {% block content %}
 <div class="flex items-center justify-between mb-6">
   <h1 class="text-2xl font-semibold">Dashboard</h1>
-  {% if user and user.role and user.role.value == 'admin' %}
-  <div class="flex gap-2 text-sm" x-data="{ busy: false, msg: '' }">
-    <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/lifecycle/start',{method:'POST'}).then(r=>r.json()).then(j=>{msg='start: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
-            class="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 px-3 py-1.5 rounded-md">Start</button>
-    <button :disabled="busy" @click="if(!confirm('Stop the bot?'))return; busy=true; fetch('/api/v1/bot/lifecycle/stop',{method:'POST'}).then(r=>r.json()).then(j=>{msg='stop: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
-            class="bg-rose-600 hover:bg-rose-500 disabled:opacity-50 px-3 py-1.5 rounded-md">Stop</button>
-    <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/lifecycle/restart',{method:'POST'}).then(r=>r.json()).then(j=>{msg='restart: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
-            class="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 px-3 py-1.5 rounded-md">Restart</button>
-    <span x-text="msg" class="text-xs text-slate-400 self-center ml-2"></span>
-  </div>
-  {% endif %}
 </div>
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
   {% set stats = [
@@ -32,13 +21,29 @@
 
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
   <section class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-    <h2 class="font-semibold mb-3">Bot status</h2>
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-semibold">Bot status</h2>
+      <span class="inline-flex items-center gap-1.5 text-xs">
+        <span class="w-2 h-2 rounded-full {% if metrics.bot_online %}bg-emerald-400{% else %}bg-rose-400{% endif %}"></span>
+        <span class="{% if metrics.bot_online %}text-emerald-400{% else %}text-rose-400{% endif %}">{{ 'online' if metrics.bot_online else 'offline' }}</span>
+      </span>
+    </div>
     <ul class="text-sm space-y-1.5">
-      <li class="flex justify-between"><span class="text-slate-400">Online</span><span class="{% if metrics.bot_online %}text-emerald-400{% else %}text-rose-400{% endif %}">{{ 'Yes' if metrics.bot_online else 'No' }}</span></li>
       <li class="flex justify-between"><span class="text-slate-400">Uptime</span><span>{{ metrics.uptime }}</span></li>
       <li class="flex justify-between"><span class="text-slate-400">Latency</span><span>{{ metrics.latency_ms }} ms</span></li>
       <li class="flex justify-between"><span class="text-slate-400">Version</span><span>{{ metrics.version }}</span></li>
     </ul>
+    {% if can_servers_write %}
+    <div class="mt-4 pt-4 border-t border-slate-800 flex flex-wrap gap-2 text-sm" x-data="{ busy: false, msg: '' }">
+      <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/lifecycle/start',{method:'POST'}).then(r=>r.json()).then(j=>{msg='start: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
+              class="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 px-3 py-1.5 rounded-md">▶ Start</button>
+      <button :disabled="busy" @click="if(!confirm('Stop the bot?'))return; busy=true; fetch('/api/v1/bot/lifecycle/stop',{method:'POST'}).then(r=>r.json()).then(j=>{msg='stop: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
+              class="bg-rose-600 hover:bg-rose-500 disabled:opacity-50 px-3 py-1.5 rounded-md">⏹ Stop</button>
+      <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/lifecycle/restart',{method:'POST'}).then(r=>r.json()).then(j=>{msg='restart: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
+              class="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 px-3 py-1.5 rounded-md">↻ Restart</button>
+      <span x-text="msg" class="text-xs text-slate-400 self-center"></span>
+    </div>
+    {% endif %}
   </section>
   <section class="bg-slate-900 border border-slate-800 rounded-xl p-5">
     <h2 class="font-semibold mb-3">Recent audit events</h2>

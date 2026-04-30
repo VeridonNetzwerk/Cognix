@@ -35,6 +35,8 @@
           {% if u.username != 'admin' %}
           <button onclick="document.getElementById('edit-{{ u.id }}').showModal()"
                   class="px-3 py-1 text-xs bg-slate-800 hover:bg-slate-700 rounded">Edit</button>
+          <button onclick="document.getElementById('perms-{{ u.id }}').showModal()"
+                  class="px-3 py-1 text-xs bg-indigo-700 hover:bg-indigo-600 rounded">Permissions</button>
           {% else %}
           <span class="px-2 py-0.5 rounded text-xs bg-amber-900/40 text-amber-300" title="Admin account is locked">
             locked
@@ -92,6 +94,34 @@
       <button type="button" onclick="this.closest('dialog').close()"
               class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded">Cancel</button>
       <button class="px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="perms-{{ u.id }}" class="bg-slate-900 text-slate-100 border border-slate-700 rounded-xl p-6 w-full max-w-2xl backdrop:bg-black/60">
+  <form method="post" action="/users/{{ u.id }}/permissions" class="space-y-3">
+    <h2 class="text-lg font-semibold mb-1">Permissions · {{ u.username }}</h2>
+    <p class="text-xs text-slate-400 mb-3">
+      Per-module access level. <code>none</code> hides the tab, <code>read</code> grants view-only access,
+      <code>write</code> allows changes.
+    </p>
+    <div class="grid grid-cols-2 gap-2">
+      {% for mod in modules %}
+        {% set current = perms_by_user.get(u.id|string, {}).get(mod, 'read') %}
+        <div class="flex items-center justify-between bg-slate-800/60 border border-slate-700 rounded px-3 py-2">
+          <div class="text-sm capitalize">{{ mod.replace('_', ' ') }}</div>
+          <select name="perm_{{ mod }}" class="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs">
+            <option value="none" {% if current == 'none' %}selected{% endif %}>None</option>
+            <option value="read" {% if current == 'read' %}selected{% endif %}>Read</option>
+            <option value="write" {% if current == 'write' %}selected{% endif %}>Read/Write</option>
+          </select>
+        </div>
+      {% endfor %}
+    </div>
+    <div class="flex justify-end gap-2 pt-3">
+      <button type="button" onclick="this.closest('dialog').close()"
+              class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded">Cancel</button>
+      <button class="px-4 py-2 bg-indigo-700 hover:bg-indigo-600 rounded">Save permissions</button>
     </div>
   </form>
 </dialog>

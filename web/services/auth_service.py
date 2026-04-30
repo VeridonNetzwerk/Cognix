@@ -65,11 +65,12 @@ async def issue_session(
     *,
     user_agent: str = "",
     ip: str = "",
+    remember_me: bool = False,
 ) -> tuple[str, str, datetime]:
     """Return (access_token, refresh_token_raw, refresh_expires_at)."""
     family_id = uuid.uuid4()
-    access = issue_access_token(subject=str(user.id), role=user.role.value)
-    refresh, exp = issue_refresh_token(subject=str(user.id), family_id=family_id)
+    access = issue_access_token(subject=str(user.id), role=user.role.value, remember_me=remember_me)
+    refresh, exp = issue_refresh_token(subject=str(user.id), family_id=family_id, remember_me=remember_me)
     session.add(
         RefreshToken(
             user_id=user.id,
@@ -85,8 +86,9 @@ async def issue_session(
 
 async def rotate_refresh(
     session: AsyncSession, raw_token: str, *, user_agent: str = "", ip: str = ""
-) -> tuple[str, str, datetime]:
+) -> tuple[str, str, datetime, bool]:
     payload = decode_token(raw_token, expected_type="refresh")
+    remember_me = bool(payload.get("rm", False))
     token_hash = hash_refresh_token(raw_token)
     rt = await session.scalar(
         select(RefreshToken).where(RefreshToken.token_hash == token_hash)
@@ -119,8 +121,8 @@ async def rotate_refresh(
     if user is None or not user.is_active:
         raise AuthError("user inactive")
 
-    access = issue_access_token(subject=str(user.id), role=user.role.value)
-    new_refresh, new_exp = issue_refresh_token(subject=str(user.id), family_id=rt.family_id)
+    access = issue_access_token(subject=str(user.id), role=user.role.value, remember_me=remember_me)
+    new_refresh, new_exp = issue_refresh_token(subject=str(user.id), family_id=rt.family_id, remember_me=remember_me)
     session.add(
         RefreshToken(
             user_id=user.id,
@@ -131,7 +133,7 @@ async def rotate_refresh(
             ip_address=ip[:64],
         )
     )
-    return access, new_refresh, new_exp
+    return access, new_refresh, new_exp, remember_me
 
 
 async def revoke_all_sessions(session: AsyncSession, user_id: uuid.UUID) -> None:

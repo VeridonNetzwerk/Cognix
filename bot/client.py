@@ -27,6 +27,7 @@ INITIAL_COGS = (
     "bot.cogs.activity_log",
     "bot.cogs.giveaway",
     "bot.cogs.welcome",
+    "bot.cogs.invite_tracker",
 )
 
 
@@ -38,6 +39,11 @@ class CogniXBot(commands.Bot):
         intents.members = True
         intents.message_content = True
         intents.guilds = True
+        # FEAT #9: turn off heavy intents we don't use
+        intents.typing = False
+        intents.presences = False
+        # Needed for invite tracker (manage_guild perm grants invites events)
+        intents.invites = True
         super().__init__(
             command_prefix=commands.when_mentioned_or("!"),
             intents=intents,

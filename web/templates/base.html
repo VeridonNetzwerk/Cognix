@@ -22,14 +22,62 @@
     </script>
     <style>
       [x-cloak] { display: none !important; }
+      :root {
+        --accent: #5865f2;
+        --accent-hover: #4752c4;
+        --bg-primary: #020617;
+        --bg-secondary: #0f172a;
+        --bg-tertiary: #1e293b;
+        --bg-hover: #334155;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --text-muted: #64748b;
+        --border-color: #334155;
+        --danger: #f43f5e;
+        --success: #10b981;
+        --warning: #f59e0b;
+      }
+      body[data-theme="light"] {
+        --bg-primary: #f5f5f5;
+        --bg-secondary: #ffffff;
+        --bg-tertiary: #e8e8e8;
+        --bg-hover: #d8d8d8;
+        --text-primary: #1a1a1a;
+        --text-secondary: #4a4a4a;
+        --text-muted: #6a6a6a;
+        --border-color: #d0d0d0;
+      }
+      :root { font-size: 15px; }
+      body[data-fontsize="small"] { font-size: 13px; }
+      body[data-fontsize="medium"] { font-size: 15px; }
+      body[data-fontsize="large"] { font-size: 18px; }
+      html, body { background: var(--bg-primary); color: var(--text-primary); }
       .scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
-      .scroll-thin::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-      :root { --accent: #60a5fa; --font-size: 15px; }
-      body { font-size: var(--font-size); }
+      .scroll-thin::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
       a.brand-accent, .brand-accent { color: var(--accent); }
-      body.theme-light { background: #f8fafc !important; color: #0f172a !important; }
-      .cognix-watermark { position: fixed; right: 14px; bottom: 8px; font-size: 11px; opacity: 0.07; pointer-events: none; z-index: 0; user-select: none; letter-spacing: 0.05em; white-space: nowrap; }
-      body.theme-light .cognix-watermark { color: #000; }
+      .accent-bg { background-color: var(--accent); }
+      .accent-bg:hover { background-color: var(--accent-hover); }
+      /* Theme overrides for tailwind utilities used across pages */
+      body[data-theme="light"] .bg-slate-950 { background-color: var(--bg-primary) !important; }
+      body[data-theme="light"] .bg-slate-900 { background-color: var(--bg-secondary) !important; }
+      body[data-theme="light"] .bg-slate-800 { background-color: var(--bg-tertiary) !important; }
+      body[data-theme="light"] .bg-slate-800\/50 { background-color: var(--bg-tertiary) !important; }
+      body[data-theme="light"] .hover\:bg-slate-800:hover { background-color: var(--bg-hover) !important; }
+      body[data-theme="light"] .hover\:bg-slate-700:hover { background-color: var(--bg-hover) !important; }
+      body[data-theme="light"] .border-slate-800 { border-color: var(--border-color) !important; }
+      body[data-theme="light"] .border-slate-700 { border-color: var(--border-color) !important; }
+      body[data-theme="light"] .text-slate-100,
+      body[data-theme="light"] .text-slate-200,
+      body[data-theme="light"] .text-slate-300 { color: var(--text-primary) !important; }
+      body[data-theme="light"] .text-slate-400 { color: var(--text-secondary) !important; }
+      body[data-theme="light"] .text-slate-500 { color: var(--text-muted) !important; }
+      body[data-theme="light"] input, body[data-theme="light"] select, body[data-theme="light"] textarea {
+        background-color: var(--bg-secondary) !important; color: var(--text-primary) !important;
+        border-color: var(--border-color) !important;
+      }
+      .text-brand-500 { color: var(--accent) !important; }
+      .bg-brand-600 { background-color: var(--accent) !important; }
+      .bg-brand-600:hover, .hover\:bg-brand-500:hover, .hover\:bg-brand-700:hover { background-color: var(--accent-hover) !important; }
     </style>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script>
@@ -38,10 +86,13 @@
           const r = await fetch('/api/v1/user-settings/me', { credentials: 'same-origin' });
           if (!r.ok) return;
           const s = await r.json();
-          const sizes = { small: '13px', medium: '15px', large: '18px' };
-          document.documentElement.style.setProperty('--font-size', sizes[s.font_size] || '15px');
-          if (s.accent_color) document.documentElement.style.setProperty('--accent', s.accent_color);
-          if (s.theme === 'light') document.body.classList.add('theme-light');
+          document.body.dataset.fontsize = s.font_size || 'medium';
+          if (s.accent_color) {
+            document.documentElement.style.setProperty('--accent', s.accent_color);
+            // Slightly darker hover variant
+            document.documentElement.style.setProperty('--accent-hover', s.accent_color);
+          }
+          document.body.dataset.theme = s.theme === 'light' ? 'light' : 'dark';
         } catch (e) {}
       })();
     </script>
@@ -82,6 +133,7 @@
             ('/giveaways', 'Giveaways'),
             ('/welcome', 'Welcome / Boost'),
             ('/members', 'Members'),
+            ('/invites', 'Invites'),
             ('/log', 'Log'),
             ('/users', 'Web Users'),
             ('/bot-profile', 'Bot Profile'),
@@ -118,9 +170,7 @@
         {% block content %}{% endblock %}
       </main>
     </div>
-    <div aria-hidden="true" class="cognix-watermark">
-      Powered by Cognix · Made by 食べ物
-    </div>
+    <div aria-hidden="true" style="position:fixed;bottom:8px;right:12px;opacity:0.07;font-size:11px;pointer-events:none;z-index:0;user-select:none;color:var(--text-primary, #fff);">Powered by Cognix · Made by 食べ物</div>
     {% block scripts %}{% endblock %}
   </body>
 </html>

@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}{{ g.prize }} · Giveaway · CogniX{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <a href="/giveaways" class="text-sm text-slate-400 hover:text-brand-500">&larr; Back to giveaways</a>
+</div>
+
+<div x-data="giveawayDetail()" x-init="init()" class="max-w-3xl">
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-6">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Giveaway</div>
+        <h1 class="text-3xl font-semibold">{{ g.prize }}</h1>
+        <div class="mt-2 text-sm text-slate-400">
+          {{ g.winner_count }} winner{{ '' if g.winner_count == 1 else 's' }} ·
+          Server <span class="text-slate-300">{{ server.name if server else g.server_id }}</span>
+        </div>
+      </div>
+      {% if g.ended %}
+        <span class="px-3 py-1 rounded bg-slate-700 text-slate-200 text-xs">ENDED</span>
+      {% else %}
+        <span class="px-3 py-1 rounded bg-emerald-700/40 text-emerald-300 text-xs">ACTIVE</span>
+      {% endif %}
+    </div>
+
+    {% if not g.ended %}
+    <div class="mt-6 grid grid-cols-4 gap-3 text-center">
+      <div class="bg-slate-800 rounded-lg py-3">
+        <div class="text-3xl font-mono" x-text="cd.d">0</div>
+        <div class="text-xs uppercase text-slate-500">Days</div>
+      </div>
+      <div class="bg-slate-800 rounded-lg py-3">
+        <div class="text-3xl font-mono" x-text="cd.h">0</div>
+        <div class="text-xs uppercase text-slate-500">Hours</div>
+      </div>
+      <div class="bg-slate-800 rounded-lg py-3">
+        <div class="text-3xl font-mono" x-text="cd.m">0</div>
+        <div class="text-xs uppercase text-slate-500">Minutes</div>
+      </div>
+      <div class="bg-slate-800 rounded-lg py-3">
+        <div class="text-3xl font-mono" x-text="cd.s">0</div>
+        <div class="text-xs uppercase text-slate-500">Seconds</div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="mt-6 text-sm text-slate-400">
+      Ends at: <span class="text-slate-200">{{ g.ends_at.strftime('%Y-%m-%d %H:%M UTC') }}</span>
+    </div>
+    {% if g.required_role_id %}
+    <div class="mt-1 text-sm text-slate-400">
+      Required role: <code class="text-brand-500">&lt;@&amp;{{ g.required_role_id }}&gt;</code>
+    </div>
+    {% endif %}
+    <div class="mt-1 text-sm text-slate-400">
+      Hosted by: <code class="text-slate-200">&lt;@{{ g.host_id }}&gt;</code>
+    </div>
+    <div class="mt-1 text-sm text-slate-400">
+      Message ID: <code class="font-mono">{{ g.message_id }}</code>
+    </div>
+  </div>
+
+  {% if g.winners %}
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-6">
+    <div class="text-sm uppercase text-slate-500 mb-2">Winners</div>
+    <ul class="space-y-1">
+      {% for w in g.winners %}
+        <li class="font-mono text-slate-200">&lt;@{{ w }}&gt;</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <div class="flex gap-2">
+    {% if not g.ended %}
+    <form method="post" action="/giveaways/{{ g.id }}/end">
+      <button class="px-4 py-2 bg-amber-600 hover:bg-amber-500 rounded">End now</button>
+    </form>
+    {% endif %}
+    <form method="post" action="/giveaways/{{ g.id }}/delete"
+          onsubmit="return confirm('Delete giveaway record?');">
+      <button class="px-4 py-2 bg-rose-600 hover:bg-rose-500 rounded">Delete</button>
+    </form>
+  </div>
+</div>
+
+<script>
+function giveawayDetail() {
+  return {
+    endTs: new Date("{{ g.ends_at.isoformat() }}").getTime(),
+    cd: { d: 0, h: 0, m: 0, s: 0 },
+    init() {
+      this.tick();
+      setInterval(() => this.tick(), 1000);
+    },
+    tick() {
+      const diff = Math.max(0, this.endTs - Date.now());
+      const s = Math.floor(diff / 1000);
+      this.cd = {
+        d: Math.floor(s / 86400),
+        h: Math.floor((s % 86400) / 3600),
+        m: Math.floor((s % 3600) / 60),
+        s: s % 60,
+      };
+    },
+  };
+}
+</script>
+{% endblock %}

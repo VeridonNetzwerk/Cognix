@@ -78,7 +78,8 @@ async def login(req: LoginRequest, request: Request, response: Response, session
         )
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
 
-    access, refresh, exp = await issue_session(session, user, user_agent=ua, ip=ip)
+    access, refresh, exp = await issue_session(session, user, user_agent=ua, ip=ip,
+                                                remember_me=bool(getattr(req, "remember_me", False)))
     session.add(
         AuditLog(actor_id=user.id, action=AUDIT_LOGIN, target=user.username, ip_address=ip, user_agent=ua)
     )
@@ -106,11 +107,11 @@ async def refresh_endpoint(
     ip = (request.client.host if request.client else "") or ""
     ua = request.headers.get("user-agent", "")[:255]
     try:
-        access, refresh, exp = await rotate_refresh(session, cognix_refresh, user_agent=ua, ip=ip)
+        access, refresh, exp, remember_me = await rotate_refresh(session, cognix_refresh, user_agent=ua, ip=ip)
     except AuthError as exc:
         _clear_cookies(response)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
-    _set_cookies(response, access, refresh, exp)
+    _set_cookies(response, access, refresh, exp, remember_me=remember_me)
     return {"ok": True}
 
 

@@ -1,159 +1,309 @@
 {% extends "base.html" %}
 {% block title %}Music · {{ bot_info.name }}{% endblock %}
 {% block content %}
-<h1 class="text-2xl font-semibold mb-6">Music</h1>
-<div x-data="musicPanel()" x-init="boot()" class="grid lg:grid-cols-[1fr_320px] gap-6">
-  <div class="space-y-6 min-w-0">
+<div x-data="musicPanel()" x-init="boot()" class="space-y-4">
+  <div class="flex items-center justify-between flex-wrap gap-3">
+    <h1 class="text-2xl font-semibold">Music</h1>
     <div class="flex items-center gap-3">
-      <label class="text-sm text-slate-400">Server</label>
-      <select x-model="serverId" @change="refresh()" class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5">
+      <label class="text-xs text-slate-400">Server</label>
+      <select x-model="serverId" @change="refresh()" class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm">
         <template x-for="s in servers" :key="s.id">
           <option :value="s.id" x-text="s.name || s.id"></option>
         </template>
       </select>
-      <span class="text-xs text-slate-500" x-text="state.is_playing ? 'playing' : (state.is_paused ? 'paused' : 'idle')"></span>
-    </div>
-
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-      <div class="flex gap-4">
-        <img :src="state.current?.thumbnail || ''" class="w-40 h-40 object-cover rounded bg-slate-800" x-show="state.current">
-        <div class="flex-1 min-w-0">
-          <div x-show="!state.current" class="text-slate-400 text-sm">Nothing playing. Use the search box below.</div>
-          <div x-show="state.current">
-            <div class="text-xs uppercase text-slate-400">Now playing</div>
-            <div class="text-lg font-semibold mt-1 truncate" x-text="state.current?.title"></div>
-            <div class="text-sm text-slate-400 truncate" x-text="state.current?.uploader"></div>
-            <div class="mt-3">
-              <div class="h-1 bg-slate-800 rounded overflow-hidden">
-                <div class="h-full bg-brand-500" :style="`width:${progressPct}%`"></div>
-              </div>
-              <div class="text-xs text-slate-500 mt-1 flex justify-between">
-                <span x-text="fmtTime(state.position)"></span>
-                <span x-text="fmtTime(state.current?.duration || 0)"></span>
-              </div>
-            </div>
-          </div>
-          <div class="mt-4 flex items-center gap-2 flex-wrap">
-            <button class="bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded text-sm" @click="cmd('pause')">Pause</button>
-            <button class="bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded text-sm" @click="cmd('resume')">Resume</button>
-            <button class="bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded text-sm" @click="cmd('skip')">Skip</button>
-            <button class="bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded text-sm" @click="cmd('shuffle')">Shuffle</button>
-            <button class="bg-rose-700 hover:bg-rose-600 px-3 py-1.5 rounded text-sm" @click="cmd('stop')">Stop</button>
-            <select class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
-                    @change="cmd('loop', { mode: $event.target.value })">
-              <option value="off" :selected="state.loop==='off'">Loop: off</option>
-              <option value="track" :selected="state.loop==='track'">Loop: track</option>
-              <option value="queue" :selected="state.loop==='queue'">Loop: queue</option>
-            </select>
-            <div class="ml-2 flex items-center gap-2">
-              <span class="text-xs text-slate-400">Vol</span>
-              <input type="range" min="0" max="200" x-model.number="volume" @change="cmd('volume', { percent: volume })" class="w-32">
-              <span class="text-xs w-8 text-slate-400" x-text="volume + '%'"></span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-      <form class="flex gap-2 mb-4" @submit.prevent="enqueue()">
-        <input x-model="query" placeholder="YouTube URL or search query"
-               class="flex-1 bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm">
-        <button class="bg-brand-600 hover:bg-brand-500 rounded px-4 py-2 text-sm">Add to queue</button>
-      </form>
-      <h2 class="font-semibold mb-2 text-sm">Queue (<span x-text="state.queue?.length || 0"></span>)</h2>
-      <ol class="text-sm divide-y divide-slate-800 max-h-[420px] overflow-auto scroll-thin">
-        <template x-for="(t, i) in state.queue" :key="i">
-          <li class="py-2 flex justify-between items-center gap-3">
-            <span class="truncate"><span x-text="(i+1) + '.'"></span> <span x-text="t.title"></span> <span class="text-slate-500" x-text="'- ' + (t.uploader || '')"></span></span>
-            <span class="text-slate-500 text-xs" x-text="fmtTime(t.duration)"></span>
-          </li>
-        </template>
-      </ol>
-      <div class="text-slate-500 text-sm py-2" x-show="!state.queue || !state.queue.length">Queue is empty.</div>
+      <span class="text-xs px-2 py-0.5 rounded"
+            :class="state.is_playing ? 'bg-emerald-700/40 text-emerald-300' : (state.is_paused ? 'bg-amber-700/40 text-amber-300' : 'bg-slate-700 text-slate-300')"
+            x-text="state.is_playing ? 'playing' : (state.is_paused ? 'paused' : 'idle')"></span>
     </div>
   </div>
 
-  <aside class="space-y-3">
-    <h2 class="font-semibold">Playlists</h2>
-    <ul class="bg-slate-900 border border-slate-800 rounded-xl divide-y divide-slate-800 text-sm">
-      <template x-for="p in playlists" :key="p.id">
-        <li class="p-3 flex items-center justify-between">
-          <div>
-            <div class="font-medium" x-text="p.name"></div>
-            <div class="text-xs text-slate-500"><span x-text="p.tracks?.length || 0"></span> tracks</div>
+  <div class="grid lg:grid-cols-[260px_1fr_320px] gap-4 min-h-[640px]">
+
+    <!-- LEFT: Browser (search / playlists / queue tabs) -->
+    <aside class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col">
+      <div class="flex gap-1 mb-3 text-xs">
+        <button @click="leftTab='search'" :class="leftTab==='search' ? 'bg-brand-600 text-white' : 'bg-slate-800 text-slate-300'" class="flex-1 py-1.5 rounded">Search</button>
+        <button @click="leftTab='lists'" :class="leftTab==='lists' ? 'bg-brand-600 text-white' : 'bg-slate-800 text-slate-300'" class="flex-1 py-1.5 rounded">Playlists</button>
+      </div>
+
+      <template x-if="leftTab==='search'">
+        <div class="flex flex-col flex-1 min-h-0">
+          <form @submit.prevent="doSearch()" class="flex gap-1 mb-2">
+            <input x-model="query" placeholder="Search YouTube…"
+                   class="flex-1 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-sm">
+            <button class="bg-brand-600 hover:bg-brand-500 px-3 py-1 rounded text-sm">Go</button>
+          </form>
+          <div class="flex-1 overflow-auto scroll-thin space-y-1.5 pr-1">
+            <template x-for="(r, i) in results" :key="i">
+              <div class="flex items-center gap-2 p-1.5 rounded bg-slate-800/40 hover:bg-slate-800 cursor-pointer"
+                   @click="enqueue(r.url || r.query || r.title)">
+                <img :src="r.thumbnail || ''" class="w-10 h-10 object-cover rounded bg-slate-900 shrink-0">
+                <div class="min-w-0">
+                  <div class="text-xs font-medium truncate" x-text="r.title"></div>
+                  <div class="text-[10px] text-slate-500 truncate" x-text="r.uploader"></div>
+                </div>
+              </div>
+            </template>
+            <div x-show="!results.length && !searching" class="text-xs text-slate-500 py-4 text-center">
+              Type and press Go.
+            </div>
+            <div x-show="searching" class="text-xs text-slate-500 py-4 text-center">Searching…</div>
           </div>
-          <button class="text-xs px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded"
-                  @click="playPlaylist(p)">Play</button>
-        </li>
+        </div>
       </template>
-      <li class="p-3 text-xs text-slate-500" x-show="!playlists.length">
-        No playlists yet. Create them via <code>/playlist create</code> in Discord.
-      </li>
-    </ul>
-  </aside>
+
+      <template x-if="leftTab==='lists'">
+        <div class="flex flex-col flex-1 min-h-0">
+          <div class="text-[11px] uppercase text-slate-500 mb-1.5">Playlists</div>
+          <ul class="flex-1 overflow-auto scroll-thin divide-y divide-slate-800 text-sm">
+            <template x-for="p in playlists" :key="p.id">
+              <li class="py-2 flex items-center justify-between gap-2">
+                <div class="min-w-0">
+                  <div class="font-medium truncate" x-text="p.name"></div>
+                  <div class="text-[10px] text-slate-500"><span x-text="p.tracks?.length || 0"></span> tracks</div>
+                </div>
+                <button class="text-[10px] px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded" @click="playPlaylist(p)">Play</button>
+              </li>
+            </template>
+            <li x-show="!playlists.length" class="py-3 text-[11px] text-slate-500">
+              Create with <code>/playlist create</code> in Discord.
+            </li>
+          </ul>
+        </div>
+      </template>
+    </aside>
+
+    <!-- CENTER: Now Playing -->
+    <section class="bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center min-h-[600px]">
+      <div class="relative my-4">
+        <div class="w-72 h-72 rounded-full bg-slate-950 border-4 border-slate-800 overflow-hidden shadow-xl"
+             :class="state.is_playing ? 'animate-spin-slow' : ''">
+          <template x-if="state.current?.thumbnail">
+            <img :src="state.current.thumbnail" class="w-full h-full object-cover">
+          </template>
+          <template x-if="!state.current?.thumbnail">
+            <div class="w-full h-full flex items-center justify-center text-slate-700 text-6xl">♪</div>
+          </template>
+        </div>
+        <div class="absolute inset-0 m-auto w-6 h-6 rounded-full bg-slate-900 border-2 border-slate-800"></div>
+      </div>
+
+      <div class="mt-4 max-w-md">
+        <div class="text-xs uppercase tracking-wider text-slate-500" x-show="state.current">Now playing</div>
+        <div class="text-xl font-semibold mt-1 truncate" x-text="state.current?.title || 'Nothing playing'"></div>
+        <div class="text-sm text-slate-400 truncate" x-text="state.current?.uploader || ''"></div>
+      </div>
+
+      <!-- Progress bar -->
+      <div class="w-full max-w-lg mt-6">
+        <div class="h-1.5 bg-slate-800 rounded-full overflow-hidden cursor-pointer" @click="seekClick($event)">
+          <div class="h-full bg-brand-500" :style="`width:${progressPct}%`"></div>
+        </div>
+        <div class="text-[11px] text-slate-500 mt-1 flex justify-between">
+          <span x-text="fmtTime(state.position)"></span>
+          <span x-text="fmtTime(state.current?.duration || 0)"></span>
+        </div>
+      </div>
+
+      <!-- Transport -->
+      <div class="mt-6 flex items-center gap-3">
+        <button class="text-slate-400 hover:text-white text-2xl" @click="cycleLoop()" title="Loop">
+          <span x-text="state.loop==='off' ? '↻' : (state.loop==='track' ? '🔂' : '🔁')"></span>
+        </button>
+        <button class="text-slate-300 hover:text-white text-2xl" @click="cmd('shuffle')" title="Shuffle">⤨</button>
+        <button class="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 text-xl" @click="cmd('skip')" title="Skip">⏭</button>
+        <button class="w-14 h-14 rounded-full bg-brand-600 hover:bg-brand-500 text-white text-2xl flex items-center justify-center"
+                @click="togglePlay()" :title="state.is_paused ? 'Play' : 'Pause'">
+          <span x-text="state.is_playing ? '⏸' : '▶'"></span>
+        </button>
+        <button class="w-10 h-10 rounded-full bg-rose-700 hover:bg-rose-600 text-xl" @click="cmd('stop')" title="Stop">⏹</button>
+        <div class="ml-2 flex items-center gap-2">
+          <span class="text-xs text-slate-400">Vol</span>
+          <input type="range" min="0" max="200" x-model.number="volume"
+                 @change="cmd('volume', { percent: volume })" class="w-28">
+          <span class="text-xs w-10 text-slate-400" x-text="volume + '%'"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT: Queue -->
+    <aside class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="font-semibold text-sm">Up next</h2>
+        <span class="text-xs text-slate-500" x-text="(state.queue?.length || 0) + ' tracks'"></span>
+      </div>
+      <ol class="flex-1 overflow-auto scroll-thin space-y-1 pr-1">
+        <template x-for="(t, i) in state.queue" :key="i + ':' + (t.url || t.title)">
+          <li class="group flex items-center gap-2 p-1.5 rounded bg-slate-800/40 hover:bg-slate-800"
+              draggable="true"
+              @dragstart="dragSrc = i"
+              @dragover.prevent
+              @drop.prevent="reorder(dragSrc, i)">
+            <span class="text-[10px] text-slate-500 w-5 text-right" x-text="(i+1)"></span>
+            <img :src="t.thumbnail || ''" class="w-8 h-8 object-cover rounded bg-slate-900 shrink-0">
+            <div class="min-w-0 flex-1">
+              <div class="text-xs font-medium truncate" x-text="t.title"></div>
+              <div class="text-[10px] text-slate-500 truncate" x-text="t.uploader"></div>
+            </div>
+            <span class="text-[10px] text-slate-500 shrink-0" x-text="fmtTime(t.duration)"></span>
+            <button class="text-rose-400 hover:text-rose-300 opacity-0 group-hover:opacity-100 text-xs px-1"
+                    @click="removeAt(i)" title="Remove">✕</button>
+          </li>
+        </template>
+      </ol>
+      <div x-show="!state.queue || !state.queue.length" class="text-xs text-slate-500 text-center py-6">Queue is empty.</div>
+    </aside>
+  </div>
 </div>
+
+<style>
+  @keyframes cognix-spin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }
+  .animate-spin-slow { animation: cognix-spin 12s linear infinite; }
+</style>
 {% endblock %}
+
 {% block scripts %}
 <script>
 function musicPanel() {
   return {
-    servers: [], playlists: [],
-    serverId: null,
-    state: { current: null, queue: [], position: 0, loop: 'off', is_playing: false, is_paused: false, volume: 1.0 },
-    volume: 100, query: '', _timer: null,
+    serverId: '',
+    servers: {{ servers_json|safe if servers_json else '[]' }},
+    state: { current: null, queue: [], volume: 1.0, loop: 'off',
+             is_playing: false, is_paused: false, position: 0 },
+    playlists: [],
+    leftTab: 'search',
+    query: '',
+    results: [],
+    searching: false,
+    volume: 100,
+    dragSrc: null,
+    _timer: null,
+
+    async boot() {
+      try {
+        const r = await fetch('/api/v1/servers', { credentials: 'same-origin' });
+        if (r.ok) {
+          const data = await r.json();
+          this.servers = Array.isArray(data) ? data : (data.items || []);
+        }
+      } catch (e) {}
+      if (!this.serverId && this.servers.length) this.serverId = String(this.servers[0].id);
+      await this.refresh();
+      await this.loadPlaylists();
+      this._timer = setInterval(() => this.refresh(true), 2000);
+    },
+
+    async refresh(silent) {
+      if (!this.serverId) return;
+      try {
+        const r = await fetch(`/api/v1/music/${this.serverId}/state`, { credentials: 'same-origin' });
+        if (r.ok) {
+          this.state = await r.json();
+          this.volume = Math.round((this.state.volume || 1.0) * 100);
+        }
+      } catch (e) { if (!silent) console.warn(e); }
+    },
+
+    async loadPlaylists() {
+      try {
+        const r = await fetch(`/api/v1/music/${this.serverId}/playlists`, { credentials: 'same-origin' });
+        if (r.ok) {
+          const data = await r.json();
+          this.playlists = Array.isArray(data) ? data : (data.items || []);
+        }
+      } catch (e) {}
+    },
+
+    async cmd(action, body) {
+      if (!this.serverId) return;
+      try {
+        await fetch(`/api/v1/music/${this.serverId}/${action}`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+      } catch (e) { console.warn(e); }
+      await this.refresh();
+    },
+
+    togglePlay() {
+      if (this.state.is_paused) this.cmd('resume'); else this.cmd('pause');
+    },
+
+    cycleLoop() {
+      const next = this.state.loop === 'off' ? 'track' : (this.state.loop === 'track' ? 'queue' : 'off');
+      this.cmd('loop', { mode: next });
+    },
+
+    async enqueue(query) {
+      const q = (query || this.query || '').trim();
+      if (!q || !this.serverId) return;
+      await this.cmd('play', { query: q });
+    },
+
+    async doSearch() {
+      if (!this.query.trim() || !this.serverId) return;
+      this.searching = true;
+      try {
+        const r = await fetch(`/api/v1/music/${this.serverId}/search`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: this.query, limit: 8 }),
+        });
+        if (r.ok) {
+          const data = await r.json();
+          this.results = data.results || [];
+        }
+      } catch (e) { console.warn(e); }
+      this.searching = false;
+    },
+
+    async removeAt(i) {
+      try {
+        await fetch(`/api/v1/music/${this.serverId}/queue/${i}`, {
+          method: 'DELETE', credentials: 'same-origin',
+        });
+      } catch (e) {}
+      await this.refresh();
+    },
+
+    async reorder(src, dst) {
+      if (src === null || src === dst) return;
+      try {
+        await fetch(`/api/v1/music/${this.serverId}/queue/reorder`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ src, dst }),
+        });
+      } catch (e) {}
+      this.dragSrc = null;
+      await this.refresh();
+    },
+
+    seekClick(e) { /* seeking not yet supported by native voice; reserved */ },
+
+    async playPlaylist(p) {
+      if (!p || !p.tracks) return;
+      for (const t of p.tracks) {
+        const q = t.url || t.query || t.title;
+        if (q) await this.cmd('play', { query: q });
+      }
+    },
+
+    fmtTime(s) {
+      s = Math.max(0, parseInt(s || 0));
+      const m = Math.floor(s / 60);
+      const ss = s % 60;
+      return `${m}:${ss.toString().padStart(2, '0')}`;
+    },
+
     get progressPct() {
       const d = this.state.current?.duration || 0;
       if (!d) return 0;
-      return Math.min(100, ((this.state.position || 0) / d) * 100);
-    },
-    fmtTime(s){ s = +s||0; const m=Math.floor(s/60), r=Math.floor(s%60); return m + ':' + String(r).padStart(2,'0'); },
-    async boot(){
-      try {
-        const r = await fetch('/api/v1/servers', { credentials: 'same-origin' });
-        if (r.ok) this.servers = await r.json();
-      } catch(e){}
-      if (this.servers[0]) this.serverId = this.servers[0].id;
-      await this.refresh();
-      this._timer = setInterval(() => this.refresh(), 2000);
-    },
-    async refresh(){
-      if (!this.serverId) return;
-      try {
-        const [r1, r2] = await Promise.all([
-          fetch('/api/v1/music/' + this.serverId + '/state', { credentials: 'same-origin' }),
-          fetch('/api/v1/music/' + this.serverId + '/playlists', { credentials: 'same-origin' }),
-        ]);
-        if (r1.ok) this.state = await r1.json();
-        if (r2.ok) this.playlists = await r2.json();
-        if (this.state.volume != null) this.volume = Math.round(this.state.volume * 100);
-      } catch(e){}
-    },
-    async cmd(action, body){
-      body = body || {};
-      await fetch('/api/v1/music/' + this.serverId + '/' + action, {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        credentials: 'same-origin', body: JSON.stringify(body),
-      });
-      this.refresh();
-    },
-    async enqueue(){
-      if (!this.query.trim()) return;
-      await fetch('/api/v1/music/' + this.serverId + '/play', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        credentials: 'same-origin', body: JSON.stringify({ query: this.query }),
-      });
-      this.query = '';
-      this.refresh();
-    },
-    async playPlaylist(p){
-      for (const t of (p.tracks || [])) {
-        await fetch('/api/v1/music/' + this.serverId + '/play', {
-          method: 'POST', headers: {'Content-Type':'application/json'},
-          credentials: 'same-origin', body: JSON.stringify({ query: t.query || t.url || t.title }),
-        });
-      }
-      this.refresh();
+      return Math.max(0, Math.min(100, (this.state.position / d) * 100));
     },
   };
 }

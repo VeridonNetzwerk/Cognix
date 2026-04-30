@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import random
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -25,6 +26,12 @@ try:
     _YTDLP_AVAILABLE = True
 except ImportError:  # pragma: no cover
     _YTDLP_AVAILABLE = False
+
+
+# Simple in-process metadata cache (TTL 1h) — saves repeated yt-dlp calls
+_META_CACHE: dict[str, tuple[float, list["Track"]]] = {}
+_META_TTL = 3600.0
+_META_MAX = 256
 
 
 YTDL_OPTS: dict[str, Any] = {
@@ -85,10 +92,29 @@ class Track:
         }
 
 
-async def search_tracks(query: str, *, requested_by: int | None = None, limit: int = 1) -> list[Track]:
-    """Resolve ``query`` to a list of Tracks. Runs yt-dlp in a thread."""
+async def search_tracks(query: str, *, requested_by: int | None = None, limit: int = 1,
+                        use_cache: bool = True) -> list[Track]:
+    """Resolve ``query`` to a list of Tracks. Runs yt-dlp in an executor.
+
+    Results for non-search queries (URLs) are cached for 1h to avoid repeated
+    yt-dlp invocations on stream-URL refresh.
+    """
     if not _YTDLP_AVAILABLE:
         raise RuntimeError("yt-dlp is not installed")
+
+    cache_key = f"{query}|{limit}"
+    now = time.time()
+    if use_cache:
+        hit = _META_CACHE.get(cache_key)
+        if hit and (now - hit[0]) < _META_TTL:
+            # cached metadata — clone with fresh requested_by
+            return [
+                Track(**{**t.__dict__, "requested_by": requested_by})
+                for t in hit[1]
+            ]
+        # opportunistic cleanup
+        if len(_META_CACHE) > _META_MAX:
+            _META_CACHE.clear()
 
     def _extract() -> list[Track]:
         with yt_dlp.YoutubeDL(YTDL_OPTS) as ydl:
@@ -96,14 +122,17 @@ async def search_tracks(query: str, *, requested_by: int | None = None, limit: i
             if info is None:
                 return []
             if "entries" in info and info["entries"]:
-                # playlist or search result
                 entries = [e for e in info["entries"] if e]
                 if query.startswith("ytsearch") or "youtube.com/results" in (info.get("webpage_url") or ""):
                     entries = entries[:limit]
                 return [Track.from_info(e, query=query, requested_by=requested_by) for e in entries]
             return [Track.from_info(info, query=query, requested_by=requested_by)]
 
-    return await asyncio.to_thread(_extract)
+    loop = asyncio.get_running_loop()
+    tracks = await loop.run_in_executor(None, _extract)
+    if use_cache and tracks:
+        _META_CACHE[cache_key] = (now, list(tracks))
+    return tracks
 
 
 class GuildPlayer:
@@ -166,10 +195,10 @@ class GuildPlayer:
 
     # ------------------------------------------------------------------
     async def _player_loop(self) -> None:
+        consecutive_failures = 0
         while True:
             self._next_event.clear()
             if not self.queue and self.current is None:
-                # nothing scheduled
                 return
             if self.current is None:
                 self.current = self.queue.pop(0)
@@ -177,15 +206,26 @@ class GuildPlayer:
             track = self.current
             try:
                 await self._play_track(track)
+                consecutive_failures = 0
             except Exception as exc:  # noqa: BLE001
                 log.warning("audio_play_failed", error=str(exc), title=track.title)
                 self.current = None
+                consecutive_failures += 1
+                # Avoid tight crash loop: if 3 in a row fail, pause briefly
+                if consecutive_failures >= 3:
+                    await asyncio.sleep(2.0)
+                    consecutive_failures = 0
                 continue
 
-            await self._next_event.wait()
+            try:
+                await self._next_event.wait()
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # noqa: BLE001
+                log.warning("audio_wait_failed", error=str(exc))
 
             if self.loop == "track":
-                continue  # replay same track
+                continue
             if self.loop == "queue" and self.current is not None:
                 self.queue.append(self.current)
             self.current = None
@@ -195,29 +235,52 @@ class GuildPlayer:
         if vc is None or not vc.is_connected():
             raise RuntimeError("Voice client not connected")
 
-        # Re-resolve the stream URL: yt-dlp signed URLs expire quickly.
-        info_list = await search_tracks(track.query or track.url, requested_by=track.requested_by)
+        # Re-resolve the stream URL (signed URLs expire). Don't cache the
+        # *stream_url* portion — but reuse cached metadata for everything else.
+        info_list = await search_tracks(
+            track.query or track.url,
+            requested_by=track.requested_by,
+            use_cache=False,
+        )
         if not info_list:
             raise RuntimeError("Could not resolve track")
         track.stream_url = info_list[0].stream_url
         if not track.thumbnail:
             track.thumbnail = info_list[0].thumbnail
 
-        source = discord.FFmpegPCMAudio(
-            track.stream_url,
-            before_options=FFMPEG_BEFORE,
-            options=FFMPEG_OPTIONS,
-        )
-        transformed = discord.PCMVolumeTransformer(source, volume=self.volume)
+        try:
+            source = discord.FFmpegPCMAudio(
+                track.stream_url,
+                before_options=FFMPEG_BEFORE,
+                options=FFMPEG_OPTIONS,
+            )
+            transformed = discord.PCMVolumeTransformer(source, volume=self.volume)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("audio_ffmpeg_init_failed", error=str(exc))
+            raise
+
         loop = asyncio.get_running_loop()
         self._started_at = loop.time()
 
         def _after(err: Exception | None) -> None:
+            # Runs on the FFmpeg thread — must NOT touch asyncio state directly.
             if err is not None:
                 log.warning("audio_after_error", error=str(err))
-            loop.call_soon_threadsafe(self._next_event.set)
+            try:
+                loop.call_soon_threadsafe(self._next_event.set)
+            except RuntimeError:
+                # Event loop already closed; nothing to do.
+                pass
+            except Exception as exc:  # noqa: BLE001
+                log.warning("audio_after_dispatch_failed", error=str(exc))
 
-        vc.play(transformed, after=_after)
+        try:
+            vc.play(transformed, after=_after)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("audio_play_invoke_failed", error=str(exc))
+            # Make sure the loop wakes up so we move on to the next track.
+            loop.call_soon_threadsafe(self._next_event.set)
+            raise
 
     # ------------------------------------------------------------------
     async def pause(self) -> None:

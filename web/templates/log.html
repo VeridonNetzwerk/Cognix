@@ -8,17 +8,16 @@
      class="px-3 py-1.5 rounded {% if tab == 'web' %}bg-brand-600 text-white{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">Web Log</a>
   <a href="/log?tab=discord"
      class="px-3 py-1.5 rounded {% if tab == 'discord' %}bg-brand-600 text-white{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">Discord Log</a>
-  <a href="/log?tab=both"
-     class="px-3 py-1.5 rounded {% if tab == 'both' %}bg-brand-600 text-white{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">Both</a>
 </div>
 
-{% if tab in ('web', 'both') %}
+{% if tab == 'web' %}
 <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden mb-4">
-  <div class="px-4 py-2 bg-slate-800 font-medium">Web Log (formerly Audit)</div>
+  <div class="px-4 py-2 bg-slate-800 font-medium">Web Log</div>
   <table class="w-full text-sm">
     <thead class="bg-slate-800/50 text-xs uppercase text-slate-400">
       <tr>
         <th class="px-3 py-2 text-left">When</th>
+        <th class="px-3 py-2 text-left">Actor</th>
         <th class="px-3 py-2 text-left">Action</th>
         <th class="px-3 py-2 text-left">Target</th>
         <th class="px-3 py-2 text-left">IP</th>
@@ -26,39 +25,91 @@
     </thead>
     <tbody>
       {% for r in web_rows %}
-        <tr class="border-t border-slate-800">
-          <td class="px-3 py-2 text-slate-400 text-xs">{{ r.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-          <td class="px-3 py-2">{{ r.action }}</td>
-          <td class="px-3 py-2 text-slate-300">{{ r.target }}</td>
+        <tr class="border-t border-slate-800 align-top">
+          <td class="px-3 py-2 text-slate-400 text-xs whitespace-nowrap">{{ r.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+          <td class="px-3 py-2 text-slate-300 text-xs">{{ actor_names.get(r.actor_id|string, '—') if actor_names else (r.actor_id or '—') }}</td>
+          <td class="px-3 py-2"><code class="text-xs text-brand-500">{{ r.action }}</code></td>
+          <td class="px-3 py-2 text-slate-300 text-xs">{{ r.target }}</td>
           <td class="px-3 py-2 text-slate-500 text-xs">{{ r.ip_address }}</td>
         </tr>
       {% else %}
-        <tr><td colspan="4" class="px-3 py-6 text-center text-slate-500">No entries.</td></tr>
+        <tr><td colspan="5" class="px-3 py-6 text-center text-slate-500">No entries.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
 {% endif %}
 
-{% if tab in ('discord', 'both') %}
+{% if tab == 'discord' %}
 <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
   <div class="px-4 py-2 bg-slate-800 font-medium">Discord Log</div>
   <table class="w-full text-sm">
     <thead class="bg-slate-800/50 text-xs uppercase text-slate-400">
       <tr>
-        <th class="px-3 py-2 text-left">When</th>
+        <th class="px-3 py-2 text-left w-44">When</th>
         <th class="px-3 py-2 text-left">Type</th>
         <th class="px-3 py-2 text-left">Server</th>
-        <th class="px-3 py-2 text-left">Summary</th>
+        <th class="px-3 py-2 text-left">Details</th>
       </tr>
     </thead>
-    <tbody>
+    <tbody x-data="{ open: {} }">
       {% for e in discord_rows %}
-        <tr class="border-t border-slate-800">
-          <td class="px-3 py-2 text-slate-400 text-xs">{{ e.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-          <td class="px-3 py-2">{{ e.event_type }}</td>
-          <td class="px-3 py-2 text-slate-500 text-xs">{{ e.server_id }}</td>
-          <td class="px-3 py-2 text-slate-300">{{ e.summary }}</td>
+        {% set ev = (e.event_type.value if e.event_type.value is defined else e.event_type)|string %}
+        {% set has_detail = (e.content) or (e.extras) %}
+        <tr class="border-t border-slate-800 align-top">
+          <td class="px-3 py-2 text-slate-400 text-xs whitespace-nowrap">{{ e.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+          <td class="px-3 py-2 text-xs">
+            {% if 'deleted' in ev.lower() %}<span class="text-rose-400">{{ ev }}</span>
+            {% elif 'edited' in ev.lower() %}<span class="text-amber-400">{{ ev }}</span>
+            {% else %}<span class="text-slate-300">{{ ev }}</span>{% endif %}
+          </td>
+          <td class="px-3 py-2 text-slate-500 text-xs">{{ e.server_id or '—' }}</td>
+          <td class="px-3 py-2 text-slate-300 text-xs">
+            <div>{{ e.summary }}</div>
+            {% if has_detail %}
+              <button type="button" @click="open[{{ loop.index }}] = !open[{{ loop.index }}]"
+                      class="mt-1 text-[11px] text-brand-500 hover:underline">
+                <span x-show="!open[{{ loop.index }}]">Show details</span>
+                <span x-show="open[{{ loop.index }}]" x-cloak>Hide</span>
+              </button>
+              <div x-show="open[{{ loop.index }}]" x-cloak class="mt-2 space-y-2">
+                {% if 'edited' in ev.lower() and e.extras and e.extras.get('before') %}
+                  <div class="grid md:grid-cols-2 gap-2">
+                    <div class="bg-rose-950/40 border border-rose-900 rounded p-2">
+                      <div class="text-[10px] uppercase text-rose-400 mb-1">Before</div>
+                      <pre class="whitespace-pre-wrap text-rose-200 text-xs">{{ e.extras.get('before', '') }}</pre>
+                    </div>
+                    <div class="bg-emerald-950/40 border border-emerald-900 rounded p-2">
+                      <div class="text-[10px] uppercase text-emerald-400 mb-1">After</div>
+                      <pre class="whitespace-pre-wrap text-emerald-200 text-xs">{{ e.content or '' }}</pre>
+                    </div>
+                  </div>
+                {% elif 'deleted' in ev.lower() %}
+                  <div class="bg-rose-950/40 border border-rose-900 rounded p-2">
+                    <div class="text-[10px] uppercase text-rose-400 mb-1">Deleted content</div>
+                    <pre class="whitespace-pre-wrap text-rose-200 text-xs">{{ e.content or '(empty)' }}</pre>
+                  </div>
+                {% elif e.content %}
+                  <div class="bg-slate-800/60 border border-slate-700 rounded p-2">
+                    <pre class="whitespace-pre-wrap text-slate-200 text-xs">{{ e.content }}</pre>
+                  </div>
+                {% endif %}
+                {% if e.extras and e.extras.get('attachments') %}
+                  <div class="text-[11px] text-slate-400">Attachments:
+                    {% for a in e.extras['attachments'] %}
+                      <a class="text-brand-500 hover:underline mr-2" href="{{ a }}" target="_blank" rel="noopener">{{ a.split('/')[-1] }}</a>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+                {% if e.extras %}
+                  <details class="text-[11px] text-slate-500">
+                    <summary class="cursor-pointer">Raw extras</summary>
+                    <pre class="mt-1 whitespace-pre-wrap break-all">{{ e.extras|tojson }}</pre>
+                  </details>
+                {% endif %}
+              </div>
+            {% endif %}
+          </td>
         </tr>
       {% else %}
         <tr><td colspan="4" class="px-3 py-6 text-center text-slate-500">No entries.</td></tr>

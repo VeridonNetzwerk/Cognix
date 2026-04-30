@@ -6,6 +6,7 @@ import json
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import select
 
@@ -91,3 +92,31 @@ async def restore_backup(
         timeout=60.0,
     )
     return {"ok": True}
+
+
+@router.get("/{backup_id}/download")
+async def download_backup(backup_id: uuid.UUID, session: SessionDep) -> Response:
+    """Return decrypted backup as JSON file (FEAT #4)."""
+    backup = await session.get(Backup, backup_id)
+    if backup is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "backup not found")
+    payload = json.loads(decrypt_secret(backup.payload_encrypted, aad=b"backup"))
+    body = json.dumps(
+        {
+            "name": backup.name,
+            "description": backup.description,
+            "server_id": str(backup.server_id),
+            "created_at": backup.created_at.isoformat(),
+            "summary": backup.summary,
+            "payload": payload,
+        },
+        indent=2,
+    ).encode("utf-8")
+    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in (backup.name or "backup"))
+    date_str = backup.created_at.strftime("%Y%m%d-%H%M%S")
+    filename = f"backup-{safe_name}-{date_str}.json"
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

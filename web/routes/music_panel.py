@@ -1,8 +1,8 @@
-"""Music control API — proxies commands to the bot.
+"""Music control API — bridges the dashboard to the in-process bot.
 
-Tries Redis IPC first (works when API and bot are separate processes).
-Falls back to the in-process bot bridge when Redis IPC is disabled, so
-the web panel still works under the single-process Pterodactyl deployment.
+All endpoints operate on the live :class:`GuildPlayer` provided by
+``bot.services.audio_player``. The legacy wavelink/IPC paths were removed
+because the bot now uses native discord.py voice + yt-dlp.
 """
 
 from __future__ import annotations
@@ -12,160 +12,234 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from bot.services.audio_player import (
+    Track,
+    get_manager,
+    search_tracks,
+    yt_dlp_available,
+)
+from database.models.music_playlist import MusicPlaylist
+from database.session import db_session
+from sqlalchemy import select
 from web.deps import require_mod
-from web.services.bot_ipc import get_ipc
 
 router = APIRouter(prefix="/music", tags=["music"], dependencies=[Depends(require_mod)])
 
+
+# ----- Schemas -----
 
 class PlayRequest(BaseModel):
     query: str
 
 
 class VolumeRequest(BaseModel):
-    value: int
+    percent: int
 
 
-# ----------------------- in-process fallback ------------------------------
-
-def _empty_status(server_id: int) -> dict[str, Any]:
-    return {"server_id": server_id, "playing": False, "queue": [],
-            "title": "", "author": "", "volume": 100, "paused": False}
+class LoopRequest(BaseModel):
+    mode: str  # off | track | queue
 
 
-def _player_for(server_id: int):
-    """Return the live wavelink Player for the guild, or None."""
+class SearchRequest(BaseModel):
+    query: str
+    limit: int = 5
+
+
+class ReorderRequest(BaseModel):
+    src: int
+    dst: int
+
+
+# ----- Helpers -----
+
+def _bot():
     try:
         from bot.runtime import get_bot
     except Exception:  # noqa: BLE001
         return None
-    bot = get_bot()
+    return get_bot()
+
+
+def _player_for(server_id: int):
+    bot = _bot()
     if bot is None:
         return None
-    guild = bot.get_guild(server_id)
-    if guild is None:
-        return None
-    return guild.voice_client  # wavelink.Player or None
+    return get_manager().get_existing(server_id)
 
 
-async def _local_status(server_id: int) -> dict[str, Any]:
+def _state(server_id: int) -> dict[str, Any]:
     p = _player_for(server_id)
     if p is None:
-        return _empty_status(server_id)
-    current = getattr(p, "current", None)
-    queue = list(getattr(p, "queue", []) or [])
-    return {
-        "server_id": server_id,
-        "playing": bool(current),
-        "paused": bool(getattr(p, "paused", False)),
-        "title": getattr(current, "title", "") if current else "",
-        "author": getattr(current, "author", "") if current else "",
-        "volume": int(getattr(p, "volume", 100)),
-        "queue": [{"title": getattr(t, "title", ""), "duration": ""}
-                  for t in queue[:25]],
-    }
+        return {
+            "server_id": server_id,
+            "current": None,
+            "queue": [],
+            "volume": 1.0,
+            "loop": "off",
+            "is_playing": False,
+            "is_paused": False,
+            "position": 0,
+        }
+    return p.snapshot()
 
 
-async def _local_play(server_id: int, query: str) -> dict[str, Any]:
-    try:
-        import wavelink  # type: ignore[import-not-found]
-    except ImportError as exc:
-        raise HTTPException(503, "wavelink not installed") from exc
-    from bot.runtime import get_bot
+# ----- State / status -----
 
-    bot = get_bot()
-    if bot is None:
-        raise HTTPException(503, "bot offline")
-    guild = bot.get_guild(server_id)
-    if guild is None:
-        raise HTTPException(404, "guild not found")
-    p = guild.voice_client
-    if p is None:
-        raise HTTPException(400, "Bot is not in a voice channel. Use /play in Discord first.")
-    tracks = await wavelink.Playable.search(query)
-    if not tracks:
-        raise HTTPException(404, "no tracks found")
-    track = tracks[0]
-    if p.playing:
-        p.queue.put(track)
-        return {"queued": track.title}
-    await p.play(track)
-    return {"playing": track.title}
+@router.get("/{server_id}/state")
+async def state(server_id: int) -> dict:
+    return _state(server_id)
 
 
-async def _local_action(server_id: int, action: str, value: int | None = None) -> dict[str, Any]:
-    p = _player_for(server_id)
-    if p is None:
-        raise HTTPException(404, "no active player")
-    if action == "pause":
-        await p.pause(True)
-    elif action == "resume":
-        await p.pause(False)
-    elif action == "skip":
-        await p.skip(force=True)
-    elif action == "stop":
-        await p.disconnect()
-    elif action == "volume" and value is not None:
-        await p.set_volume(max(0, min(100, int(value))))
-    else:
-        raise HTTPException(400, "unknown action")
-    return {"ok": True}
-
-
-# ----------------------- IPC + fallback dispatcher -------------------------
-
-async def _dispatch(command: str, payload: dict, *, fallback) -> dict:
-    ipc = get_ipc()
-    try:
-        result = await ipc.call(command, payload, timeout=3.0)
-        if result.get("status") == "ok":
-            return result.get("payload", {})
-    except Exception:  # noqa: BLE001
-        pass  # fall through to in-process
-    return await fallback()
-
-
-# ----------------------- routes -------------------------------------------
-
+# Legacy alias used by the old UI:
 @router.get("/{server_id}/status")
 async def status_(server_id: int) -> dict:
-    return await _dispatch("music.status", {"server_id": server_id},
-                           fallback=lambda: _local_status(server_id))
+    return _state(server_id)
 
+
+# ----- Search (autocomplete dropdown) -----
+
+@router.post("/{server_id}/search")
+async def search(server_id: int, body: SearchRequest) -> dict:
+    if not yt_dlp_available():
+        raise HTTPException(503, "yt-dlp not installed")
+    q = body.query.strip()
+    if not q:
+        return {"results": []}
+    if not (q.startswith("http://") or q.startswith("https://") or q.startswith("ytsearch")):
+        q = f"ytsearch{max(1, min(10, body.limit))}:{q}"
+    tracks = await search_tracks(q, limit=max(1, min(10, body.limit)))
+    return {"results": [t.to_dict() for t in tracks]}
+
+
+# ----- Play / enqueue -----
 
 @router.post("/{server_id}/play")
 async def play(server_id: int, body: PlayRequest) -> dict:
-    return await _dispatch("music.play",
-                           {"server_id": server_id, "query": body.query},
-                           fallback=lambda: _local_play(server_id, body.query))
+    bot = _bot()
+    if bot is None:
+        raise HTTPException(503, "bot offline")
+    if not yt_dlp_available():
+        raise HTTPException(503, "yt-dlp not installed")
+    guild = bot.get_guild(server_id)
+    if guild is None:
+        raise HTTPException(404, "guild not found")
+    vc = guild.voice_client
+    if vc is None:
+        raise HTTPException(400, "Bot is not in a voice channel — use /play in Discord first.")
+    tracks = await search_tracks(body.query, limit=1)
+    if not tracks:
+        raise HTTPException(404, "no tracks found")
+    p = get_manager().get(bot, server_id)
+    for t in tracks:
+        p.add(t)
+    await p.ensure_loop()
+    return {"queued": tracks[0].title, "queue_size": len(p.queue)}
 
+
+# ----- Transport -----
 
 @router.post("/{server_id}/pause")
 async def pause(server_id: int) -> dict:
-    return await _dispatch("music.pause", {"server_id": server_id},
-                           fallback=lambda: _local_action(server_id, "pause"))
+    p = _player_for(server_id)
+    if p is None:
+        raise HTTPException(404, "no active player")
+    await p.pause()
+    return {"ok": True}
 
 
 @router.post("/{server_id}/resume")
 async def resume(server_id: int) -> dict:
-    return await _dispatch("music.resume", {"server_id": server_id},
-                           fallback=lambda: _local_action(server_id, "resume"))
+    p = _player_for(server_id)
+    if p is None:
+        raise HTTPException(404, "no active player")
+    await p.resume()
+    return {"ok": True}
 
 
 @router.post("/{server_id}/skip")
 async def skip(server_id: int) -> dict:
-    return await _dispatch("music.skip", {"server_id": server_id},
-                           fallback=lambda: _local_action(server_id, "skip"))
+    p = _player_for(server_id)
+    if p is None:
+        raise HTTPException(404, "no active player")
+    await p.skip()
+    return {"ok": True}
 
 
 @router.post("/{server_id}/stop")
 async def stop(server_id: int) -> dict:
-    return await _dispatch("music.stop", {"server_id": server_id},
-                           fallback=lambda: _local_action(server_id, "stop"))
+    p = _player_for(server_id)
+    if p is None:
+        raise HTTPException(404, "no active player")
+    await p.stop()
+    return {"ok": True}
+
+
+@router.post("/{server_id}/shuffle")
+async def shuffle(server_id: int) -> dict:
+    p = _player_for(server_id)
+    if p is None:
+        raise HTTPException(404, "no active player")
+    p.shuffle()
+    return {"ok": True}
 
 
 @router.post("/{server_id}/volume")
 async def volume(server_id: int, body: VolumeRequest) -> dict:
-    return await _dispatch("music.volume",
-                           {"server_id": server_id, "value": body.value},
-                           fallback=lambda: _local_action(server_id, "volume", body.value))
+    p = _player_for(server_id)
+    if p is None:
+        raise HTTPException(404, "no active player")
+    p.set_volume(max(0, min(200, int(body.percent))) / 100.0)
+    return {"ok": True, "volume": p.volume}
+
+
+@router.post("/{server_id}/loop")
+async def loop_(server_id: int, body: LoopRequest) -> dict:
+    p = _player_for(server_id)
+    if p is None:
+        raise HTTPException(404, "no active player")
+    if body.mode not in ("off", "track", "queue"):
+        raise HTTPException(400, "mode must be off/track/queue")
+    p.loop = body.mode
+    return {"ok": True, "loop": p.loop}
+
+
+# ----- Queue manipulation -----
+
+@router.delete("/{server_id}/queue/{index}")
+async def queue_remove(server_id: int, index: int) -> dict:
+    p = _player_for(server_id)
+    if p is None:
+        raise HTTPException(404, "no active player")
+    removed = p.remove(index)
+    if removed is None:
+        raise HTTPException(404, "index out of range")
+    return {"ok": True}
+
+
+@router.post("/{server_id}/queue/reorder")
+async def queue_reorder(server_id: int, body: ReorderRequest) -> dict:
+    p = _player_for(server_id)
+    if p is None:
+        raise HTTPException(404, "no active player")
+    if not (0 <= body.src < len(p.queue)):
+        raise HTTPException(400, "src out of range")
+    track = p.queue.pop(body.src)
+    dst = max(0, min(len(p.queue), body.dst))
+    p.queue.insert(dst, track)
+    return {"ok": True}
+
+
+# ----- Playlists (per-server) -----
+
+@router.get("/{server_id}/playlists")
+async def playlists(server_id: int) -> dict:
+    async with db_session() as s:
+        rows = (await s.scalars(
+            select(MusicPlaylist).where(MusicPlaylist.server_id == server_id)
+        )).all()
+        return {
+            "items": [
+                {"id": str(r.id), "name": r.name, "tracks": r.tracks or []}
+                for r in rows
+            ]
+        }

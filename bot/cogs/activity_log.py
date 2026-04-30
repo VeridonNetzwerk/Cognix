@@ -131,8 +131,12 @@ class ActivityLog(commands.Cog):
             channel_id=after.channel.id,
             user_id=after.author.id,
             summary=f"{after.author} edited a message",
-            content=f"BEFORE: {before.content or ''}\nAFTER: {after.content or ''}",
-            extras={"message_id": after.id},
+            content=after.content or "",
+            extras={
+                "message_id": after.id,
+                "before": before.content or "",
+                "channel_name": getattr(after.channel, "name", None),
+            },
         )
 
     @commands.Cog.listener()
@@ -153,7 +157,11 @@ class ActivityLog(commands.Cog):
             user_id=message.author.id if message.author else None,
             summary=f"Message deleted in #{message.channel}",
             content=message.content or "",
-            extras={"message_id": message.id},
+            extras={
+                "message_id": message.id,
+                "attachments": [a.url for a in message.attachments],
+                "channel_name": getattr(message.channel, "name", None),
+            },
         )
 
     @commands.Cog.listener()

@@ -41,10 +41,13 @@ MODULES: list[str] = [
     "music",
     "tickets",
     "backups",
-    "audit",
-    "discord_log",
+    "log",
     "web_users",
     "bot_profile",
+    "members",
+    "giveaways",
+    "welcome",
+    "invites",
 ]
 
 
