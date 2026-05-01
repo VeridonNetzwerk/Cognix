@@ -290,6 +290,46 @@ class ActivityLog(commands.Cog):
             extras={"command": command.qualified_name},
         )
 
+        # FEAT #4/#7: when a slash command is used inside a ticket channel,
+        # log it as TICKET_COMMAND and notify the channel for transparency.
+        if guild_id is None or interaction.channel_id is None:
+            return
+        try:
+            from sqlalchemy import select
+            from database.models.ticket import Ticket
+            from database.session import db_session
+
+            async with db_session() as s:
+                ticket = await s.scalar(
+                    select(Ticket).where(Ticket.channel_id == interaction.channel_id)
+                )
+            if ticket is None:
+                return
+            await self._record(
+                DiscordEventType.TICKET_COMMAND,
+                server_id=guild_id,
+                channel_id=interaction.channel_id,
+                user_id=interaction.user.id,
+                summary=f"/{command.qualified_name} in ticket #{ticket.id}",
+                extras={
+                    "command": command.qualified_name,
+                    "ticket_id": str(ticket.id),
+                },
+            )
+            channel = interaction.channel
+            if channel is not None:
+                try:
+                    await channel.send(
+                        f"\N{WRENCH} `/{command.qualified_name}` ausgeführt von "
+                        f"{interaction.user.mention}",
+                        allowed_mentions=discord.AllowedMentions.none(),
+                    )
+                except discord.HTTPException:
+                    pass
+        except Exception:  # noqa: BLE001
+            # Logging is best-effort; never break command flow.
+            pass
+
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(ActivityLog(bot))

@@ -19,6 +19,7 @@ from config.logging import configure_logging, get_logger
 from config.settings import get_settings
 from database import init_engine
 from database.session import dispose_engine
+from web.middleware.auth_refresh import AuthRefreshMiddleware
 from web.middleware.rate_limit import RateLimitMiddleware
 from web.middleware.request_id import RequestIDMiddleware
 from web.middleware.setup_gate import SetupGateMiddleware
@@ -98,6 +99,7 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestIDMiddleware)
     app.add_middleware(RateLimitMiddleware)
     app.add_middleware(SetupGateMiddleware)
+    app.add_middleware(AuthRefreshMiddleware)
     # Strip trailing slash so CORS origin matching works correctly.
     _origin = settings.app_base_url.rstrip("/")
     app.add_middleware(

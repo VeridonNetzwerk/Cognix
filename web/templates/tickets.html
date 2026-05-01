@@ -3,9 +3,11 @@
 {% block content %}
 <h1 class="text-2xl font-semibold mb-4">Tickets</h1>
 <nav class="mb-6 flex gap-2 text-sm border-b border-slate-800">
-  <a href="/tickets" class="px-3 py-2 -mb-px border-b-2 border-brand-500 text-brand-400">Aktive Tickets</a>
+  <a href="/tickets" class="px-3 py-2 -mb-px border-b-2 {% if not archive_view %}border-brand-500 text-brand-400{% else %}border-transparent text-slate-400 hover:text-slate-200{% endif %}">Aktive Tickets</a>
+  <a href="/tickets/archive" class="px-3 py-2 -mb-px border-b-2 {% if archive_view %}border-brand-500 text-brand-400{% else %}border-transparent text-slate-400 hover:text-slate-200{% endif %}">Archiv</a>
   <a href="/ticket-types" class="px-3 py-2 -mb-px border-b-2 border-transparent text-slate-400 hover:text-slate-200">Typen</a>
   <a href="/ticket-panels" class="px-3 py-2 -mb-px border-b-2 border-transparent text-slate-400 hover:text-slate-200">Panels</a>
+  <a href="/tickets/settings" class="px-3 py-2 -mb-px border-b-2 border-transparent text-slate-400 hover:text-slate-200">Einstellungen</a>
 </nav>
 
 <form method="get" action="/tickets" class="mb-6 flex flex-wrap items-end gap-3">

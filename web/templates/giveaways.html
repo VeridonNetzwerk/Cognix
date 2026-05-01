@@ -22,7 +22,8 @@
     </thead>
     <tbody>
       {% for g in giveaways %}
-        <tr class="border-t border-slate-800">
+        <tr class="border-t border-slate-800 hover:bg-slate-800/40 cursor-pointer"
+            onclick="if(!event.target.closest('button,form,a'))location.href='/giveaways/{{ g.id }}'">
           <td class="px-3 py-2">
             <a href="/giveaways/{{ g.id }}" class="hover:text-brand-500">{{ g.prize }}</a>
           </td>

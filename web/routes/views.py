@@ -481,6 +481,48 @@ async def tickets_save(server_id: int = Form(...),
     return RedirectResponse("/tickets", status_code=303)
 
 
+# FEAT #3: dedicated archive + settings sub-routes for the tickets section.
+
+@router.get("/tickets/archive", response_class=HTMLResponse)
+async def tickets_archive(request: Request,
+                          access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
+    user = await _require_user(access_token)
+    async with db_session() as s:
+        tickets = (await s.scalars(
+            select(Ticket)
+            .where(Ticket.status.in_([TicketStatus.CLOSED, TicketStatus.ARCHIVED]))
+            .order_by(desc(Ticket.created_at))
+            .limit(500)
+        )).all()
+        servers = (await s.scalars(select(Server).order_by(Server.name))).all()
+    return _render(
+        request,
+        "tickets.html",
+        user=user,
+        tickets=tickets,
+        servers=servers,
+        status_filter="archived",
+        archive_view=True,
+    )
+
+
+@router.get("/tickets/settings", response_class=HTMLResponse)
+async def tickets_settings(request: Request,
+                            access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
+    user = await _require_user(access_token)
+    async with db_session() as s:
+        servers = (await s.scalars(select(Server).order_by(Server.name))).all()
+        configs = (await s.scalars(select(ServerConfig))).all()
+    cfg_by_server = {c.server_id: c for c in configs}
+    return _render(
+        request,
+        "ticket_settings.html",
+        user=user,
+        servers=servers,
+        cfg_by_server=cfg_by_server,
+    )
+
+
 @router.get("/audit", response_class=HTMLResponse)
 async def audit_view(request: Request,
                      action: str | None = None,
@@ -1345,6 +1387,81 @@ async def giveaways_delete(giveaway_id: str,
             s.add(AuditLog(actor_id=user.id, action="giveaway.delete", target=str(g.id)))
             await s.delete(g)
     return RedirectResponse("/giveaways", status_code=303)
+
+
+# FEAT #6: Giveaway management actions invoked from the dashboard.
+
+@router.post("/giveaways/{giveaway_id}/reroll")
+async def giveaways_reroll(giveaway_id: str,
+                            access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
+    user = await _require_user(access_token)
+    async with db_session() as s:
+        g = await s.get(Giveaway, uuid.UUID(giveaway_id))
+        if g is None:
+            raise HTTPException(404)
+        s.add(AuditLog(actor_id=user.id, action="giveaway.reroll", target=str(g.id)))
+    bot = get_bot()
+    if bot is not None:
+        cog = bot.get_cog("Giveaways")
+        if cog is not None:
+            try:
+                async with db_session() as s2:
+                    g2 = await s2.get(Giveaway, uuid.UUID(giveaway_id))
+                    channel = bot.get_channel(g2.channel_id) if g2 else None
+                    if g2 is not None and channel is not None:
+                        winners = await cog._draw_winners(g2, channel)  # type: ignore[attr-defined]
+                        g2.winners = winners
+                        if winners:
+                            try:
+                                mentions = ", ".join(f"<@{w}>" for w in winners)
+                                await channel.send(
+                                    f"\N{PARTY POPPER} New winners for **{g2.prize}**: {mentions}"
+                                )
+                            except Exception:
+                                pass
+            except Exception:
+                pass
+    return RedirectResponse(f"/giveaways/{giveaway_id}", status_code=303)
+
+
+@router.post("/giveaways/{giveaway_id}/extend")
+async def giveaways_extend(giveaway_id: str,
+                            additional_seconds: int = Form(...),
+                            access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
+    user = await _require_user(access_token)
+    extra = max(60, min(60 * 60 * 24 * 30, int(additional_seconds)))
+    from datetime import timedelta as _td
+    async with db_session() as s:
+        g = await s.get(Giveaway, uuid.UUID(giveaway_id))
+        if g is None:
+            raise HTTPException(404)
+        if g.ended:
+            g.ended = False
+            g.status = GiveawayStatus.ACTIVE
+        g.ends_at = g.ends_at + _td(seconds=extra)
+        s.add(AuditLog(actor_id=user.id, action="giveaway.extend",
+                       target=str(g.id), details={"seconds": extra}))
+    return RedirectResponse(f"/giveaways/{giveaway_id}", status_code=303)
+
+
+@router.post("/giveaways/{giveaway_id}/edit")
+async def giveaways_edit(giveaway_id: str,
+                          prize: str = Form(...),
+                          winner_count: int = Form(...),
+                          access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
+    user = await _require_user(access_token)
+    prize = (prize or "").strip()[:256]
+    if not prize:
+        raise HTTPException(400, "prize required")
+    wc = max(1, min(50, int(winner_count)))
+    async with db_session() as s:
+        g = await s.get(Giveaway, uuid.UUID(giveaway_id))
+        if g is None:
+            raise HTTPException(404)
+        g.prize = prize
+        g.winner_count = wc
+        s.add(AuditLog(actor_id=user.id, action="giveaway.edit", target=str(g.id)))
+    return RedirectResponse(f"/giveaways/{giveaway_id}", status_code=303)
 
 
 # ---------- Members (per-server live view) ---------------------------------

@@ -138,12 +138,45 @@ def invalidate_cog_state_cache(server_id: int | None = None, cog_name: str | Non
 # --- bot lifecycle control (used by the dashboard buttons) ----------------
 
 _BOT_PAUSED: bool = False
+# Async event used by the supervisor loop in main._serve_bot to wake up
+# instantly when start/restart is requested. Lazily created on the running
+# event loop so this module stays import-safe at startup.
+_RESUME_EVENT: "asyncio.Event | None" = None  # noqa: F821 (asyncio imported below)
+
+
+def _resume_event() -> "asyncio.Event":  # noqa: F821
+    import asyncio as _asyncio
+    global _RESUME_EVENT
+    if _RESUME_EVENT is None:
+        _RESUME_EVENT = _asyncio.Event()
+    return _RESUME_EVENT
+
+
+async def wait_for_resume(timeout: float) -> bool:
+    """Block until a start/restart was requested or ``timeout`` elapses.
+
+    Returns True if a resume was signalled, False on timeout.
+    """
+    import asyncio as _asyncio
+    ev = _resume_event()
+    try:
+        await _asyncio.wait_for(ev.wait(), timeout=timeout)
+        ev.clear()
+        return True
+    except _asyncio.TimeoutError:
+        return False
 
 
 def set_bot_paused(paused: bool) -> None:
     """Toggle whether the supervisor in main._serve_bot should reconnect."""
     global _BOT_PAUSED
     _BOT_PAUSED = bool(paused)
+    if not _BOT_PAUSED:
+        try:
+            _resume_event().set()
+        except RuntimeError:
+            # No running loop — supervisor will pick up the flag on its next tick.
+            pass
 
 
 def is_bot_paused() -> bool:

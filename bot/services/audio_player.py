@@ -116,20 +116,36 @@ async def search_tracks(query: str, *, requested_by: int | None = None, limit: i
         if len(_META_CACHE) > _META_MAX:
             _META_CACHE.clear()
 
+    is_pure_search = query.startswith("ytsearch")
+
     def _extract() -> list[Track]:
-        with yt_dlp.YoutubeDL(YTDL_OPTS) as ydl:
+        # For autocomplete searches we use extract_flat to skip per-video info
+        # extraction (≈10× faster). Real playback re-resolves via this same
+        # function with use_cache=False which goes through the slow path.
+        opts = dict(YTDL_OPTS)
+        if is_pure_search:
+            opts["extract_flat"] = "in_playlist"
+            opts["playlistend"] = max(1, min(10, limit))
+        with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(query, download=False)
             if info is None:
                 return []
             if "entries" in info and info["entries"]:
                 entries = [e for e in info["entries"] if e]
-                if query.startswith("ytsearch") or "youtube.com/results" in (info.get("webpage_url") or ""):
+                if is_pure_search or "youtube.com/results" in (info.get("webpage_url") or ""):
                     entries = entries[:limit]
                 return [Track.from_info(e, query=query, requested_by=requested_by) for e in entries]
             return [Track.from_info(info, query=query, requested_by=requested_by)]
 
     loop = asyncio.get_running_loop()
-    tracks = await loop.run_in_executor(None, _extract)
+    try:
+        tracks = await asyncio.wait_for(
+            loop.run_in_executor(None, _extract),
+            timeout=15.0,
+        )
+    except asyncio.TimeoutError:
+        log.warning("audio_search_timeout", query=query[:80])
+        return []
     if use_cache and tracks:
         _META_CACHE[cache_key] = (now, list(tracks))
     return tracks
@@ -282,6 +298,12 @@ class GuildPlayer:
             loop.call_soon_threadsafe(self._next_event.set)
             raise
 
+        # FEAT #2: best-effort play-history recording. Never fails playback.
+        try:
+            asyncio.create_task(_record_play_history(self.guild_id, track))
+        except Exception:  # noqa: BLE001
+            pass
+
     # ------------------------------------------------------------------
     async def pause(self) -> None:
         vc = self.voice_client
@@ -379,3 +401,22 @@ def get_manager() -> AudioManager:
 
 def yt_dlp_available() -> bool:
     return _YTDLP_AVAILABLE
+
+
+async def _record_play_history(guild_id: int, track: "Track") -> None:
+    """Best-effort write to music_play_history. Errors are swallowed."""
+    try:
+        from database.session import db_session
+        from database.models.music_play_history import MusicPlayHistory
+
+        async with db_session() as s:
+            s.add(MusicPlayHistory(
+                server_id=int(guild_id),
+                title=(track.title or "Unknown")[:512],
+                url=(track.url or "")[:1024],
+                thumbnail=(track.thumbnail or "")[:1024],
+                duration=int(track.duration or 0),
+                played_by=int(track.requested_by or 0),
+            ))
+    except Exception as exc:  # noqa: BLE001
+        log.debug("music_history_write_failed", error=str(exc))

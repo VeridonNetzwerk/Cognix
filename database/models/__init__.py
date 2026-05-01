@@ -12,6 +12,7 @@ from database.models.invite_stats import InviteStats
 from database.models.invite_uses import InviteUse
 from database.models.moderation import ModerationAction, ModerationActionType, Warning_
 from database.models.music_playlist import MusicPlaylist
+from database.models.music_play_history import MusicPlayHistory
 from database.models.role_permission import RolePermission
 from database.models.server import Server
 from database.models.server_cog_state import ServerCogState
@@ -55,6 +56,7 @@ __all__ = [
     "ModerationAction",
     "ModerationActionType",
     "MusicPlaylist",
+    "MusicPlayHistory",
     "PermissionLevel",
     "RefreshToken",
     "RolePermission",

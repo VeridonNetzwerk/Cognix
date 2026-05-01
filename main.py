@@ -73,16 +73,16 @@ async def _serve_bot(stop: asyncio.Event) -> None:
     while not stop.is_set():
         try:
             from bot.client import run_bot
-            from bot.runtime import is_bot_paused
+            from bot.runtime import is_bot_paused, wait_for_resume
 
             if is_bot_paused():
-                # Wait for unpause or shutdown.
-                try:
-                    await asyncio.wait_for(stop.wait(), timeout=2)
-                except asyncio.TimeoutError:
-                    continue
+                # Block until start is requested or shutdown — no busy-poll.
+                resumed = await wait_for_resume(timeout=30.0)
                 if stop.is_set():
                     break
+                if not resumed and is_bot_paused():
+                    continue
+                # fall through and (re)start the bot
                 continue
 
             await run_bot()
@@ -92,7 +92,7 @@ async def _serve_bot(stop: asyncio.Event) -> None:
             log.warning("bot_crashed_restarting", error=str(exc))
         # backoff
         try:
-            await asyncio.wait_for(stop.wait(), timeout=5)
+            await asyncio.wait_for(stop.wait(), timeout=2)
         except asyncio.TimeoutError:
             continue
 

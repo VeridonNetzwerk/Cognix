@@ -30,6 +30,7 @@ class DiscordEventType(str, enum.Enum):
     SLASH_COMMAND = "slash_command"
     TICKET_OPENED = "ticket_opened"
     TICKET_CLOSED = "ticket_closed"
+    TICKET_COMMAND = "ticket_command"
     OTHER = "other"
 
 
