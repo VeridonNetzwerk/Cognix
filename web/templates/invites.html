@@ -3,6 +3,12 @@
 {% block content %}
 <h1 class="text-2xl font-semibold mb-6">Invite Tracker</h1>
 
+{% if invite_error %}
+<div class="mb-6 p-4 bg-rose-900/40 border border-rose-700 rounded-xl text-sm text-rose-200">
+  {{ invite_error }}
+</div>
+{% endif %}
+
 <form method="get" action="/invites" class="mb-6 flex gap-2 items-center">
   <label class="text-sm text-slate-400">Server</label>
   <select name="server_id" onchange="this.form.submit()"

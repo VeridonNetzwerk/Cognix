@@ -72,7 +72,13 @@
         <span class="font-medium truncate">{{ ev.summary or '—' }}</span>
       </div>
       <div class="text-xs text-slate-400 truncate">
-        srv={{ ev.server_id or '—' }} · ch={{ ev.channel_id or '—' }} · usr={{ ev.user_id or '—' }}
+        srv=
+        {%- if ev.server_id and server_lookup.get(ev.server_id) -%}
+          {{ server_lookup[ev.server_id] }} ({{ ev.server_id }})
+        {%- elif ev.server_id -%}
+          Unknown ({{ ev.server_id }})
+        {%- else -%}—{%- endif %}
+        · ch={{ ev.channel_id or '—' }} · usr={{ ev.user_id or '—' }}
         {% if ev.target_id %} · tgt={{ ev.target_id }}{% endif %}
       </div>
       {% if ev.content %}<pre class="text-xs text-slate-500 mt-1 whitespace-pre-wrap break-words">{{ ev.content[:400] }}{% if ev.content|length > 400 %}…{% endif %}</pre>{% endif %}

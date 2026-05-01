@@ -100,7 +100,36 @@ async def download_backup(backup_id: uuid.UUID, session: SessionDep) -> Response
     backup = await session.get(Backup, backup_id)
     if backup is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "backup not found")
-    payload = json.loads(decrypt_secret(backup.payload_encrypted, aad=b"backup"))
+    # AAD compatibility: older backups may have been encrypted without AAD.
+    # Try the canonical AAD first, then fall back to none.
+    try:
+        decoded = decrypt_secret(backup.payload_encrypted, aad=b"backup")
+    except Exception:  # noqa: BLE001
+        try:
+            decoded = decrypt_secret(backup.payload_encrypted, aad=None)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                f"backup decrypt failed: {exc}",
+            ) from exc
+    try:
+        payload = json.loads(decoded)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            f"backup payload not valid JSON: {exc}",
+        ) from exc
+
+    def _default(obj: object) -> object:
+        import datetime as _dt
+        if isinstance(obj, (_dt.datetime, _dt.date)):
+            return obj.isoformat()
+        if isinstance(obj, uuid.UUID):
+            return str(obj)
+        if isinstance(obj, bytes):
+            return obj.decode("utf-8", errors="replace")
+        raise TypeError(f"Type {type(obj).__name__} not serializable")
+
     body = json.dumps(
         {
             "name": backup.name,
@@ -111,6 +140,8 @@ async def download_backup(backup_id: uuid.UUID, session: SessionDep) -> Response
             "payload": payload,
         },
         indent=2,
+        default=_default,
+        ensure_ascii=False,
     ).encode("utf-8")
     safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in (backup.name or "backup"))
     date_str = backup.created_at.strftime("%Y%m%d-%H%M%S")

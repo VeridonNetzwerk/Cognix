@@ -303,7 +303,15 @@ class GuildPlayer:
         self.current = None
         vc = self.voice_client
         if vc is not None:
-            vc.stop()
+            try:
+                vc.stop()
+            except Exception:  # noqa: BLE001
+                pass
+            # Give FFmpeg a moment to terminate cleanly before yanking the socket.
+            try:
+                await asyncio.sleep(0.5)
+            except Exception:  # noqa: BLE001
+                pass
             try:
                 await vc.disconnect(force=True)
             except Exception:  # noqa: BLE001

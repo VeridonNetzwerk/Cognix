@@ -563,12 +563,14 @@ async def discord_log_view(request: Request,
                 pass
         rows = (await s.scalars(q)).all()
         servers = (await s.scalars(select(Server).order_by(Server.name))).all()
+    server_lookup = {sv.id: sv.name for sv in servers}
     return _render(
         request,
         "discord_log.html",
         user=me,
         events=rows,
         servers=servers,
+        server_lookup=server_lookup,
         event_types=[t.value for t in DiscordEventType],
         filters={
             "server_id": server_id or "",
@@ -1691,22 +1693,34 @@ async def invites_view(
 ) -> HTMLResponse:
     """FEAT #8: dashboard tab for invite tracker stats."""
     user = await _require_user(access_token)
-    async with db_session() as s:
-        servers = (await s.scalars(select(Server).order_by(Server.name))).all()
-        stmt = select(InviteStats).order_by(desc(InviteStats.active_uses)).limit(200)
-        if server_id:
-            try:
-                stmt = stmt.where(InviteStats.server_id == int(server_id))
-            except ValueError:
-                pass
-        rows = (await s.scalars(stmt)).all()
-        recent_stmt = select(InviteUse).order_by(desc(InviteUse.created_at)).limit(50)
-        if server_id:
-            try:
-                recent_stmt = recent_stmt.where(InviteUse.server_id == int(server_id))
-            except ValueError:
-                pass
-        recent = (await s.scalars(recent_stmt)).all()
+    rows = []
+    recent = []
+    servers = []
+    invite_error: str | None = None
+    try:
+        async with db_session() as s:
+            servers = (await s.scalars(select(Server).order_by(Server.name))).all()
+            stmt = select(InviteStats).order_by(desc(InviteStats.active_uses)).limit(200)
+            if server_id:
+                try:
+                    stmt = stmt.where(InviteStats.server_id == int(server_id))
+                except ValueError:
+                    pass
+            rows = (await s.scalars(stmt)).all()
+            recent_stmt = select(InviteUse).order_by(desc(InviteUse.created_at)).limit(50)
+            if server_id:
+                try:
+                    recent_stmt = recent_stmt.where(InviteUse.server_id == int(server_id))
+                except ValueError:
+                    pass
+            recent = (await s.scalars(recent_stmt)).all()
+    except Exception as exc:  # noqa: BLE001
+        invite_error = f"Invite-Daten konnten nicht geladen werden: {exc}"
+        try:
+            async with db_session() as s:
+                servers = (await s.scalars(select(Server).order_by(Server.name))).all()
+        except Exception:  # noqa: BLE001
+            servers = []
     # Resolve display names from bot cache
     bot = get_bot()
     user_names: dict[int, str] = {}
@@ -1727,6 +1741,7 @@ async def invites_view(
         stats=rows,
         recent=recent,
         user_names=user_names,
+        invite_error=invite_error,
         selected_server_id=int(server_id) if server_id and server_id.isdigit() else None,
     )
 
