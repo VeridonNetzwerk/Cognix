@@ -59,7 +59,8 @@
     </select>
     <input name="name" placeholder="Backup name (optional)"
            class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
-    <input name="message_limit" type="number" min="0" value="0" placeholder="Message limit (reserved)"
+    <label class="block text-xs uppercase text-slate-400 mt-2 mb-1">Messages per channel <span class="text-slate-500 normal-case">(0 = none, max 1000)</span></label>
+    <input name="message_limit" type="number" min="0" max="1000" value="0"
            class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
     <div class="flex justify-end gap-2 pt-2">
       <button type="button" onclick="this.closest('dialog').close()"

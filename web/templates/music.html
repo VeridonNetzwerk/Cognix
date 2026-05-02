@@ -126,32 +126,88 @@
       </div>
     </section>
 
-    <!-- RIGHT: Queue -->
+    <!-- RIGHT: Queue + History tabs -->
     <aside class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="font-semibold text-sm">Up next</h2>
-        <span class="text-xs text-slate-500" x-text="(state.queue?.length || 0) + ' tracks'"></span>
+      <div class="flex gap-1 mb-2 text-xs">
+        <button @click="rightTab='queue'" :class="rightTab==='queue' ? 'bg-brand-600 text-white' : 'bg-slate-800 text-slate-300'" class="flex-1 py-1.5 rounded">Up Next</button>
+        <button @click="rightTab='latest'; loadLatest()" :class="rightTab==='latest' ? 'bg-brand-600 text-white' : 'bg-slate-800 text-slate-300'" class="flex-1 py-1.5 rounded">Latest</button>
+        <button @click="rightTab='top'; loadTop()" :class="rightTab==='top' ? 'bg-brand-600 text-white' : 'bg-slate-800 text-slate-300'" class="flex-1 py-1.5 rounded">Most Played</button>
       </div>
-      <ol class="flex-1 overflow-auto scroll-thin space-y-1 pr-1">
-        <template x-for="(t, i) in state.queue" :key="i + ':' + (t.url || t.title)">
-          <li class="group flex items-center gap-2 p-1.5 rounded bg-slate-800/40 hover:bg-slate-800"
-              draggable="true"
-              @dragstart="dragSrc = i"
-              @dragover.prevent
-              @drop.prevent="reorder(dragSrc, i)">
-            <span class="text-[10px] text-slate-500 w-5 text-right" x-text="(i+1)"></span>
-            <img :src="t.thumbnail || ''" class="w-8 h-8 object-cover rounded bg-slate-900 shrink-0">
-            <div class="min-w-0 flex-1">
-              <div class="text-xs font-medium truncate" x-text="t.title"></div>
-              <div class="text-[10px] text-slate-500 truncate" x-text="t.uploader"></div>
-            </div>
-            <span class="text-[10px] text-slate-500 shrink-0" x-text="fmtTime(t.duration)"></span>
-            <button class="text-rose-400 hover:text-rose-300 opacity-0 group-hover:opacity-100 text-xs px-1"
-                    @click="removeAt(i)" title="Remove">✕</button>
-          </li>
-        </template>
-      </ol>
-      <div x-show="!state.queue || !state.queue.length" class="text-xs text-slate-500 text-center py-6">Queue is empty.</div>
+
+      <template x-if="rightTab==='queue'">
+        <div class="flex flex-col flex-1 min-h-0">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="font-semibold text-sm">Up next</h2>
+            <span class="text-xs text-slate-500" x-text="(state.queue?.length || 0) + ' tracks'"></span>
+          </div>
+          <ol class="flex-1 overflow-auto scroll-thin space-y-1 pr-1">
+            <template x-for="(t, i) in state.queue" :key="i + ':' + (t.url || t.title)">
+              <li class="group flex items-center gap-2 p-1.5 rounded bg-slate-800/40 hover:bg-slate-800"
+                  draggable="true"
+                  @dragstart="dragSrc = i"
+                  @dragover.prevent
+                  @drop.prevent="reorder(dragSrc, i)">
+                <span class="text-[10px] text-slate-500 w-5 text-right" x-text="(i+1)"></span>
+                <img :src="t.thumbnail || ''" class="w-8 h-8 object-cover rounded bg-slate-900 shrink-0">
+                <div class="min-w-0 flex-1">
+                  <div class="text-xs font-medium truncate" x-text="t.title"></div>
+                  <div class="text-[10px] text-slate-500 truncate" x-text="t.uploader"></div>
+                </div>
+                <span class="text-[10px] text-slate-500 shrink-0" x-text="fmtTime(t.duration)"></span>
+                <button class="text-rose-400 hover:text-rose-300 opacity-0 group-hover:opacity-100 text-xs px-1"
+                        @click="removeAt(i)" title="Remove">✕</button>
+              </li>
+            </template>
+          </ol>
+          <div x-show="!state.queue || !state.queue.length" class="text-xs text-slate-500 text-center py-6">Queue is empty.</div>
+        </div>
+      </template>
+
+      <template x-if="rightTab==='latest'">
+        <div class="flex flex-col flex-1 min-h-0">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="font-semibold text-sm">Latest played</h2>
+            <button class="text-[10px] px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded" @click="loadLatest()">Refresh</button>
+          </div>
+          <ol class="flex-1 overflow-auto scroll-thin space-y-1 pr-1">
+            <template x-for="(t, i) in latest" :key="'l'+i">
+              <li class="group flex items-center gap-2 p-1.5 rounded bg-slate-800/40 hover:bg-slate-800 cursor-pointer"
+                  @click="enqueue(t.url || t.title)">
+                <img :src="t.thumbnail || ''" class="w-8 h-8 object-cover rounded bg-slate-900 shrink-0">
+                <div class="min-w-0 flex-1">
+                  <div class="text-xs font-medium truncate" x-text="t.title"></div>
+                  <div class="text-[10px] text-slate-500 truncate" x-text="t.uploader || fmtTimeAgo(t.played_at)"></div>
+                </div>
+                <span class="text-[10px] text-slate-500 shrink-0" x-text="fmtTime(t.duration || 0)"></span>
+              </li>
+            </template>
+          </ol>
+          <div x-show="!latest.length" class="text-xs text-slate-500 text-center py-6">No history yet.</div>
+        </div>
+      </template>
+
+      <template x-if="rightTab==='top'">
+        <div class="flex flex-col flex-1 min-h-0">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="font-semibold text-sm">Most played</h2>
+            <button class="text-[10px] px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded" @click="loadTop()">Refresh</button>
+          </div>
+          <ol class="flex-1 overflow-auto scroll-thin space-y-1 pr-1">
+            <template x-for="(t, i) in top" :key="'t'+i">
+              <li class="group flex items-center gap-2 p-1.5 rounded bg-slate-800/40 hover:bg-slate-800 cursor-pointer"
+                  @click="enqueue(t.url || t.title)">
+                <span class="text-[10px] text-slate-500 w-5 text-right" x-text="(i+1)"></span>
+                <img :src="t.thumbnail || ''" class="w-8 h-8 object-cover rounded bg-slate-900 shrink-0">
+                <div class="min-w-0 flex-1">
+                  <div class="text-xs font-medium truncate" x-text="t.title"></div>
+                  <div class="text-[10px] text-slate-500 truncate"><span x-text="t.plays"></span> plays</div>
+                </div>
+              </li>
+            </template>
+          </ol>
+          <div x-show="!top.length" class="text-xs text-slate-500 text-center py-6">No data yet.</div>
+        </div>
+      </template>
     </aside>
   </div>
 </div>
@@ -172,6 +228,9 @@ function musicPanel() {
              is_playing: false, is_paused: false, position: 0 },
     playlists: [],
     leftTab: 'search',
+    rightTab: 'queue',
+    latest: [],
+    top: [],
     query: '',
     results: [],
     searching: false,
@@ -212,6 +271,38 @@ function musicPanel() {
           this.playlists = Array.isArray(data) ? data : (data.items || []);
         }
       } catch (e) {}
+    },
+
+    async loadLatest() {
+      if (!this.serverId) return;
+      try {
+        const r = await fetch(`/api/v1/music/${this.serverId}/history?limit=50`, { credentials: 'same-origin' });
+        if (r.ok) {
+          const data = await r.json();
+          this.latest = data.items || [];
+        }
+      } catch (e) {}
+    },
+
+    async loadTop() {
+      if (!this.serverId) return;
+      try {
+        const r = await fetch(`/api/v1/music/${this.serverId}/history/top?limit=25`, { credentials: 'same-origin' });
+        if (r.ok) {
+          const data = await r.json();
+          this.top = data.items || [];
+        }
+      } catch (e) {}
+    },
+
+    fmtTimeAgo(iso) {
+      if (!iso) return '';
+      const d = new Date(iso).getTime();
+      const s = Math.floor((Date.now() - d) / 1000);
+      if (s < 60) return s + 's ago';
+      if (s < 3600) return Math.floor(s/60) + 'm ago';
+      if (s < 86400) return Math.floor(s/3600) + 'h ago';
+      return Math.floor(s/86400) + 'd ago';
     },
 
     async cmd(action, body) {

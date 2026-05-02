@@ -167,15 +167,38 @@ class Backups(commands.Cog):
     async def _snapshot(
         self, guild: discord.Guild, *, message_limit: int = 0
     ) -> dict[str, Any]:
+        ml = max(0, min(int(message_limit), 1000))
+        messages: dict[str, list[dict[str, Any]]] = {}
+        if ml > 0:
+            for ch in guild.text_channels:
+                try:
+                    history = []
+                    async for msg in ch.history(limit=ml, oldest_first=False):
+                        history.append({
+                            "id": msg.id,
+                            "author_id": msg.author.id,
+                            "author_name": str(msg.author),
+                            "content": (msg.content or "")[:4000],
+                            "created_at": msg.created_at.isoformat(),
+                            "attachments": [a.url for a in msg.attachments][:10],
+                            "pinned": msg.pinned,
+                        })
+                    if history:
+                        messages[str(ch.id)] = list(reversed(history))
+                except discord.Forbidden:
+                    continue
+                except discord.HTTPException:
+                    continue
         return {
             "guild_id": guild.id,
             "name": guild.name,
-            "message_limit": int(message_limit),
+            "message_limit": ml,
             "roles": [_serialize_role(r) for r in guild.roles if not r.is_default()],
             "channels": [
                 _serialize_channel(c)
                 for c in sorted(guild.channels, key=lambda x: (x.position, x.id))
             ],
+            "messages": messages,
         }
 
     async def _ensure_server_row(self, guild: discord.Guild) -> None:
