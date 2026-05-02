@@ -15,6 +15,103 @@
   </dl>
 </div>
 
+<!-- BUG #5: Roles & permissions panel -->
+<div class="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6">
+  <h2 class="text-lg font-semibold mb-3">Rollen &amp; Berechtigungen</h2>
+  <p class="text-xs text-slate-400 mb-3">Klicke eine Rolle an, um Bot-Berechtigungen für diese Rolle zu konfigurieren.</p>
+  <div id="role-list" class="divide-y divide-slate-800">
+    <div class="text-sm text-slate-500 py-3">Lade Rollen…</div>
+  </div>
+</div>
+
+<div id="role-panel" style="display:none;position:fixed;top:0;right:0;bottom:0;width:420px;max-width:100vw;background:#0f172a;border-left:1px solid #1e293b;padding:20px;overflow-y:auto;z-index:50;box-shadow:-8px 0 24px rgba(0,0,0,0.4)">
+  <div class="flex items-center justify-between mb-4">
+    <h3 id="role-panel-name" class="text-lg font-semibold">—</h3>
+    <button onclick="document.getElementById('role-panel').style.display='none'"
+            class="text-slate-400 hover:text-slate-100 text-xl leading-none">×</button>
+  </div>
+  <div id="role-perm-toggles" class="space-y-2"></div>
+  <button onclick="saveRolePermissions()"
+          class="mt-4 w-full px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded">Speichern</button>
+  <div id="role-perm-status" class="text-xs text-emerald-400 mt-2 hidden">Gespeichert</div>
+</div>
+
+<script>
+  const PERM_KEYS = [
+    ['tickets_create',   'Tickets erstellen'],
+    ['tickets_close',    'Tickets schließen'],
+    ['giveaways_start',  'Giveaways starten'],
+    ['backup_create',    'Backups erstellen'],
+    ['moderation_use',   'Moderations-Commands'],
+    ['music_use',        'Musik-Commands'],
+  ];
+  let CURRENT_ROLE_ID = null;
+  async function loadRoles() {
+    const list = document.getElementById('role-list');
+    try {
+      const r = await fetch('/api/v1/servers/{{ server.id }}/roles', { credentials: 'same-origin' });
+      const data = await r.json();
+      if (!data.roles || data.roles.length === 0) {
+        list.innerHTML = '<div class="text-sm text-slate-500 py-3">Keine Rollen verfügbar (Bot offline?).</div>';
+        return;
+      }
+      list.innerHTML = data.roles.map(r =>
+        '<div class="flex items-center justify-between py-2 cursor-pointer hover:bg-slate-800/40 px-2 rounded" onclick="openRolePanel(\'' + r.id + '\',\'' + r.name.replace(/[\\\']/g,"") + '\')">' +
+        '<div class="flex items-center gap-2">' +
+        '<span style="display:inline-block;width:10px;height:10px;border-radius:9999px;background:' + r.color + '"></span>' +
+        '<span class="text-sm">' + r.name + '</span>' +
+        '<span class="text-xs text-slate-500">(' + r.member_count + ')</span></div>' +
+        '<button class="text-xs px-3 py-1 bg-indigo-700 hover:bg-indigo-600 rounded">Berechtigungen</button>' +
+        '</div>'
+      ).join('');
+    } catch (e) {
+      list.innerHTML = '<div class="text-sm text-rose-400 py-3">Fehler beim Laden der Rollen.</div>';
+    }
+  }
+  async function openRolePanel(roleId, roleName) {
+    CURRENT_ROLE_ID = roleId;
+    document.getElementById('role-panel-name').textContent = roleName;
+    const togs = document.getElementById('role-perm-toggles');
+    togs.innerHTML = '<div class="text-sm text-slate-400">Lade…</div>';
+    document.getElementById('role-panel').style.display = 'block';
+    document.getElementById('role-perm-status').classList.add('hidden');
+    try {
+      const r = await fetch('/api/v1/servers/{{ server.id }}/roles/' + roleId + '/permissions', { credentials: 'same-origin' });
+      const data = await r.json();
+      const perms = data.permissions || {};
+      togs.innerHTML = PERM_KEYS.map(([k, label]) =>
+        '<label class="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded px-3 py-2">' +
+        '<span class="text-sm">' + label + '</span>' +
+        '<input type="checkbox" data-key="' + k + '" ' + (perms[k] ? 'checked' : '') + ' />' +
+        '</label>'
+      ).join('');
+    } catch (e) {
+      togs.innerHTML = '<div class="text-sm text-rose-400">Fehler beim Laden.</div>';
+    }
+  }
+  async function saveRolePermissions() {
+    if (!CURRENT_ROLE_ID) return;
+    const perms = {};
+    document.querySelectorAll('#role-perm-toggles input[type=checkbox]').forEach(c => {
+      perms[c.dataset.key] = c.checked;
+    });
+    try {
+      const r = await fetch('/api/v1/servers/{{ server.id }}/roles/' + CURRENT_ROLE_ID + '/permissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ permissions: perms }),
+      });
+      if (r.ok) {
+        const s = document.getElementById('role-perm-status');
+        s.classList.remove('hidden');
+        setTimeout(() => s.classList.add('hidden'), 2000);
+      }
+    } catch (e) {}
+  }
+  loadRoles();
+</script>
+
 <h2 class="text-lg font-semibold mb-3">Role permissions</h2>
 <p class="text-sm text-slate-400 mb-4">Map a Discord role to a slash-command and decide whether it is allowed or denied. Empty = use default Discord permissions.</p>
 

@@ -102,6 +102,17 @@ class CogniXBot(commands.Bot):
     async def on_ready(self) -> None:
         if self.start_time == 0.0:
             self.start_time = time.time()
+        # BUG #2: Pterodactyl egg detection string. The default "yolks:python"
+        # egg matches "is online!" / "online!" / "Bot is online" patterns to
+        # flip the server state from STARTING -> RUNNING. Print on every
+        # on_ready (also after reconnects) and force-flush so the line is
+        # visible immediately even when stdout is line-buffered.
+        try:
+            import sys as _sys
+            print(f"[Cognix] Bot is online! Logged in as {self.user} ({len(self.guilds)} guilds).", flush=True)
+            _sys.stdout.flush()
+        except Exception:  # noqa: BLE001
+            pass
         log.info(
             "bot_ready",
             user=str(self.user),

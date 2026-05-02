@@ -20,6 +20,35 @@
 <form method="post" action="/welcome/save" class="space-y-6">
   <input type="hidden" name="server_id" value="{{ selected_server_id }}" />
 
+  <script>
+    (async () => {
+      try {
+        const r = await fetch('/api/v1/servers/{{ selected_server_id }}/channels', { credentials: 'same-origin' });
+        const data = await r.json();
+        const groups = {};
+        (data.channels || []).forEach(c => {
+          if (c.type === 'category') return;
+          if (c.type !== 'text' && c.type !== 'forum') return;
+          const k = c.category_name || 'Uncategorised';
+          (groups[k] = groups[k] || []).push(c);
+        });
+        document.querySelectorAll('select.welcome-channel').forEach(sel => {
+          const cur = sel.dataset.current || '';
+          let html = '<option value="">— none —</option>';
+          Object.keys(groups).forEach(cat => {
+            html += '<optgroup label="' + cat + '">';
+            groups[cat].forEach(c => {
+              const sel2 = (cur && String(cur) === c.id) ? ' selected' : '';
+              html += '<option value="' + c.id + '"' + sel2 + '># ' + c.name + '</option>';
+            });
+            html += '</optgroup>';
+          });
+          sel.innerHTML = html;
+        });
+      } catch (e) {}
+    })();
+  </script>
+
   {% set sections = [
     ('join',  'Join (Welcome)', '#60a5fa'),
     ('leave', 'Leave',          '#f43f5e'),
@@ -42,9 +71,12 @@
       </div>
       <div class="grid md:grid-cols-2 gap-3 text-sm">
         <div>
-          <label class="block text-xs uppercase text-slate-400 mb-1">Channel ID</label>
-          <input name="{{ key }}_channel_id" value="{{ channel_id }}"
-                 class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 font-mono text-xs" />
+          <label class="block text-xs uppercase text-slate-400 mb-1">Channel</label>
+          <select name="{{ key }}_channel_id" data-current="{{ channel_id }}"
+                  class="welcome-channel w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm">
+            <option value="">— none —</option>
+            {% if channel_id %}<option value="{{ channel_id }}" selected>(current) {{ channel_id }}</option>{% endif %}
+          </select>
         </div>
         <div>
           <label class="block text-xs uppercase text-slate-400 mb-1">Color</label>

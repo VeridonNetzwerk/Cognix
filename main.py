@@ -58,14 +58,34 @@ async def _serve_api(stop: asyncio.Event) -> None:
     async def _run() -> None:
         try:
             await server.serve()
+        except asyncio.CancelledError:
+            # BUG #1: swallow cancellation during graceful shutdown so the
+            # uvicorn lifespan exits cleanly instead of bubbling up the
+            # CancelledError into the lifespan logger.
+            server.should_exit = True
+            log.info("api_server_cancelled_shutdown")
         except Exception:  # noqa: BLE001
             log.exception("api_server_serve_failed")
             raise
 
     task = asyncio.create_task(_run(), name="api-server")
-    await stop.wait()
+    try:
+        await stop.wait()
+    except asyncio.CancelledError:
+        # BUG #1: graceful shutdown path on SIGTERM/SIGINT — request uvicorn
+        # to exit cleanly so its lifespan finalizers can run without raising
+        # CancelledError into the user's logs.
+        pass
     server.should_exit = True
-    await task
+    try:
+        await asyncio.wait_for(task, timeout=10.0)
+    except asyncio.TimeoutError:
+        log.warning("api_server_shutdown_timeout")
+        task.cancel()
+        try:
+            await task
+        except (asyncio.CancelledError, Exception):  # noqa: BLE001
+            pass
 
 
 async def _serve_bot(stop: asyncio.Event) -> None:

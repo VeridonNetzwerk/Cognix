@@ -1,11 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Giveaways · CogniX{% endblock %}
 {% block content %}
-<h1 class="text-2xl font-semibold mb-6">Giveaways</h1>
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-semibold">Giveaways</h1>
+  <button onclick="document.getElementById('createGiveaway').showModal()"
+          class="px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded">+ New Giveaway</button>
+</div>
 
 <div class="mb-6 text-sm text-slate-400">
-  Use <code class="text-brand-500">/giveaway start</code> in Discord to create a new giveaway.
-  Use this page to monitor, end early, reroll, or delete records.
+  Use <code class="text-brand-500">/giveaway start</code> in Discord or the “+ New Giveaway” button to create a giveaway.
+  Click any row to see details, end early, reroll or extend.
 </div>
 
 <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
@@ -45,6 +49,10 @@
               <form method="post" action="/giveaways/{{ g.id }}/end" class="inline">
                 <button class="text-xs px-2 py-1 rounded bg-amber-600 hover:bg-amber-500">End</button>
               </form>
+            {% else %}
+              <form method="post" action="/giveaways/{{ g.id }}/reroll" class="inline">
+                <button class="text-xs px-2 py-1 rounded bg-violet-600 hover:bg-violet-500">Reroll</button>
+              </form>
             {% endif %}
             <form method="post" action="/giveaways/{{ g.id }}/delete" class="inline"
                   onsubmit="return confirm('Delete giveaway record?');">
@@ -58,4 +66,96 @@
     </tbody>
   </table>
 </div>
+
+<dialog id="createGiveaway" class="bg-slate-900 text-slate-100 border border-slate-700 rounded-xl p-6 w-full max-w-lg backdrop:bg-black/60">
+  <form method="post" action="/giveaways/create" class="space-y-3">
+    <h2 class="text-lg font-semibold mb-2">New Giveaway</h2>
+    <div>
+      <label class="block text-xs uppercase text-slate-400 mb-1">Server</label>
+      <select name="server_id" required onchange="loadGiveawayForm(this.value)"
+              class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2">
+        <option value="">— pick a server —</option>
+        {% for s in servers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs uppercase text-slate-400 mb-1">Channel</label>
+      <select name="channel_id" id="gw-channel" required
+              class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2">
+        <option value="">— pick a server first —</option>
+      </select>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-xs uppercase text-slate-400 mb-1">Prize</label>
+        <input name="prize" required maxlength="256"
+               class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+      </div>
+      <div>
+        <label class="block text-xs uppercase text-slate-400 mb-1">Winners</label>
+        <input name="winners" type="number" min="1" max="50" value="1"
+               class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+      </div>
+    </div>
+    <div>
+      <label class="block text-xs uppercase text-slate-400 mb-1">Duration <span class="text-slate-500 normal-case">(e.g. 30m, 2h, 1d, 1w)</span></label>
+      <input name="duration" required placeholder="1d"
+             class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+    </div>
+    <div>
+      <label class="block text-xs uppercase text-slate-400 mb-1">Required role (optional)</label>
+      <select name="required_role_id" id="gw-role"
+              class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2">
+        <option value="">— none —</option>
+      </select>
+    </div>
+    <div class="flex justify-end gap-2 pt-2">
+      <button type="button" onclick="this.closest('dialog').close()"
+              class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded">Cancel</button>
+      <button class="px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded">Create</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+  async function loadGiveawayForm(serverId) {
+    const channelSel = document.getElementById('gw-channel');
+    const roleSel = document.getElementById('gw-role');
+    channelSel.innerHTML = '<option value="">loading…</option>';
+    roleSel.innerHTML = '<option value="">— none —</option>';
+    if (!serverId) { channelSel.innerHTML = '<option value="">— pick a server first —</option>'; return; }
+    try {
+      const [chRes, rRes] = await Promise.all([
+        fetch('/api/v1/servers/' + serverId + '/channels', { credentials: 'same-origin' }),
+        fetch('/api/v1/servers/' + serverId + '/roles', { credentials: 'same-origin' }),
+      ]);
+      const chData = await chRes.json();
+      const rData = await rRes.json();
+      const groups = {};
+      (chData.channels || []).forEach(c => {
+        if (c.type === 'category') return;
+        const k = c.category_name || 'Uncategorised';
+        groups[k] = groups[k] || [];
+        groups[k].push(c);
+      });
+      let html = '<option value="">— pick —</option>';
+      Object.keys(groups).forEach(cat => {
+        html += '<optgroup label="' + cat + '">';
+        groups[cat].forEach(c => {
+          const icon = c.type === 'voice' ? '🔊' : (c.type === 'forum' ? '🗂️' : '#');
+          html += '<option value="' + c.id + '" data-type="' + c.type + '">' + icon + ' ' + c.name + '</option>';
+        });
+        html += '</optgroup>';
+      });
+      channelSel.innerHTML = html;
+      let rhtml = '<option value="">— none —</option>';
+      (rData.roles || []).forEach(r => {
+        rhtml += '<option value="' + r.id + '">' + r.name + '</option>';
+      });
+      roleSel.innerHTML = rhtml;
+    } catch (e) {
+      channelSel.innerHTML = '<option value="">error loading channels</option>';
+    }
+  }
+</script>
 {% endblock %}

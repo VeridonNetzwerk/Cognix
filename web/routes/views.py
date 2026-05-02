@@ -400,7 +400,7 @@ async def cogs_reload(cog_name: str,
     try:
         await get_ipc().call("cog.reload", {"name": cog_name}, timeout=5.0)
     except Exception:  # noqa: BLE001
-        pass  # silent — surface via bot logs
+        pass  # silent â€” surface via bot logs
     return RedirectResponse("/cogs", status_code=303)
 
 
@@ -1814,16 +1814,54 @@ async def invites_view(
     recent = []
     servers = []
     invite_error: str | None = None
+    leaderboard: list[dict[str, Any]] = []
     try:
         async with db_session() as s:
             servers = (await s.scalars(select(Server).order_by(Server.name))).all()
-            stmt = select(InviteStats).order_by(desc(InviteStats.active_uses)).limit(200)
-            if server_id:
-                try:
-                    stmt = stmt.where(InviteStats.server_id == int(server_id))
-                except ValueError:
-                    pass
-            rows = (await s.scalars(stmt)).all()
+            if server_id and server_id.isdigit():
+                # per-server view: show raw rows so per-invite breakdown is
+                # visible.
+                stmt = (
+                    select(InviteStats)
+                    .where(InviteStats.server_id == int(server_id))
+                    .order_by(desc(InviteStats.active_uses))
+                    .limit(200)
+                )
+                rows = (await s.scalars(stmt)).all()
+                for r in rows:
+                    leaderboard.append({
+                        "inviter_id": r.inviter_id,
+                        "active_uses": r.active_uses,
+                        "total_uses": r.total_uses,
+                        "left_uses": r.left_uses,
+                        "fake_uses": r.fake_uses,
+                    })
+            else:
+                # BUG #6: when aggregating across all servers, dedup users by
+                # inviter_id and sum their counters so a single user with
+                # invites in multiple guilds does not appear multiple times.
+                stmt = (
+                    select(
+                        InviteStats.inviter_id,
+                        func.coalesce(func.sum(InviteStats.active_uses), 0).label("active_uses"),
+                        func.coalesce(func.sum(InviteStats.total_uses), 0).label("total_uses"),
+                        func.coalesce(func.sum(InviteStats.left_uses), 0).label("left_uses"),
+                        func.coalesce(func.sum(InviteStats.fake_uses), 0).label("fake_uses"),
+                    )
+                    .group_by(InviteStats.inviter_id)
+                    .order_by(desc(func.sum(InviteStats.active_uses)))
+                    .limit(200)
+                )
+                agg = (await s.execute(stmt)).all()
+                rows = []  # not used in aggregate mode
+                for r in agg:
+                    leaderboard.append({
+                        "inviter_id": r.inviter_id,
+                        "active_uses": int(r.active_uses or 0),
+                        "total_uses": int(r.total_uses or 0),
+                        "left_uses": int(r.left_uses or 0),
+                        "fake_uses": int(r.fake_uses or 0),
+                    })
             recent_stmt = select(InviteUse).order_by(desc(InviteUse.created_at)).limit(50)
             if server_id:
                 try:
@@ -1842,9 +1880,11 @@ async def invites_view(
     bot = get_bot()
     user_names: dict[int, str] = {}
     if bot is not None:
-        for r in rows:
-            u = bot.get_user(r.inviter_id)
-            user_names[r.inviter_id] = u.display_name if u else f"<@{r.inviter_id}>"
+        for r in leaderboard:
+            uid = r["inviter_id"]
+            if uid and uid not in user_names:
+                u = bot.get_user(uid)
+                user_names[uid] = u.display_name if u else f"<@{uid}>"
         for r in recent:
             for uid in (r.inviter_id, r.invitee_id):
                 if uid and uid not in user_names:
@@ -1855,7 +1895,7 @@ async def invites_view(
         "invites.html",
         user=user,
         servers=servers,
-        stats=rows,
+        stats=leaderboard,
         recent=recent,
         user_names=user_names,
         invite_error=invite_error,
@@ -1948,3 +1988,237 @@ async def members_dm(server_id: str, member_id: str,
         s.add(AuditLog(actor_id=me.id, action="member.dm", target=member_id,
                        details={"length": len(message)}))
     return RedirectResponse(f"/members?server_id={server_id}", status_code=303)
+
+# ============================================================================
+# BUG #7 - Channel/Roles dropdown API
+# ============================================================================
+
+@router.get("/api/v1/servers/{guild_id}/channels")
+async def api_server_channels(
+    guild_id: int,
+    access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
+) -> dict:
+    """Return all channels of a guild grouped by category for dashboard dropdowns."""
+    await _require_user(access_token)
+    import discord as _d
+    bot = get_bot()
+    if bot is None:
+        return {"channels": [], "error": "bot_offline"}
+    guild = bot.get_guild(int(guild_id))
+    if guild is None:
+        raise HTTPException(404, "guild not found")
+    out: list[dict[str, Any]] = []
+    for ch in sorted(guild.channels, key=lambda c: (c.position, c.id)):
+        if isinstance(ch, _d.CategoryChannel):
+            kind = "category"
+        elif isinstance(ch, _d.VoiceChannel):
+            kind = "voice"
+        elif isinstance(ch, _d.StageChannel):
+            kind = "stage"
+        elif isinstance(ch, _d.ForumChannel):
+            kind = "forum"
+        else:
+            kind = "text"
+        cat = getattr(ch, "category", None)
+        out.append({
+            "id": str(ch.id),
+            "name": ch.name,
+            "type": kind,
+            "category_id": str(cat.id) if cat else None,
+            "category_name": cat.name if cat else None,
+        })
+    return {"channels": out}
+
+
+@router.get("/api/v1/servers/{guild_id}/roles")
+async def api_server_roles(
+    guild_id: int,
+    access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
+) -> dict:
+    """Return all roles for a guild - used by giveaway create form etc."""
+    await _require_user(access_token)
+    bot = get_bot()
+    if bot is None:
+        return {"roles": [], "error": "bot_offline"}
+    guild = bot.get_guild(int(guild_id))
+    if guild is None:
+        raise HTTPException(404, "guild not found")
+    out: list[dict[str, Any]] = []
+    for r in sorted(guild.roles, key=lambda r: -r.position):
+        if r.is_default():
+            continue
+        out.append({
+            "id": str(r.id),
+            "name": r.name,
+            "color": f"#{r.color.value:06x}" if r.color and r.color.value else "#99aab5",
+            "member_count": len(r.members),
+            "managed": r.managed,
+        })
+    return {"roles": out}
+
+
+# ============================================================================
+# BUG #5 - Per-role permission toggles (used by Server detail page)
+# ============================================================================
+
+_ROLE_PERMISSION_KEYS = (
+    "tickets_create",
+    "tickets_close",
+    "giveaways_start",
+    "backup_create",
+    "moderation_use",
+    "music_use",
+)
+
+
+@router.get("/api/v1/servers/{guild_id}/roles/{role_id}/permissions")
+async def api_role_permissions_get(
+    guild_id: int,
+    role_id: int,
+    access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
+) -> dict:
+    await _require_user(access_token)
+    perms: dict[str, bool] = {k: False for k in _ROLE_PERMISSION_KEYS}
+    async with db_session() as s:
+        rows = (
+            await s.scalars(
+                select(RolePermission)
+                .where(RolePermission.server_id == int(guild_id))
+                .where(RolePermission.discord_role_id == int(role_id))
+            )
+        ).all()
+        for r in rows:
+            if r.command in perms:
+                perms[r.command] = bool(r.allowed)
+    return {"role_id": str(role_id), "permissions": perms}
+
+
+@router.post("/api/v1/servers/{guild_id}/roles/{role_id}/permissions")
+async def api_role_permissions_set(
+    guild_id: int,
+    role_id: int,
+    payload: dict,
+    access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
+) -> dict:
+    me = await _require_user(access_token)
+    perms_in = payload.get("permissions") or {}
+    if not isinstance(perms_in, dict):
+        raise HTTPException(400, "permissions must be an object")
+    async with db_session() as s:
+        for key in _ROLE_PERMISSION_KEYS:
+            value = bool(perms_in.get(key))
+            row = await s.scalar(
+                select(RolePermission)
+                .where(RolePermission.server_id == int(guild_id))
+                .where(RolePermission.discord_role_id == int(role_id))
+                .where(RolePermission.command == key)
+            )
+            if row is None:
+                s.add(RolePermission(
+                    server_id=int(guild_id),
+                    discord_role_id=int(role_id),
+                    command=key,
+                    allowed=value,
+                ))
+            else:
+                row.allowed = value
+        s.add(AuditLog(actor_id=me.id, action="role.permissions",
+                       target=str(role_id), details={"server_id": str(guild_id)}))
+    return {"ok": True}
+
+
+# ============================================================================
+# FEAT #4 - Create a giveaway from the dashboard
+# ============================================================================
+
+@router.post("/giveaways/create")
+async def giveaways_create(
+    request: Request,
+    server_id: str = Form(...),
+    channel_id: str = Form(...),
+    prize: str = Form(...),
+    winners: int = Form(default=1),
+    duration: str = Form(...),
+    required_role_id: str | None = Form(default=None),
+    access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
+) -> Response:
+    me = await _require_user(access_token)
+    prize = (prize or "").strip()[:256]
+    if not prize:
+        raise HTTPException(400, "prize required")
+    bot = get_bot()
+    if bot is None:
+        raise HTTPException(503, "bot offline")
+    from bot.cogs.giveaway import _parse_duration, _build_embed, PARTY
+    delta = _parse_duration(duration)
+    if delta is None:
+        raise HTTPException(400, "invalid duration (use e.g. 30m, 2h, 1d)")
+    import discord as _d
+    from datetime import datetime as _dt, timezone as _tz
+    guild = bot.get_guild(int(server_id))
+    if guild is None:
+        raise HTTPException(404, "guild not found")
+    channel = guild.get_channel(int(channel_id))
+    if not isinstance(channel, _d.TextChannel):
+        raise HTTPException(400, "channel must be a text channel")
+    role_id_int: int | None = None
+    if required_role_id and str(required_role_id).strip().isdigit():
+        role_id_int = int(required_role_id)
+    ends_at = _dt.now(tz=_tz.utc) + delta
+    g = Giveaway(
+        server_id=guild.id,
+        channel_id=channel.id,
+        message_id=0,
+        prize=prize,
+        winner_count=max(1, min(50, int(winners))),
+        ends_at=ends_at,
+        host_id=int(getattr(bot.user, "id", 0) or 0),
+        required_role_id=role_id_int,
+        winners=[],
+    )
+    try:
+        msg = await channel.send(embed=_build_embed(g))
+        await msg.add_reaction(PARTY)
+    except _d.HTTPException as exc:
+        raise HTTPException(400, f"discord error: {exc}") from exc
+    g.message_id = msg.id
+    async with db_session() as s:
+        s.add(g)
+        await s.flush()
+        new_id = g.id
+        s.add(AuditLog(actor_id=me.id, action="giveaway.create", target=str(new_id),
+                       details={"prize": prize, "channel_id": str(channel.id)}))
+    return RedirectResponse(f"/giveaways/{new_id}", status_code=303)
+
+
+# ============================================================================
+# FEAT #6 - Admin can reset OTP / 2FA of any other user
+# ============================================================================
+
+@router.post("/users/{user_id}/reset-otp")
+async def users_reset_otp(
+    user_id: str,
+    access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
+) -> Response:
+    me = await _require_user(access_token)
+    if me.role != WebRole.ADMIN:
+        raise HTTPException(403, "admin only")
+    try:
+        target_id = uuid.UUID(user_id)
+    except ValueError as exc:
+        raise HTTPException(400, "bad id") from exc
+    async with db_session() as s:
+        target = await s.get(WebUser, target_id)
+        if target is None:
+            raise HTTPException(404, "user not found")
+        if target.username == "admin":
+            raise HTTPException(403, "admin account is locked")
+        target.totp_secret_encrypted = ""
+        target.totp_enabled = False
+        s.add(AuditLog(
+            actor_id=me.id,
+            action="user.otp_reset",
+            target=target.username,
+            details={"by": me.username},
+        ))
+    return RedirectResponse("/users", status_code=303)

@@ -37,6 +37,12 @@
                   class="px-3 py-1 text-xs bg-slate-800 hover:bg-slate-700 rounded">Edit</button>
           <button onclick="document.getElementById('perms-{{ u.id }}').showModal()"
                   class="px-3 py-1 text-xs bg-indigo-700 hover:bg-indigo-600 rounded">Permissions</button>
+          {% if u.totp_enabled and user.role.value == 'ADMIN' %}
+          <form method="post" action="/users/{{ u.id }}/reset-otp" class="inline"
+                onsubmit="return confirm('Reset OTP for {{ u.username }}? They will have to set up 2FA again on next login.');">
+            <button class="px-3 py-1 text-xs bg-amber-700 hover:bg-amber-600 rounded" title="Reset 2FA">Reset OTP</button>
+          </form>
+          {% endif %}
           {% else %}
           <span class="px-2 py-0.5 rounded text-xs bg-amber-900/40 text-amber-300" title="Admin account is locked">
             locked
