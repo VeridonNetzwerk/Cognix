@@ -1,6 +1,6 @@
-{# Base layout. All dashboard pages extend this. Tailwind via CDN, no build step. #}
+{# Base layout (Spark redesign). Tailwind CDN + Alpine, no build step. #}
 <!doctype html>
-<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<html lang="en" class="dark h-full">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -8,76 +8,278 @@
     {% if bot_info.avatar_url %}
       <link rel="icon" href="{{ bot_info.avatar_url }}" />
     {% endif %}
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" />
+    <link rel="stylesheet"
+      href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+    <link rel="stylesheet"
+      href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+    <link rel="stylesheet"
+      href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/duotone/style.css" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
+            fontFamily: {
+              sans: ['Space Grotesk', 'system-ui', '-apple-system', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            },
             colors: {
-              brand: { 500: "#60a5fa", 600: "#3b82f6", 700: "#2563eb" },
+              background: 'var(--color-background)',
+              foreground: 'var(--color-foreground)',
+              card: 'var(--color-card)',
+              'card-foreground': 'var(--color-card-foreground)',
+              primary: 'var(--color-primary)',
+              'primary-foreground': 'var(--color-primary-foreground)',
+              secondary: 'var(--color-secondary)',
+              'secondary-foreground': 'var(--color-secondary-foreground)',
+              muted: 'var(--color-muted)',
+              'muted-foreground': 'var(--color-muted-foreground)',
+              accent: 'var(--color-accent)',
+              'accent-foreground': 'var(--color-accent-foreground)',
+              destructive: 'var(--color-destructive)',
+              'destructive-foreground': 'var(--color-destructive-foreground)',
+              border: 'var(--color-border)',
+              input: 'var(--color-input)',
+              ring: 'var(--color-ring)',
+              success: 'var(--color-success)',
+              warning: 'var(--color-warning)',
+              brand: {
+                500: 'var(--color-primary)',
+                600: 'var(--color-primary)',
+                700: 'var(--color-primary)',
+              },
+            },
+            borderRadius: {
+              md: 'var(--radius)',
+              lg: 'calc(var(--radius) * 1.25)',
+              xl: 'calc(var(--radius) * 1.5)',
+              '2xl': 'calc(var(--radius) * 2)',
             },
           },
         },
       };
     </script>
     <style>
-      [x-cloak] { display: none !important; }
       :root {
-        --accent: #5865f2;
-        --accent-hover: #4752c4;
-        --bg-primary: #020617;
-        --bg-secondary: #0f172a;
-        --bg-tertiary: #1e293b;
-        --bg-hover: #334155;
-        --text-primary: #f1f5f9;
-        --text-secondary: #94a3b8;
-        --text-muted: #64748b;
-        --border-color: #334155;
-        --danger: #f43f5e;
-        --success: #10b981;
-        --warning: #f59e0b;
+        --color-background: oklch(0.12 0.03 260);
+        --color-foreground: oklch(0.98 0 0);
+        --color-card: oklch(0.18 0.02 260);
+        --color-card-foreground: oklch(0.98 0 0);
+        --color-primary: oklch(0.55 0.22 285);
+        --color-primary-foreground: oklch(0.98 0 0);
+        --color-secondary: oklch(0.22 0.03 260);
+        --color-secondary-foreground: oklch(0.90 0.02 260);
+        --color-muted: oklch(0.25 0.02 260);
+        --color-muted-foreground: oklch(0.65 0.02 260);
+        --color-accent: oklch(0.75 0.15 195);
+        --color-accent-foreground: oklch(0.98 0 0);
+        --color-destructive: oklch(0.68 0.25 25);
+        --color-destructive-foreground: oklch(0.98 0 0);
+        --color-border: oklch(0.25 0.03 260);
+        --color-input: oklch(0.25 0.03 260);
+        --color-ring: oklch(0.55 0.22 285);
+        --color-success: oklch(0.65 0.18 145);
+        --color-warning: oklch(0.75 0.15 85);
+        --radius: 0.75rem;
       }
-      body[data-theme="light"] {
-        --bg-primary: #f5f5f5;
-        --bg-secondary: #ffffff;
-        --bg-tertiary: #e8e8e8;
-        --bg-hover: #d8d8d8;
-        --text-primary: #1a1a1a;
-        --text-secondary: #4a4a4a;
-        --text-muted: #6a6a6a;
-        --border-color: #d0d0d0;
+      :root.light, body[data-theme="light"] {
+        --color-background: oklch(0.98 0.01 260);
+        --color-foreground: oklch(0.15 0.02 260);
+        --color-card: oklch(1 0 0);
+        --color-card-foreground: oklch(0.15 0.02 260);
+        --color-primary: oklch(0.50 0.22 285);
+        --color-primary-foreground: oklch(0.98 0 0);
+        --color-secondary: oklch(0.95 0.01 260);
+        --color-secondary-foreground: oklch(0.25 0.02 260);
+        --color-muted: oklch(0.94 0.01 260);
+        --color-muted-foreground: oklch(0.45 0.02 260);
+        --color-accent: oklch(0.65 0.15 195);
+        --color-accent-foreground: oklch(0.15 0.02 260);
+        --color-destructive: oklch(0.60 0.25 25);
+        --color-destructive-foreground: oklch(0.98 0 0);
+        --color-border: oklch(0.90 0.01 260);
+        --color-input: oklch(0.90 0.01 260);
+        --color-ring: oklch(0.50 0.22 285);
+        --color-success: oklch(0.55 0.18 145);
+        --color-warning: oklch(0.65 0.15 85);
       }
+
       :root { font-size: 15px; }
       body[data-fontsize="small"] { font-size: 13px; }
       body[data-fontsize="medium"] { font-size: 15px; }
       body[data-fontsize="large"] { font-size: 18px; }
-      html, body { background: var(--bg-primary); color: var(--text-primary); }
-      .scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
-      .scroll-thin::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
-      a.brand-accent, .brand-accent { color: var(--accent); }
-      .accent-bg { background-color: var(--accent); }
-      .accent-bg:hover { background-color: var(--accent-hover); }
-      /* Theme overrides for tailwind utilities used across pages */
-      body[data-theme="light"] .bg-slate-950 { background-color: var(--bg-primary) !important; }
-      body[data-theme="light"] .bg-slate-900 { background-color: var(--bg-secondary) !important; }
-      body[data-theme="light"] .bg-slate-800 { background-color: var(--bg-tertiary) !important; }
-      body[data-theme="light"] .bg-slate-800\/50 { background-color: var(--bg-tertiary) !important; }
-      body[data-theme="light"] .hover\:bg-slate-800:hover { background-color: var(--bg-hover) !important; }
-      body[data-theme="light"] .hover\:bg-slate-700:hover { background-color: var(--bg-hover) !important; }
-      body[data-theme="light"] .border-slate-800 { border-color: var(--border-color) !important; }
-      body[data-theme="light"] .border-slate-700 { border-color: var(--border-color) !important; }
-      body[data-theme="light"] .text-slate-100,
-      body[data-theme="light"] .text-slate-200,
-      body[data-theme="light"] .text-slate-300 { color: var(--text-primary) !important; }
-      body[data-theme="light"] .text-slate-400 { color: var(--text-secondary) !important; }
-      body[data-theme="light"] .text-slate-500 { color: var(--text-muted) !important; }
-      body[data-theme="light"] input, body[data-theme="light"] select, body[data-theme="light"] textarea {
-        background-color: var(--bg-secondary) !important; color: var(--text-primary) !important;
-        border-color: var(--border-color) !important;
+
+      [x-cloak] { display: none !important; }
+
+      html, body {
+        font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+        color: var(--color-foreground);
+        transition: background 0.3s ease, color 0.3s ease;
       }
-      .text-brand-500 { color: var(--accent) !important; }
-      .bg-brand-600 { background-color: var(--accent) !important; }
-      .bg-brand-600:hover, .hover\:bg-brand-500:hover, .hover\:bg-brand-700:hover { background-color: var(--accent-hover) !important; }
+      .font-mono, code, pre, kbd { font-family: 'JetBrains Mono', monospace; }
+
+      body.spark-bg {
+        background:
+          radial-gradient(ellipse 80% 80% at 50% -20%, oklch(0.25 0.15 285 / 0.15), transparent),
+          radial-gradient(circle at 80% 80%, oklch(0.2 0.12 195 / 0.10), transparent),
+          repeating-linear-gradient(90deg, oklch(0.15 0.03 260 / 0.03) 0px, transparent 1px, transparent 60px, oklch(0.15 0.03 260 / 0.03) 61px),
+          repeating-linear-gradient(0deg,  oklch(0.15 0.03 260 / 0.03) 0px, transparent 1px, transparent 60px, oklch(0.15 0.03 260 / 0.03) 61px),
+          oklch(0.12 0.03 260);
+        background-attachment: fixed;
+      }
+      body[data-theme="light"].spark-bg {
+        background:
+          radial-gradient(ellipse 80% 80% at 50% -20%, oklch(0.85 0.05 285 / 0.10), transparent),
+          radial-gradient(circle at 80% 80%, oklch(0.9 0.03 195 / 0.08), transparent),
+          repeating-linear-gradient(90deg, oklch(0.95 0.01 260 / 0.5) 0px, transparent 1px, transparent 60px, oklch(0.95 0.01 260 / 0.5) 61px),
+          repeating-linear-gradient(0deg,  oklch(0.95 0.01 260 / 0.5) 0px, transparent 1px, transparent 60px, oklch(0.95 0.01 260 / 0.5) 61px),
+          oklch(0.98 0.01 260);
+        background-attachment: fixed;
+      }
+
+      /* Cards & gradient borders (Spark-style) */
+      .card {
+        background: var(--color-card);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius);
+      }
+      .gradient-border {
+        position: relative;
+        background: var(--color-card);
+        border-radius: var(--radius);
+        border: 1px solid transparent;
+      }
+      .gradient-border::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: var(--radius);
+        padding: 1px;
+        background: linear-gradient(135deg, oklch(0.55 0.22 285), oklch(0.75 0.15 195), oklch(0.68 0.25 340));
+        -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor;
+                mask-composite: exclude;
+        opacity: 0.30;
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+      }
+      .gradient-border:hover::before { opacity: 0.60; }
+
+      /* Animations */
+      @keyframes pulse-glow { 0%,100% { opacity: 1 } 50% { opacity: 0.6 } }
+      .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+      @keyframes count-up { from { opacity:0; transform: translateY(10px) } to { opacity:1; transform: translateY(0) } }
+      .animate-count-up { animation: count-up 0.6s ease-out both; }
+
+      /* Scroll bars */
+      .scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+      .scroll-thin::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 4px; }
+      .scroll-thin::-webkit-scrollbar-track { background: transparent; }
+
+      /* Buttons (compose with Tailwind) */
+      .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-radius: calc(var(--radius) * 0.7); font-weight: 500; font-size: 0.875rem; transition: all 0.15s ease; border: 1px solid transparent; }
+      .btn-primary { background: var(--color-primary); color: var(--color-primary-foreground); }
+      .btn-primary:hover { background: color-mix(in oklch, var(--color-primary), black 8%); }
+      .btn-secondary { background: var(--color-secondary); color: var(--color-secondary-foreground); border-color: var(--color-border); }
+      .btn-secondary:hover { background: var(--color-muted); }
+      .btn-success { background: var(--color-success); color: oklch(0.98 0 0); }
+      .btn-success:hover { background: color-mix(in oklch, var(--color-success), black 8%); }
+      .btn-destructive { background: var(--color-destructive); color: var(--color-destructive-foreground); }
+      .btn-destructive:hover { background: color-mix(in oklch, var(--color-destructive), black 8%); }
+      .btn-warning { background: var(--color-warning); color: oklch(0.15 0.02 260); }
+      .btn-warning:hover { background: color-mix(in oklch, var(--color-warning), black 8%); }
+      .btn-ghost { background: transparent; color: var(--color-foreground); }
+      .btn-ghost:hover { background: var(--color-secondary); }
+
+      /* Form controls */
+      input, select, textarea {
+        background: var(--color-input);
+        color: var(--color-foreground);
+        border: 1px solid var(--color-border);
+        border-radius: calc(var(--radius) * 0.55);
+      }
+      input:focus, select:focus, textarea:focus {
+        outline: none;
+        border-color: var(--color-ring);
+        box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-ring) 25%, transparent);
+      }
+
+      /* Sidebar nav active state */
+      .nav-link {
+        display: flex; align-items: center; gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        border-radius: calc(var(--radius) * 0.65);
+        color: var(--color-foreground);
+        transition: all 0.2s ease;
+        font-weight: 500; font-size: 0.875rem;
+        border: 1px solid transparent;
+      }
+      .nav-link:hover { background: var(--color-secondary); }
+      .nav-link.active {
+        background: color-mix(in oklch, var(--color-primary) 20%, transparent);
+        color: var(--color-primary);
+        border-color: color-mix(in oklch, var(--color-primary) 30%, transparent);
+      }
+      .nav-link i { font-size: 1.25rem; flex-shrink: 0; transition: transform 0.2s; }
+      .nav-link:hover:not(.active) i { transform: scale(1.10); }
+
+      /* Status pill */
+      .status-pill {
+        display: inline-flex; align-items: center; gap: 0.5rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem; font-weight: 500;
+        border: 1px solid color-mix(in oklch, var(--color-success) 30%, transparent);
+        background: color-mix(in oklch, var(--color-success) 20%, transparent);
+        color: var(--color-success);
+      }
+      .status-pill.offline {
+        border-color: var(--color-border);
+        background: var(--color-secondary);
+        color: var(--color-muted-foreground);
+      }
+      .status-dot { width: 8px; height: 8px; border-radius: 9999px; background: var(--color-success); }
+      .status-dot.offline { background: var(--color-muted-foreground); }
+
+      /* === LEGACY MAPPING — keep existing pages styled with old slate utilities ===
+         Map old Tailwind slate-900/800/etc. to the new theme tokens so we don't
+         have to rewrite every template. */
+      .bg-slate-950 { background-color: var(--color-background) !important; }
+      .bg-slate-900 { background-color: var(--color-card) !important; }
+      .bg-slate-900\/50 { background-color: color-mix(in oklch, var(--color-card) 50%, transparent) !important; }
+      .bg-slate-900\/40 { background-color: color-mix(in oklch, var(--color-card) 40%, transparent) !important; }
+      .bg-slate-800 { background-color: var(--color-secondary) !important; }
+      .bg-slate-800\/40 { background-color: color-mix(in oklch, var(--color-secondary) 40%, transparent) !important; }
+      .bg-slate-800\/50 { background-color: color-mix(in oklch, var(--color-secondary) 50%, transparent) !important; }
+      .bg-slate-800\/60 { background-color: color-mix(in oklch, var(--color-secondary) 60%, transparent) !important; }
+      .bg-slate-700 { background-color: var(--color-muted) !important; }
+      .bg-slate-700\/40 { background-color: color-mix(in oklch, var(--color-muted) 40%, transparent) !important; }
+      .hover\:bg-slate-800:hover { background-color: var(--color-secondary) !important; }
+      .hover\:bg-slate-700:hover { background-color: var(--color-muted) !important; }
+      .hover\:bg-slate-800\/50:hover { background-color: color-mix(in oklch, var(--color-secondary) 50%, transparent) !important; }
+      .border-slate-800 { border-color: var(--color-border) !important; }
+      .border-slate-700 { border-color: var(--color-border) !important; }
+      .divide-slate-800 > * + * { border-color: var(--color-border) !important; }
+      .text-slate-100, .text-slate-200, .text-slate-300 { color: var(--color-foreground) !important; }
+      .text-slate-400 { color: var(--color-muted-foreground) !important; }
+      .text-slate-500 { color: color-mix(in oklch, var(--color-muted-foreground) 80%, transparent) !important; }
+      .text-brand-500, .text-brand-600 { color: var(--color-primary) !important; }
+      .bg-brand-600, .bg-brand-700 { background-color: var(--color-primary) !important; color: var(--color-primary-foreground) !important; }
+      .hover\:bg-brand-500:hover, .hover\:bg-brand-700:hover { background-color: color-mix(in oklch, var(--color-primary) 88%, white 12%) !important; }
+      .bg-emerald-600, .bg-emerald-700 { background-color: var(--color-success) !important; }
+      .hover\:bg-emerald-500:hover, .hover\:bg-emerald-600:hover { background-color: color-mix(in oklch, var(--color-success) 92%, white 8%) !important; }
+      .bg-rose-600, .bg-rose-700 { background-color: var(--color-destructive) !important; }
+      .hover\:bg-rose-500:hover, .hover\:bg-rose-600:hover { background-color: color-mix(in oklch, var(--color-destructive) 92%, white 8%) !important; }
+      .bg-amber-600, .bg-amber-700 { background-color: var(--color-warning) !important; color: oklch(0.15 0.02 260) !important; }
+      .hover\:bg-amber-500:hover, .hover\:bg-amber-600:hover { background-color: color-mix(in oklch, var(--color-warning) 92%, white 8%) !important; }
+      .text-emerald-300, .text-emerald-400 { color: var(--color-success) !important; }
+      .text-rose-300, .text-rose-400 { color: var(--color-destructive) !important; }
+      .text-amber-300, .text-amber-400 { color: var(--color-warning) !important; }
     </style>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script>
@@ -88,87 +290,129 @@
           const s = await r.json();
           document.body.dataset.fontsize = s.font_size || 'medium';
           if (s.accent_color) {
-            document.documentElement.style.setProperty('--accent', s.accent_color);
-            // Slightly darker hover variant
-            document.documentElement.style.setProperty('--accent-hover', s.accent_color);
+            document.documentElement.style.setProperty('--color-primary', s.accent_color);
+            document.documentElement.style.setProperty('--color-ring', s.accent_color);
           }
-          document.body.dataset.theme = s.theme === 'light' ? 'light' : 'dark';
+          const isLight = s.theme === 'light';
+          document.body.dataset.theme = isLight ? 'light' : 'dark';
+          document.documentElement.classList.toggle('light', isLight);
+          document.documentElement.classList.toggle('dark', !isLight);
         } catch (e) {}
       })();
     </script>
   </head>
-  <body class="min-h-full flex flex-col">
+  <body class="min-h-full flex flex-col spark-bg">
     <div class="flex flex-1 min-h-0">
       {% if user %}
-      <aside class="w-60 shrink-0 bg-slate-900 border-r border-slate-800 p-4 flex flex-col">
-        <a href="/" class="flex items-center gap-2 mb-6">
-          {% if bot_info.avatar_url %}
-            <img src="{{ bot_info.avatar_url }}" alt="" class="w-8 h-8 rounded-md object-cover" />
-          {% else %}
-            <span class="w-8 h-8 rounded-md bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center font-bold">
-              {{ (bot_info.name or 'C')[0]|upper }}
-            </span>
-          {% endif %}
-          <span class="font-semibold tracking-wide truncate">{{ bot_info.name or 'CogniX' }}</span>
-        </a>
-        <div class="mb-4 text-xs">
-          <div class="flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full {% if bot_info.online %}bg-emerald-400{% else %}bg-rose-500{% endif %}"></span>
-            <span class="text-slate-300">{{ 'Online' if bot_info.online else 'Offline' }}</span>
+      <aside class="w-64 shrink-0 border-r flex flex-col"
+             style="background: var(--color-card); border-color: var(--color-border);">
+        <!-- Brand / status header -->
+        <div class="flex items-center gap-3 p-4 border-b shrink-0" style="border-color: var(--color-border);">
+          <a href="/" class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+             style="background: color-mix(in oklch, var(--color-primary) 20%, transparent);">
+            {% if bot_info.avatar_url %}
+              <img src="{{ bot_info.avatar_url }}" alt="" class="w-9 h-9 rounded-md object-cover" />
+            {% else %}
+              <i class="ph-fill ph-user-circle" style="font-size: 1.5rem; color: var(--color-primary);"></i>
+            {% endif %}
+          </a>
+          <div class="min-w-0 flex-1">
+            <h2 class="font-semibold text-sm truncate">{{ bot_info.name or 'CogniX' }}</h2>
+            <div class="flex items-center gap-1.5 text-xs" style="color: var(--color-muted-foreground);">
+              <span class="status-dot {% if not bot_info.online %}offline{% endif %} animate-pulse-glow"></span>
+              <span class="truncate">{{ 'Online' if bot_info.online else 'Offline' }}</span>
+            </div>
           </div>
-          <div class="text-slate-500 mt-1">Uptime: <span class="text-slate-300">{{ bot_info.uptime }}</span></div>
-          <div class="text-slate-500">Latency: <span class="text-slate-300">{{ bot_info.latency_ms }} ms</span></div>
         </div>
-        <nav class="flex flex-col gap-1 text-sm">
+
+        <!-- Nav -->
+        <nav class="flex-1 px-3 py-4 overflow-y-auto scroll-thin space-y-1">
           {% set items = [
-            ('/', 'Dashboard'),
-            ('/servers', 'Servers'),
-            ('/cogs', 'Cogs'),
-            ('/embeds', 'Embeds'),
-            ('/music', 'Music'),
-            ('/tickets', 'Tickets'),
-            ('/backups', 'Backups'),
-            ('/giveaways', 'Giveaways'),
-            ('/welcome', 'Welcome / Boost'),
-            ('/members', 'Members'),
-            ('/invites', 'Invites'),
-            ('/log', 'Log'),
-            ('/users', 'Web Users'),
-            ('/bot-profile', 'Bot Profile'),
+            ('/', 'Dashboard', 'ph-chart-bar'),
+            ('/servers', 'Servers', 'ph-hard-drives'),
+            ('/cogs', 'Cogs', 'ph-package'),
+            ('/embeds', 'Embeds', 'ph-image'),
+            ('/music', 'Music', 'ph-music-notes'),
+            ('/tickets', 'Tickets', 'ph-ticket'),
+            ('/backups', 'Backups', 'ph-database'),
+            ('/giveaways', 'Giveaways', 'ph-gift'),
+            ('/welcome', 'Welcome / Boost', 'ph-handshake'),
+            ('/members', 'Members', 'ph-users'),
+            ('/invites', 'Invites', 'ph-envelope-simple'),
+            ('/log', 'Log', 'ph-list-bullets'),
+            ('/users', 'Web Users', 'ph-globe'),
+            ('/bot-profile', 'Bot Profile', 'ph-user-circle'),
           ] %}
-          {% for href, label in items %}
-            <a href="{{ href }}"
-               class="px-3 py-2 rounded-md hover:bg-slate-800 {% if request.url.path == href or (href != '/' and request.url.path.startswith(href)) %}bg-slate-800 text-brand-500{% endif %}">
-              {{ label }}
+          {% for href, label, icon in items %}
+            {% set is_active = (request.url.path == href) or (href != '/' and request.url.path.startswith(href)) %}
+            <a href="{{ href }}" class="nav-link {% if is_active %}active{% endif %}">
+              <i class="{% if is_active %}ph-fill{% else %}ph{% endif %} {{ icon }}"></i>
+              <span class="truncate">{{ label }}</span>
             </a>
           {% endfor %}
         </nav>
-        <div class="mt-auto pt-4 border-t border-slate-800 text-xs text-slate-400">
-          <div class="flex items-center justify-between">
-            <div class="min-w-0">
-              <div class="text-slate-200 truncate">{{ user.username }}</div>
-              <div class="truncate">{{ user.role.value if user.role.value is defined else user.role }}</div>
+
+        <!-- User footer -->
+        <div class="p-4 border-t space-y-3 shrink-0" style="border-color: var(--color-border);">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="h-9 w-9 rounded-full flex items-center justify-center font-semibold text-sm shrink-0"
+                 style="background: color-mix(in oklch, var(--color-primary) 20%, transparent); color: var(--color-primary); border: 1px solid color-mix(in oklch, var(--color-primary) 30%, transparent);">
+              {{ (user.username or '?')[0]|upper }}
             </div>
-            <a href="/settings" title="Settings" class="ml-2 p-1.5 rounded hover:bg-slate-800 text-slate-300">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium truncate">{{ user.username }}</p>
+              <p class="text-xs uppercase tracking-wider" style="color: var(--color-muted-foreground);">
+                {{ user.role.value if user.role.value is defined else user.role }}
+              </p>
+            </div>
+            <a href="/settings" title="Settings" class="btn btn-ghost p-2" style="padding: 0.5rem;">
+              <i class="ph ph-gear"></i>
             </a>
           </div>
-          <form action="/logout" method="post" class="mt-2">
-            <button class="w-full text-left text-rose-400 hover:text-rose-300">Logout</button>
+          <form action="/logout" method="post">
+            <button class="btn btn-destructive w-full justify-start">
+              <i class="ph ph-sign-out"></i>
+              <span>Logout</span>
+            </button>
           </form>
         </div>
       </aside>
       {% endif %}
-      <main class="flex-1 min-w-0 p-6 overflow-y-auto scroll-thin">
-        {% if flash %}
-          <div class="mb-4 px-4 py-2 rounded-md {% if flash.kind == 'error' %}bg-rose-900/40 border border-rose-700 text-rose-200{% else %}bg-emerald-900/40 border border-emerald-700 text-emerald-200{% endif %}">
-            {{ flash.message }}
+
+      <div class="flex-1 flex flex-col min-w-0">
+        {% if user %}
+        <header class="sticky top-0 z-30 border-b backdrop-blur-sm shrink-0"
+                style="background: color-mix(in oklch, var(--color-background) 95%, transparent); border-color: var(--color-border);">
+          <div class="flex items-center justify-between px-6 py-4 gap-4">
+            <h1 class="text-2xl md:text-3xl font-bold tracking-tight truncate">{% block header %}{{ bot_info.name or 'CogniX' }}{% endblock %}</h1>
+            <div class="hidden sm:flex items-center gap-3 shrink-0">
+              <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg" style="background: color-mix(in oklch, var(--color-secondary) 60%, transparent);">
+                <span class="text-xs uppercase tracking-wider" style="color: var(--color-muted-foreground);">Uptime:</span>
+                <span class="font-mono text-sm font-medium">{{ bot_info.uptime or '—' }}</span>
+              </div>
+              <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg" style="background: color-mix(in oklch, var(--color-secondary) 60%, transparent);">
+                <span class="text-xs uppercase tracking-wider" style="color: var(--color-muted-foreground);">Latency:</span>
+                <span class="font-mono text-sm font-medium" style="color: var(--color-success);">{{ bot_info.latency_ms or 0 }} ms</span>
+              </div>
+            </div>
           </div>
+        </header>
         {% endif %}
-        {% block content %}{% endblock %}
-      </main>
+
+        <main class="flex-1 min-w-0 overflow-y-auto scroll-thin">
+          <div class="p-6 max-w-7xl mx-auto">
+            {% if flash %}
+              <div class="mb-4 px-4 py-3 rounded-lg border"
+                   style="background: {% if flash.kind == 'error' %}color-mix(in oklch, var(--color-destructive) 15%, transparent); border-color: color-mix(in oklch, var(--color-destructive) 30%, transparent); color: var(--color-destructive){% else %}color-mix(in oklch, var(--color-success) 15%, transparent); border-color: color-mix(in oklch, var(--color-success) 30%, transparent); color: var(--color-success){% endif %};">
+                {{ flash.message }}
+              </div>
+            {% endif %}
+            {% block content %}{% endblock %}
+          </div>
+        </main>
+      </div>
     </div>
-    <div aria-hidden="true" style="position:fixed;bottom:8px;right:12px;opacity:0.07;font-size:11px;pointer-events:none;z-index:0;user-select:none;color:var(--text-primary, #fff);">Powered by Cognix · Made by 食べ物</div>
+    <div aria-hidden="true" style="position:fixed;bottom:8px;right:12px;opacity:0.07;font-size:11px;pointer-events:none;z-index:0;user-select:none;color:var(--color-foreground);">Powered by Cognix · Made by 食べ物</div>
     {% block scripts %}{% endblock %}
   </body>
 </html>

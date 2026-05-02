@@ -1,59 +1,108 @@
 {% extends "base.html" %}
 {% block title %}Dashboard · CogniX{% endblock %}
+{% block header %}Dashboard{% endblock %}
 {% block content %}
-<div class="flex items-center justify-between mb-6">
-  <h1 class="text-2xl font-semibold">Dashboard</h1>
-</div>
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-  {% set stats = [
-    ('Servers', metrics.servers, 'text-emerald-400'),
-    ('Total Users', metrics.users, 'text-brand-500'),
-    ('Cogs Loaded', metrics.cogs_loaded, 'text-amber-400'),
-    ('Open Tickets', metrics.open_tickets, 'text-rose-400'),
-  ] %}
-  {% for label, value, color in stats %}
-  <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-    <div class="text-xs uppercase text-slate-400">{{ label }}</div>
-    <div class="text-3xl font-semibold mt-1 {{ color }}">{{ value }}</div>
+{# === Metric cards (4-up) === #}
+{% set cards = [
+  ('Servers',      metrics.servers,      'ph-hard-drives', 'primary'),
+  ('Total Users',  metrics.users,        'ph-users',       'accent'),
+  ('Cogs Loaded',  metrics.cogs_loaded,  'ph-package',     'success'),
+  ('Open Tickets', metrics.open_tickets, 'ph-ticket',      'warning'),
+] %}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+  {% for label, value, icon, color in cards %}
+  {% set color_var = '--color-' + color %}
+  <div class="gradient-border p-6 animate-count-up" style="animation-delay: {{ loop.index0 * 100 }}ms;">
+    <div class="flex items-start justify-between">
+      <div class="flex-1 min-w-0">
+        <p class="text-xs font-medium uppercase tracking-wider mb-3" style="color: var(--color-muted-foreground);">{{ label }}</p>
+        <div class="font-mono font-bold text-4xl tabular-nums">{{ value }}</div>
+      </div>
+      <div class="p-3 rounded-lg shrink-0"
+           style="background: linear-gradient(135deg, color-mix(in oklch, var({{ color_var }}) 20%, transparent), color-mix(in oklch, var({{ color_var }}) 5%, transparent)); color: var({{ color_var }});">
+        <i class="ph-fill {{ icon }}" style="font-size: 1.5rem;"></i>
+      </div>
+    </div>
   </div>
   {% endfor %}
 </div>
 
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-  <section class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-    <div class="flex items-center justify-between mb-3">
-      <h2 class="font-semibold">Bot status</h2>
-      <span class="inline-flex items-center gap-1.5 text-xs">
-        <span class="w-2 h-2 rounded-full {% if metrics.bot_online %}bg-emerald-400{% else %}bg-rose-400{% endif %}"></span>
-        <span class="{% if metrics.bot_online %}text-emerald-400{% else %}text-rose-400{% endif %}">{{ 'online' if metrics.bot_online else 'offline' }}</span>
-      </span>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  {# === Bot status === #}
+  <section class="gradient-border p-6">
+    <div class="space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-semibold">Bot status</h3>
+        <span class="status-pill {% if not metrics.bot_online %}offline{% endif %}">
+          <span class="status-dot {% if not metrics.bot_online %}offline{% endif %} {% if metrics.bot_online %}animate-pulse-glow{% endif %}"></span>
+          {{ 'online' if metrics.bot_online else 'offline' }}
+        </span>
+      </div>
+      <div class="border-t" style="border-color: var(--color-border);"></div>
+      <div class="grid grid-cols-3 gap-4">
+        <div>
+          <p class="text-xs uppercase tracking-wider mb-1" style="color: var(--color-muted-foreground);">Uptime</p>
+          <p class="font-mono font-medium text-sm">{{ metrics.uptime }}</p>
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-wider mb-1" style="color: var(--color-muted-foreground);">Latency</p>
+          <p class="font-mono font-medium text-sm"
+             style="color: {% if metrics.latency_ms < 100 %}var(--color-success){% elif metrics.latency_ms < 300 %}var(--color-warning){% else %}var(--color-destructive){% endif %};">
+            {{ metrics.latency_ms }} ms
+          </p>
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-wider mb-1" style="color: var(--color-muted-foreground);">Version</p>
+          <p class="font-mono font-medium text-sm">{{ metrics.version }}</p>
+        </div>
+      </div>
+      {% if can_servers_write %}
+      <div class="border-t pt-4" style="border-color: var(--color-border);" x-data="{ busy: false, msg: '' }">
+        <div class="flex gap-2">
+          <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/lifecycle/start',{method:'POST'}).then(r=>r.json()).then(j=>{msg='start: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
+                  class="btn btn-success flex-1 justify-center disabled:opacity-50">
+            <i class="ph-fill ph-play"></i> Start
+          </button>
+          <button :disabled="busy" @click="if(!confirm('Stop the bot?'))return; busy=true; fetch('/api/v1/bot/lifecycle/stop',{method:'POST'}).then(r=>r.json()).then(j=>{msg='stop: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
+                  class="btn btn-destructive flex-1 justify-center disabled:opacity-50">
+            <i class="ph-fill ph-stop"></i> Stop
+          </button>
+          <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/lifecycle/restart',{method:'POST'}).then(r=>r.json()).then(j=>{msg='restart: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
+                  class="btn btn-warning flex-1 justify-center disabled:opacity-50">
+            <i class="ph ph-arrow-clockwise"></i> Restart
+          </button>
+        </div>
+        <p x-text="msg" class="text-xs mt-2" style="color: var(--color-muted-foreground);"></p>
+      </div>
+      {% endif %}
     </div>
-    <ul class="text-sm space-y-1.5">
-      <li class="flex justify-between"><span class="text-slate-400">Uptime</span><span>{{ metrics.uptime }}</span></li>
-      <li class="flex justify-between"><span class="text-slate-400">Latency</span><span>{{ metrics.latency_ms }} ms</span></li>
-      <li class="flex justify-between"><span class="text-slate-400">Version</span><span>{{ metrics.version }}</span></li>
-    </ul>
-    {% if can_servers_write %}
-    <div class="mt-4 pt-4 border-t border-slate-800 flex flex-wrap gap-2 text-sm" x-data="{ busy: false, msg: '' }">
-      <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/lifecycle/start',{method:'POST'}).then(r=>r.json()).then(j=>{msg='start: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
-              class="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 px-3 py-1.5 rounded-md">▶ Start</button>
-      <button :disabled="busy" @click="if(!confirm('Stop the bot?'))return; busy=true; fetch('/api/v1/bot/lifecycle/stop',{method:'POST'}).then(r=>r.json()).then(j=>{msg='stop: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
-              class="bg-rose-600 hover:bg-rose-500 disabled:opacity-50 px-3 py-1.5 rounded-md">⏹ Stop</button>
-      <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/lifecycle/restart',{method:'POST'}).then(r=>r.json()).then(j=>{msg='restart: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
-              class="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 px-3 py-1.5 rounded-md">↻ Restart</button>
-      <span x-text="msg" class="text-xs text-slate-400 self-center"></span>
-    </div>
-    {% endif %}
   </section>
-  <section class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-    <h2 class="font-semibold mb-3">Recent audit events</h2>
-    <ul class="text-sm space-y-1.5 max-h-56 overflow-y-auto scroll-thin">
-      {% for ev in recent_audit %}
-      <li class="flex justify-between gap-3"><span class="text-slate-300 truncate">{{ ev.action }}</span><span class="text-slate-500 text-xs whitespace-nowrap">{{ ev.created_at.strftime('%Y-%m-%d %H:%M') }}</span></li>
-      {% else %}
-      <li class="text-slate-500">No events yet.</li>
-      {% endfor %}
-    </ul>
+
+  {# === Recent audit events === #}
+  <section class="gradient-border p-6">
+    <div class="space-y-4">
+      <h3 class="text-lg font-semibold">Recent audit events</h3>
+      <div class="space-y-2 max-h-72 overflow-y-auto pr-2 scroll-thin">
+        {% for ev in recent_audit %}
+        <div class="flex items-center justify-between p-3 rounded-lg gap-3 transition-colors"
+             style="background: color-mix(in oklch, var(--color-secondary) 30%, transparent);"
+             onmouseover="this.style.background='color-mix(in oklch, var(--color-secondary) 50%, transparent)'"
+             onmouseout="this.style.background='color-mix(in oklch, var(--color-secondary) 30%, transparent)'">
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium truncate">{{ ev.action }}</p>
+          </div>
+          <span class="font-mono text-xs px-2 py-1 rounded-md shrink-0"
+                style="border: 1px solid var(--color-border); color: var(--color-muted-foreground);">
+            {{ ev.created_at.strftime('%Y-%m-%d %H:%M') }}
+          </span>
+        </div>
+        {% else %}
+        <div class="flex items-center justify-center h-48 text-sm" style="color: var(--color-muted-foreground);">
+          No recent audit events
+        </div>
+        {% endfor %}
+      </div>
+    </div>
   </section>
 </div>
 {% endblock %}
