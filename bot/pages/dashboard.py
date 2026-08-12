@@ -75,7 +75,7 @@ async def index(request: Request,
         "user_count": users_count,
         "version": info["version"],
     }
-    return _render(request, "dashboard.html", user=user, metrics=metrics, recent_audit=recent,
+    return _render(request, "dashboard/dashboard.html", user=user, metrics=metrics, recent_audit=recent,
                    can_servers_write=can_servers_write)
 
 
@@ -85,7 +85,7 @@ async def servers_view(request: Request,
     user = await _require_user(access_token)
     async with db_session() as s:
         rows = (await s.scalars(select(Server).order_by(Server.name))).all()
-    return _render(request, "servers.html", user=user, servers=rows)
+    return _render(request, "dashboard/servers.html", user=user, servers=rows)
 
 
 @router.get("/servers/{server_id}", response_class=HTMLResponse)
@@ -105,7 +105,7 @@ async def server_detail(request: Request, server_id: int,
                        title="Server not found", detail="No such server.")
     return _render(
         request,
-        "server_detail.html",
+        "dashboard/server_detail.html",
         user=user,
         server=srv,
         config=cfg or {},

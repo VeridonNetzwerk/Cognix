@@ -79,7 +79,7 @@ async def cogs_view(request: Request,
     cog_names = [c["name"] for c in cogs]
     return _render(
         request,
-        "cogs.html",
+        "cogs/cogs.html",
         user=user,
         cogs=cogs,
         servers=servers,
@@ -155,4 +155,4 @@ async def marketplace_view(request: Request,
     if user.role != WebRole.ADMIN:
         return _render(request, "error.html", user=user, status=403,
                        title="Forbidden", detail="Admin only.")
-    return _render(request, "marketplace.html", user=user)
+    return _render(request, "cogs/marketplace.html", user=user)

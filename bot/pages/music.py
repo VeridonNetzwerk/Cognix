@@ -26,7 +26,7 @@ async def music_view(request: Request,
     servers_json = json.dumps(
         [{"id": str(srv.id), "name": srv.name} for srv in servers]
     )
-    return _render(request, "music.html", user=user, servers_json=servers_json)
+    return _render(request, "music/music.html", user=user, servers_json=servers_json)
 
 
 @router.get("/api/v1/music/{server_id}/state")

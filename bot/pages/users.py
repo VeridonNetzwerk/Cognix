@@ -41,7 +41,7 @@ async def users_view(request: Request,
     for p in perm_rows:
         perms_by_user.setdefault(str(p.user_id), {})[p.module] = p.level
     return _render(
-        request, "users.html", user=user, users=rows,
+        request, "users/users.html", user=user, users=rows,
         roles=[r.value for r in WebRole],
         modules=MODULES, perms_by_user=perms_by_user,
     )

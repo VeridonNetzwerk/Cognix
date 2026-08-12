@@ -38,7 +38,7 @@ async def embeds_view(request: Request,
                       access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
     _require_cog("bot.cogs.embeds")
-    return _render(request, "embeds.html", user=user)
+    return _render(request, "features/embeds.html", user=user)
 
 
 @router.post("/info-embed/save")
@@ -111,7 +111,7 @@ async def members_view(request: Request,
                 if len(members) >= 500:
                     break
     return _render(
-        request, "members.html", user=user, servers=servers,
+        request, "features/members.html", user=user, servers=servers,
         members=members, selected_server_id=selected, query=q,
     )
 
@@ -255,7 +255,7 @@ async def welcome_view(request: Request, server_id: int | None = None,
         if server_id:
             cfg = await s.get(ServerEventConfig, int(server_id))
     return _render(
-        request, "welcome.html", user=user, servers=servers, cfg=cfg,
+        request, "features/welcome.html", user=user, servers=servers, cfg=cfg,
         selected_server_id=server_id,
     )
 
@@ -409,7 +409,7 @@ async def invites_view(
                     user_names[uid] = u.display_name if u else f"<@{uid}>"
     return _render(
         request,
-        "invites.html",
+        "features/invites.html",
         user=user,
         servers=servers,
         stats=leaderboard,

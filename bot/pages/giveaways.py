@@ -32,7 +32,7 @@ async def giveaways_view(request: Request,
             )
         ).all()
         servers = (await s.scalars(select(Server).order_by(Server.name))).all()
-    return _render(request, "giveaways.html", user=user, giveaways=rows, servers=servers)
+    return _render(request, "giveaways/giveaways.html", user=user, giveaways=rows, servers=servers)
 
 
 @router.get("/giveaways/{giveaway_id}", response_class=HTMLResponse)
@@ -54,7 +54,7 @@ async def giveaway_detail_view(
         server = await s.get(Server, g.server_id)
     return _render(
         request,
-        "giveaway_detail.html",
+        "giveaways/giveaway_detail.html",
         user=user,
         g=g,
         server=server,

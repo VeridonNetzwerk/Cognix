@@ -33,7 +33,7 @@ async def tickets_view(request: Request,
         servers = (await s.scalars(select(Server).order_by(Server.name))).all()
     return _render(
         request,
-        "tickets.html",
+        "tickets/tickets.html",
         user=user,
         tickets=tickets,
         servers=servers,
@@ -91,7 +91,7 @@ async def tickets_archive(request: Request,
         servers = (await s.scalars(select(Server).order_by(Server.name))).all()
     return _render(
         request,
-        "tickets.html",
+        "tickets/tickets.html",
         user=user,
         tickets=tickets,
         servers=servers,
@@ -111,7 +111,7 @@ async def tickets_settings(request: Request,
     cfg_by_server = {c.server_id: c for c in configs}
     return _render(
         request,
-        "ticket_settings.html",
+        "tickets/ticket_settings.html",
         user=user,
         servers=servers,
         cfg_by_server=cfg_by_server,
@@ -138,7 +138,7 @@ async def ticket_view(
                 .order_by(DiscordMessageCache.created_at.asc())
             )
         ).all()
-    return _render(request, "ticket_detail.html", user=user, ticket=ticket, messages=msgs)
+    return _render(request, "tickets/ticket_detail.html", user=user, ticket=ticket, messages=msgs)
 
 
 # ---------- Ticket types & panels ---------------------------------------------
@@ -150,7 +150,7 @@ async def ticket_types_view(request: Request,
     async with db_session() as s:
         types = (await s.scalars(select(TicketType).order_by(TicketType.created_at))).all()
         servers = (await s.scalars(select(Server).order_by(Server.name))).all()
-    return _render(request, "ticket_types.html", user=user, types=types, servers=servers)
+    return _render(request, "tickets/ticket_types.html", user=user, types=types, servers=servers)
 
 
 @router.post("/ticket-types/create")
@@ -194,7 +194,7 @@ async def ticket_panels_view(request: Request,
         panels = (await s.scalars(select(TicketPanel).order_by(TicketPanel.created_at))).all()
         types = (await s.scalars(select(TicketType).order_by(TicketType.name))).all()
         servers = (await s.scalars(select(Server).order_by(Server.name))).all()
-    return _render(request, "ticket_panels.html", user=user, panels=panels, types=types, servers=servers)
+    return _render(request, "tickets/ticket_panels.html", user=user, panels=panels, types=types, servers=servers)
 
 
 @router.post("/ticket-panels/create")

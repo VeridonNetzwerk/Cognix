@@ -51,7 +51,7 @@ async def audit_view(request: Request,
         rows = (await s.scalars(q)).all()
     return _render(
         request,
-        "audit.html",
+        "audit/audit.html",
         user=user,
         events=rows,
         filters={
@@ -102,7 +102,7 @@ async def discord_log_view(request: Request,
     server_lookup = {sv.id: sv.name for sv in servers}
     return _render(
         request,
-        "discord_log.html",
+        "audit/discord_log.html",
         user=me,
         events=rows,
         servers=servers,
@@ -145,6 +145,6 @@ async def log_view(request: Request, tab: str = "web",
                 select(DiscordEvent).order_by(desc(DiscordEvent.created_at)).limit(200)
             )).all()
     return _render(
-        request, "log.html", user=user, tab=tab, web_rows=web_rows,
+        request, "audit/log.html", user=user, tab=tab, web_rows=web_rows,
         discord_rows=discord_rows, actor_names=actor_names,
     )

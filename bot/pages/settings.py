@@ -51,7 +51,7 @@ async def settings_view(
             user_perms = {str(user.id): await get_permission_map(s, user)}
     return _render(
         request,
-        "settings.html",
+        "settings/settings.html",
         user=user,
         settings=settings,
         modules=MODULES,
@@ -98,7 +98,7 @@ async def settings_2fa_enable(
         target.totp_secret_encrypted = _totp.encrypted_secret(secret)
     return _render(
         request,
-        "settings_2fa_setup.html",
+        "settings/settings_2fa_setup.html",
         user=user,
         secret=secret,
         qr_url=qr_url,
@@ -129,7 +129,7 @@ async def settings_2fa_verify(
         codes = _totp.generate_backup_codes(8)
         for raw in codes:
             s.add(BackupCode(user_id=user.id, code_hash=_h.sha256(raw.encode()).hexdigest()))
-    return _render(request, "settings_2fa_codes.html", user=user, codes=codes)
+    return _render(request, "settings/settings_2fa_codes.html", user=user, codes=codes)
 
 
 @router.post("/settings/2fa/disable")
@@ -213,7 +213,7 @@ async def bot_profile_view(
             prof = BotProfile(id=1, updated_at=_dt2.now(tz=UTC))
             s.add(prof)
             await s.flush()
-    return _render(request, "bot_profile.html", user=user, profile=prof)
+    return _render(request, "settings/bot_profile.html", user=user, profile=prof)
 
 
 @router.post("/bot-profile")

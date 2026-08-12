@@ -28,7 +28,7 @@ async def login_page(request: Request,
         return RedirectResponse("/", status_code=303)
     if not await _system_configured():
         return RedirectResponse("/setup", status_code=303)
-    return _render(request, "login.html")
+    return _render(request, "auth/login.html")
 
 
 @router.post("/login")
@@ -52,7 +52,7 @@ async def login_submit(request: Request,
         async with db_session() as s2:
             s2.add(AuditLog(action="auth.login_failed", target=username,
                             ip_address=ip, user_agent=ua))
-        return _render(request, "login.html", error=str(exc))
+        return _render(request, "auth/login.html", error=str(exc))
     response = RedirectResponse("/", status_code=303)
     _set_cookies(response, access, refresh, exp, remember_me=remember)
     return response
@@ -74,7 +74,7 @@ async def logout(request: Request, response: Response,
 async def setup_page(request: Request) -> HTMLResponse:
     if await _system_configured():
         return RedirectResponse("/login", status_code=303)
-    return _render(request, "setup.html")
+    return _render(request, "auth/setup.html")
 
 
 @router.post("/setup")
@@ -97,7 +97,7 @@ async def setup_submit(request: Request,
                 admin_password=admin_password,
             ))
     except SetupError as exc:
-        return _render(request, "setup.html", error=str(exc))
+        return _render(request, "auth/setup.html", error=str(exc))
     except Exception as exc:
-        return _render(request, "setup.html", error=f"Setup failed: {exc}")
+        return _render(request, "auth/setup.html", error=f"Setup failed: {exc}")
     return RedirectResponse("/login", status_code=303)

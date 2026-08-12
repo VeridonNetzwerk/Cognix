@@ -29,7 +29,7 @@ async def backups_view(request: Request,
         ).all()
         servers = (await s.scalars(select(Server).order_by(Server.name))).all()
     return _render(
-        request, "backups.html", user=user, backups=rows, servers=servers
+        request, "backups/backups.html", user=user, backups=rows, servers=servers
     )
 
 
