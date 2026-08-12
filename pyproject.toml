@@ -67,7 +67,7 @@ ignore = ["S101", "S104"]
 "bot/database/models/**" = ["E501", "UP042"]
 "bot/config/**" = ["E501", "S105", "RUF100"]
 "web/pages/**" = ["E501", "S110", "SIM105", "RUF100"]
-"web/api/**" = ["E501", "S110", "SIM105", "RUF100"]
+"web/api/**" = ["E501", "S110", "SIM105", "RUF100", "I001"]
 
 [tool.mypy]
 python_version = "3.12"

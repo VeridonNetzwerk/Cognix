@@ -20,7 +20,7 @@ from starlette.responses import Response
 from bot.config.logging import get_logger
 from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE, REFRESH_COOKIE
-from web.api.auth import _set_cookies
+from web.api.auth.auth import _set_cookies
 from web.security.tokens import TokenError, decode_token
 from web.services.auth_service import AuthError, rotate_refresh
 

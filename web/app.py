@@ -24,25 +24,14 @@ from web.middleware.auth_refresh import AuthRefreshMiddleware
 from web.middleware.rate_limit import RateLimitMiddleware
 from web.middleware.request_id import RequestIDMiddleware
 from web.middleware.setup_gate import SetupGateMiddleware
-from web.api import (
-    auth,
-    audit,
-    backups,
-    bot_control,
-    cogs,
-    embed_templates,
-    marketplace,
-    moderation,
-    music_panel,
-    servers,
-    settings as settings_route,
-    setup,
-    stats,
-    tickets,
-    users,
-    web_users,
-    ws,
-)
+from web.api import auth as auth_api
+from web.api import bot as bot_api
+from web.api import servers as servers_api
+from web.api import users as users_api
+from web.api import moderation as moderation_api
+from web.api import settings as settings_api
+from web.api import content as content_api
+from web.api import ws as ws_api
 from web.pages import router as views_router
 from web.pages._shared import templates
 from web.services.bot_ipc import get_ipc
@@ -119,23 +108,23 @@ def create_app() -> FastAPI:
 
     # ---- API routers ----
     for r in (
-        setup.router,
-        auth.router,
-        bot_control.router,
-        cogs.router,
-        marketplace.router,
-        servers.router,
-        users.router,
-        web_users.router,
-        moderation.router,
-        tickets.router,
-        stats.router,
-        backups.router,
-        settings_route.router,
-        audit.router,
-        embed_templates.router,
-        music_panel.router,
-        ws.router,
+        auth_api.auth_router,
+        auth_api.setup_router,
+        bot_api.bot_control_router,
+        bot_api.cogs_router,
+        bot_api.marketplace_router,
+        servers_api.servers_router,
+        servers_api.stats_router,
+        users_api.users_router,
+        users_api.web_users_router,
+        moderation_api.moderation_router,
+        moderation_api.tickets_router,
+        moderation_api.backups_router,
+        settings_api.settings_router,
+        settings_api.audit_router,
+        content_api.embed_templates_router,
+        content_api.music_panel_router,
+        ws_api.ws_router,
     ):
         app.include_router(r, prefix=API_V1_PREFIX)
 

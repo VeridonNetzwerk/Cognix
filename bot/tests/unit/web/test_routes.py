@@ -1,32 +1,34 @@
-"""Tests for web.api — verify API modules can be imported without errors."""
+"""Tests for web.api — verify API subpackages can be imported without errors."""
 
 from __future__ import annotations
 
 
 class TestRouteImports:
-    """Verify that all API modules import cleanly (no missing imports)."""
+    """Verify that all API subpackages import cleanly (no missing imports)."""
 
-    def test_can_import_servers_route(self):
+    def test_can_import_servers_api(self):
         from web.api import servers
         assert servers is not None
-        assert hasattr(servers, "router")
+        assert hasattr(servers, "servers_router")
 
-    def test_can_import_cogs_route(self):
-        from web.api import cogs
-        assert cogs is not None
-        assert hasattr(cogs, "router")
+    def test_can_import_bot_api(self):
+        from web.api import bot
+        assert bot is not None
+        assert hasattr(bot, "cogs_router")
+        assert hasattr(bot, "marketplace_router")
 
-    def test_can_import_auth_route(self):
+    def test_can_import_auth_api(self):
         from web.api import auth
         assert auth is not None
-        assert hasattr(auth, "router")
+        assert hasattr(auth, "auth_router")
+        assert hasattr(auth, "setup_router")
 
-    def test_can_import_marketplace_route(self):
-        from web.api import marketplace
-        assert marketplace is not None
-        assert hasattr(marketplace, "router")
-
-    def test_can_import_ws_route(self):
+    def test_can_import_ws_api(self):
         from web.api import ws
         assert ws is not None
-        assert hasattr(ws, "router")
+        assert hasattr(ws, "ws_router")
+
+    def test_can_import_all_api_packages(self):
+        from web.api import auth, bot, servers, users, moderation, settings, content, ws
+        for pkg in (auth, bot, servers, users, moderation, settings, content, ws):
+            assert pkg is not None

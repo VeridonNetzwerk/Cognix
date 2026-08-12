@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from bot.config.constants import AUDIT_LOGOUT
 from bot.database.models.audit_log import AuditLog
 from bot.database.session import db_session
-from web.api.auth import _clear_cookies, _set_cookies
+from web.api.auth.auth import _clear_cookies, _set_cookies
 from web.deps import ACCESS_COOKIE
 from web.pages._shared import (
     _current_user,
