@@ -63,18 +63,21 @@ async def _get_marketplace_registry() -> list[dict[str, Any]]:
             return cached_data
 
     import httpx
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        resp = await client.get(
-            "https://raw.githubusercontent.com/VeridonNetzwerk/cognix-marketplace/main/registry.json"
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        if isinstance(data, list):
-            result = data
-        elif isinstance(data, dict) and "cogs" in data:
-            result = data["cogs"]
-        else:
-            result = []
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://raw.githubusercontent.com/VeridonNetzwerk/cognix-marketplace/main/registry.json"
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            if isinstance(data, list):
+                result = data
+            elif isinstance(data, dict) and "cogs" in data:
+                result = data["cogs"]
+            else:
+                result = []
+    except Exception:
+        result = []
 
     _REGISTRY_CACHE = (result, now)
     return result
@@ -179,23 +182,36 @@ async def install_cog(req: InstallRequest, session: SessionDep) -> dict[str, Any
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "bot not running")
 
         cog_or_url = req.cog_or_url
-        is_url = cog_or_url.startswith("http")
+        is_url = cog_or_url.startswith("http") or cog_or_url.startswith("file:")
         repo_url = cog_or_url
         cog_name = cog_or_url
 
-        if not is_url:
+        if is_url:
+            # Derive cog name from URL path
+            from urllib.parse import urlparse
+            parsed = urlparse(cog_or_url)
+            path_parts = [p for p in parsed.path.split("/") if p]
+            if path_parts:
+                cog_name = path_parts[-1].replace(".git", "")
+            # Convert file:// URLs to local paths for git clone
+            if cog_or_url.startswith("file://"):
+                repo_url = parsed.path
+        else:
             import httpx
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(
-                    "https://raw.githubusercontent.com/VeridonNetzwerk/cognix-marketplace/main/registry.json"
-                )
-                resp.raise_for_status()
-                reg_data = resp.json()
-            found = None
-            for c in (reg_data if isinstance(reg_data, list) else reg_data.get("cogs", [])):
-                if c.get("name", "").lower() == cog_or_url.lower():
-                    found = c
-                    break
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.get(
+                        "https://raw.githubusercontent.com/VeridonNetzwerk/cognix-marketplace/main/registry.json"
+                    )
+                    resp.raise_for_status()
+                    reg_data = resp.json()
+                found = None
+                for c in (reg_data if isinstance(reg_data, list) else reg_data.get("cogs", [])):
+                    if c.get("name", "").lower() == cog_or_url.lower():
+                        found = c
+                        break
+            except Exception:
+                found = None
             if found is None:
                 raise HTTPException(400, f"Unknown marketplace cog: {cog_or_url}")
             repo_url = found.get("github_repo", "")

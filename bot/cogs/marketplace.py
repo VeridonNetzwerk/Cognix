@@ -171,7 +171,7 @@ async def run_command(cmd: list[str], cwd: Path | None = None, timeout: float = 
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
         )
-        stdout, _ = await proc.communicate(timeout=timeout)
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         return (proc.returncode or 0), (stdout.decode("utf-8", errors="replace") or "")
     except asyncio.TimeoutError:
         return -1, "Command timed out"
@@ -272,7 +272,12 @@ async def install_cog_from_source(bot: commands.Bot, repo_url: str, cog_name: st
 
     # Clean previous installation
     if install_dir.exists():
-        shutil.rmtree(install_dir, ignore_errors=True)
+        import time as _time
+        for _ in range(3):
+            shutil.rmtree(install_dir, ignore_errors=True)
+            if not install_dir.exists():
+                break
+            _time.sleep(0.3)
     install_dir.mkdir(parents=True, exist_ok=True)
 
     # Strategy 1: git clone
