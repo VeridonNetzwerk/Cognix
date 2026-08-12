@@ -26,13 +26,30 @@ A modular, production-ready Discord bot platform with a secure web dashboard.
 #    - Python 3.12+
 #    - FFmpeg (required for music playback)
 
-# 2. Local
-cp .env.example .env       # edit MASTER_KEY (base64 32 bytes), JWT_SECRET, etc.
-pip install -r requirements.txt
-alembic upgrade head       # run database migrations
-python main.py             # opens http://localhost:8080 — first-run setup wizard
+# 2. Install (automated — creates venv, installs deps, generates secrets, runs migrations)
+python install.py
 
-# 3. Docker
+# 3. Start the bot
+.venv/Scripts/python main.py    # Windows
+.venv/bin/python main.py        # Linux/macOS
+
+# 4. Open http://localhost:8080 — first-run setup wizard will guide you
+```
+
+### Manual setup (alternative)
+
+```bash
+cp .env.example .env       # edit MASTER_KEY, JWT_SECRET, AUTH_PEPPER, DISCORD_BOT_TOKEN
+python -m venv .venv
+.venv/Scripts/pip install -r requirements.txt    # Windows
+.venv/bin/pip install -r requirements.txt         # Linux/macOS
+alembic upgrade head       # run database migrations
+python main.py             # opens http://localhost:8080
+```
+
+### Docker
+
+```bash
 docker compose up -d --build
 ```
 
@@ -42,6 +59,7 @@ See [docs/](docs/) for installation, first-run, commands, API, security, and Pte
 
 ```
 CogniX/
+├── install.py              # Installer — creates venv, installs deps, generates secrets
 ├── main.py                 # Entry point — starts bot + web server
 ├── bot/                    # Discord bot core
 │   ├── client.py           #   Bot client (CognixBot)
