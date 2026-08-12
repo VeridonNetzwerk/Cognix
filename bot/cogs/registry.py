@@ -101,6 +101,20 @@ BUILTIN_COGS: list[CogInfo] = [
         "category": "Analytics",
         "requires_admin": False,
     },
+    {
+        "module": "bot.cogs.embeds",
+        "name": "Embeds",
+        "description": "Create, manage, and send custom embed templates",
+        "category": "Utility",
+        "requires_admin": True,
+    },
+    {
+        "module": "bot.cogs.bot_profile",
+        "name": "Bot Profile",
+        "description": "Manage bot display name, avatar, banner, and presence",
+        "category": "Administration",
+        "requires_admin": True,
+    },
 ]
 
 # ---------------------------------------------------------------------------

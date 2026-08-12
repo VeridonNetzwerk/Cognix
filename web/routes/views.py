@@ -463,7 +463,7 @@ async def marketplace_view(request: Request,
 async def embeds_view(request: Request,
                       access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
-    _require_cog("__any__")
+    _require_cog("bot.cogs.embeds")
     return _render(request, "embeds.html", user=user)
 
 
@@ -1143,7 +1143,7 @@ async def bot_profile_view(
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
 ) -> HTMLResponse:
     user = await _require_user(access_token)
-    _require_cog("__any__")
+    _require_cog("bot.cogs.bot_profile")
     async with db_session() as s:
         if not await has_permission(s, user, "bot_profile", level="read"):
             raise HTTPException(403, "forbidden")
@@ -1168,7 +1168,7 @@ async def bot_profile_save(
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
 ) -> Response:
     user = await _require_user(access_token)
-    _require_cog("__any__")
+    _require_cog("bot.cogs.bot_profile")
     async with db_session() as s:
         if not await has_permission(s, user, "bot_profile", level="write"):
             raise HTTPException(403, "forbidden")
@@ -1825,7 +1825,7 @@ async def info_embed_save(server_id: int = Form(...), name: str = Form("info"),
                           color: str = Form(default="#60a5fa"),
                           access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     user = await _require_user(access_token)
-    _require_cog("__any__")
+    _require_cog("bot.cogs.embeds")
     try:
         color_int = int(color.lstrip("#"), 16)
     except ValueError:

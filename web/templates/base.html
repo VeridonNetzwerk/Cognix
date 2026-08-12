@@ -332,7 +332,7 @@
             ('/servers', 'Servers', 'ph-hard-drives', None),
             ('/cogs', 'Cogs', 'ph-package', None),
             ('/marketplace', 'Marketplace', 'ph-storefront', None),
-            ('/embeds', 'Embeds', 'ph-image', '__any__'),
+            ('/embeds', 'Embeds', 'ph-image', 'bot.cogs.embeds'),
             ('/music', 'Music', 'ph-music-notes', 'bot.cogs.music'),
             ('/tickets', 'Tickets', 'ph-ticket', 'bot.cogs.tickets'),
             ('/backups', 'Backups', 'ph-database', 'bot.cogs.backups'),
@@ -342,7 +342,7 @@
             ('/invites', 'Invites', 'ph-envelope-simple', 'bot.cogs.invite_tracker'),
             ('/log', 'Log', 'ph-list-bullets', 'bot.cogs.activity_log'),
             ('/users', 'Web Users', 'ph-globe', None),
-            ('/bot-profile', 'Bot Profile', 'ph-user-circle', '__any__'),
+            ('/bot-profile', 'Bot Profile', 'ph-user-circle', 'bot.cogs.bot_profile'),
           ] %}
           {% for href, label, icon, cog_module in items %}
             {% if cog_module is none or (cog_module == '__any__' and loaded_cogs) or cog_module in loaded_cogs %}
