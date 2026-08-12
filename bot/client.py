@@ -427,8 +427,17 @@ async def run_bot() -> None:
     while not token:
         log.warning("bot_no_token_idle")
         await asyncio.sleep(30)
-        # Re-check settings periodically in case bot_token is set at runtime
+        # Re-check both env and DB in case bot_token was set at runtime
         token = get_settings().discord_bot_token
+        if not token:
+            from sqlalchemy import select as sa_select
+            from bot.database import db_session as _db
+            from bot.database.models.system.system_config import SystemConfig as _Cfg
+
+            async with _db() as s:
+                cfg = await s.scalar(sa_select(_Cfg).where(_Cfg.id == 1))
+                if cfg and cfg.bot_token_encrypted:
+                    token = decrypt_secret(cfg.bot_token_encrypted, aad=b"bot_token")
 
     from bot.runtime import clear_bot, set_bot
 
