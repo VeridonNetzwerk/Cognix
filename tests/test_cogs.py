@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
 
 import discord
-from discord.ext import commands
 
 
 class TestAdminCogImport:

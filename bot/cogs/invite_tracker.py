@@ -20,7 +20,7 @@ from typing import Optional
 import discord
 from discord import app_commands
 from discord.ext import commands
-from sqlalchemy import select, update
+from sqlalchemy import select
 
 from config.logging import get_logger
 from database import db_session

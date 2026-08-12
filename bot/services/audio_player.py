@@ -418,7 +418,6 @@ class AudioManager:
                 player._task.cancel()
             # Clean up giveaway locks too
             try:
-                from bot.cogs.giveaway import Giveaways
                 if hasattr(player.bot, 'get_cog'):
                     cog = player.bot.get_cog('Giveaways')
                     if cog and gid in cog._locks:

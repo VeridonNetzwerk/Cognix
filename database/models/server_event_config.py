@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, JSON, String
+from sqlalchemy import BigInteger, Boolean, ForeignKey, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database.base import Base, TimestampMixin

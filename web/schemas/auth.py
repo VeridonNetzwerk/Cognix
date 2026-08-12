@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Literal
-
 from pydantic import BaseModel, EmailStr, Field, SecretStr
 
 
@@ -12,11 +10,6 @@ class LoginRequest(BaseModel):
     password: SecretStr
     otp: str | None = Field(default=None, min_length=6, max_length=10)
     remember_me: bool = False
-
-
-class TokenPair(BaseModel):
-    access_token: str
-    token_type: Literal["bearer"] = "bearer"
 
 
 class UserOut(BaseModel):

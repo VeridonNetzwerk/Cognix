@@ -14,7 +14,7 @@ from discord import app_commands
 from discord.ext import commands
 from sqlalchemy import select
 
-from bot.utils.embeds import ok_embed, err_embed
+from bot.utils.embeds import err_embed
 
 
 class Embeds(commands.Cog):

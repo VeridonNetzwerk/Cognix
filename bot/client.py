@@ -71,7 +71,7 @@ class CogniXBot(commands.Bot):
                 return False
 
             # Also check via cog name → module mapping from registry
-            from bot.cogs.registry import is_cog_loaded, get_cog_info
+            from bot.cogs.registry import get_cog_info
 
             info = get_cog_info(cog_name)
             if info and info["module"] not in self.extensions:
@@ -218,7 +218,7 @@ class CogniXBot(commands.Bot):
         }
 
     async def _ipc_restart(self, _: dict[str, Any]) -> dict[str, Any]:
-        task = asyncio.create_task(self._delayed_close(), name="bot-restart")
+        asyncio.create_task(self._delayed_close(), name="bot-restart")
         return {"ok": True}
 
     async def _delayed_close(self) -> None:
@@ -371,7 +371,7 @@ class CogniXBot(commands.Bot):
             if not cog_name:
                 return {"status": "error", "error": "cog_name required"}
 
-            from bot.cogs.marketplace import uninstall_cog, save_package_metadata
+            from bot.cogs.marketplace import uninstall_cog
 
             result = await uninstall_cog(self, cog_name)
             if result.get("ok"):

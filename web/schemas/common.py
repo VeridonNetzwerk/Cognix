@@ -3,18 +3,8 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Generic, TypeVar
 
 from pydantic import BaseModel
-
-T = TypeVar("T")
-
-
-class Page(BaseModel, Generic[T]):
-    items: list[T]
-    total: int
-    page: int
-    page_size: int
 
 
 class ServerOut(BaseModel):
@@ -23,12 +13,6 @@ class ServerOut(BaseModel):
     icon_hash: str | None
     member_count: int
     is_active: bool
-
-
-class CogStateOut(BaseModel):
-    cog_name: str
-    server_id: str | None
-    enabled: bool
 
 
 class ModerationActionOut(BaseModel):
@@ -51,16 +35,6 @@ class ModerationRequest(BaseModel):
     message_count: int | None = None
 
 
-class StatsPoint(BaseModel):
-    day: str
-    count: int
-
-
-class StatsSeries(BaseModel):
-    metric: str
-    points: list[StatsPoint]
-
-
 class BotStatus(BaseModel):
     online: bool
     latency_ms: float | None
@@ -69,3 +43,13 @@ class BotStatus(BaseModel):
     uptime_seconds: float
     memory_mb: float
     version: str
+
+
+class StatsPoint(BaseModel):
+    day: str
+    count: int
+
+
+class StatsSeries(BaseModel):
+    metric: str
+    points: list[StatsPoint]

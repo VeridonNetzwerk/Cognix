@@ -37,7 +37,7 @@ from database.models.system_config import SystemConfig
 from database.models.ticket import Ticket, TicketStatus
 from database.models.web_user import WebRole, WebUser
 from database.session import db_session
-from web.deps import ACCESS_COOKIE, REFRESH_COOKIE
+from web.deps import ACCESS_COOKIE
 from web.routes.auth import _clear_cookies, _set_cookies
 from web.schemas.auth import LoginRequest
 from web.security.passwords import hash_password

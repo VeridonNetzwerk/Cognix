@@ -12,7 +12,6 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from bot.services.audio_player import (
-    Track,
     get_manager,
     search_tracks,
     yt_dlp_available,

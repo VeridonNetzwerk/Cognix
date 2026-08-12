@@ -19,7 +19,6 @@ import random
 import re
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any
 
 import discord
 from discord import app_commands

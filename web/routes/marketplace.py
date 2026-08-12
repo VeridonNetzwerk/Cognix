@@ -357,7 +357,7 @@ async def uninstall_cog(req: UninstallRequest, session: SessionDep) -> dict[str,
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "bot not running")
 
         # Check if this is a built-in cog
-        from bot.cogs.registry import get_cog_info, unload_cog, BUILTIN_COGS
+        from bot.cogs.registry import unload_cog, BUILTIN_COGS
         is_builtin_match = any(
             c["name"].lower() == req.cog_name.lower() or c["module"] == req.cog_name
             for c in BUILTIN_COGS

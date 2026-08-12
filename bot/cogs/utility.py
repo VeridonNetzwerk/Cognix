@@ -58,7 +58,7 @@ class Utility(commands.Cog):
 
     @app_commands.command(name="info", description="Bot information")
     async def info(self, interaction: discord.Interaction) -> None:
-        from datetime import UTC, datetime, timezone
+        from datetime import datetime, timezone
 
         bot = self.bot
         start = getattr(bot, "start_time", time.time())

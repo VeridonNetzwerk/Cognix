@@ -37,7 +37,6 @@ from discord import app_commands
 from discord.ext import commands
 from sqlalchemy import select as sa_select
 
-from bot.cogs.registry import get_all_cog_info, get_loaded_cogs
 from config.logging import get_logger
 from database import db_session
 from database.models.cog_package import CogPackage
@@ -577,15 +576,6 @@ class MarketplaceCogCmd(commands.Cog):
         admin = found.get("requires_admin", False)
         author = found.get("author") or "Unknown"
 
-        # Check if installed
-        installed_flag = False
-        try:
-            async with db_session() as s:
-                pkgs = await s.scalars(sa_select(CogPackage).where(CogPackage.installed.is_(True)))
-                installed_flag = name in {p.name for p in pkgs}
-        except Exception:  # noqa: BLE001
-            pass
-
         embed = discord.Embed(title=f"\U0001f4e6 {display}", description=desc, color=0x60A5FA)
         embed.add_field(name="Name", value=f"`{name}`", inline=True)
         embed.add_field(name="Version", value=f"`{ver}`", inline=True)
@@ -705,7 +695,6 @@ class MarketplaceCogCmd(commands.Cog):
         result = await install_cog_from_source(self.bot, repo_url, cog_name)
         if result.get("ok"):
             safe_name = cog_name.lower().replace(" ", "_")
-            module_path = str(_get_install_dir() / safe_name / "package")
 
             await save_package_metadata(
                 cog_name=cog_name,

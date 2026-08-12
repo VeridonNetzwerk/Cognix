@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 
 from bot.runtime import (
     _format_uptime,
