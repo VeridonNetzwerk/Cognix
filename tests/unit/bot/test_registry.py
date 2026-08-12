@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-
 from bot.cogs.registry import (
-    BUILTIN_COGS,
     AVAILABLE_COGS,
+    BUILTIN_COGS,
+    _loaded_cogs,
+    _update_loaded_state,
     get_all_cog_info,
     get_cog_info,
     get_loaded_cogs,
     is_cog_loaded,
-    _update_loaded_state,
-    _loaded_cogs,
 )
 
 
@@ -49,7 +48,7 @@ class TestGetAllCogInfo:
 
     def test_returns_copies_not_references(self):
         result = get_all_cog_info()
-        for original, copy in zip(BUILTIN_COGS, result):
+        for original, copy in zip(BUILTIN_COGS, result, strict=False):
             assert original is not copy, "Should return copies, not references"
 
 

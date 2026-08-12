@@ -62,7 +62,7 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "ASYNC", "S", "C4", "SIM", "RUF"]
 ignore = ["S101", "S104"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S105", "S106"]
+"tests/**" = ["S105", "S106", "S311"]
 "database/migrations/**" = ["E501"]
 
 [tool.mypy]
@@ -73,4 +73,4 @@ exclude = ["database/migrations/"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests"]
+testpaths = ["tests/unit"]

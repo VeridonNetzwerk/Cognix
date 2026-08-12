@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -82,12 +82,13 @@ class TestRefreshTokens:
         token2, _ = issue_refresh_token(subject="user-123", family_id=family_id)
         payload1 = decode_token(token1, expected_type="refresh")
         payload2 = decode_token(token2, expected_type="refresh")
-        assert payload1["rnd"] != payload2["rnd"], "Refresh tokens should have unique random components"
+        assert payload1["rnd"] != payload2["rnd"], \
+            "Refresh tokens should have unique random components"
 
     def test_refresh_expiry_is_future(self):
         family_id = uuid.uuid4()
         _, expires = issue_refresh_token(subject="user-123", family_id=family_id)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         assert expires > now
 
 

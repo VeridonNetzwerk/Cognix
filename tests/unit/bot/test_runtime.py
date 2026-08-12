@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-
 from bot.runtime import (
     _format_uptime,
     get_bot_info,
     invalidate_cog_state_cache,
     is_bot_paused,
-    set_bot_paused,
     request_bot_start,
+    set_bot_paused,
 )
 
 

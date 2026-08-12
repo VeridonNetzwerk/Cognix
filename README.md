@@ -106,8 +106,10 @@ CogniX/
 │   ├── constants.py        #   API prefix, audit actions
 │   ├── crypto.py           #   AES-256-GCM encryption
 │   └── logging.py          #   Structured logging
-├── tests/                  # Test suite
-├── scripts/                # Utility scripts (create_admin, healthcheck)
+├── tests/                  # Test suite + utility scripts
+│   ├── unit/               #   Unit tests (bot/, web/, database/, config/)
+│   ├── scripts/            #   CLI scripts (create_admin, healthcheck)
+│   └── conftest.py         #   Shared test fixtures
 ├── docs/                   # Documentation
 ├── docker-compose.yml      # Docker deployment
 ├── Dockerfile              # Container image

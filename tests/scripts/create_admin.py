@@ -2,7 +2,7 @@
 
 Usage::
 
-    python scripts/create_admin.py <username> <email> <password>
+    python -m tests.scripts.create_admin <username> <email> <password>
 """
 
 from __future__ import annotations
