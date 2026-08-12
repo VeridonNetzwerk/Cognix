@@ -30,8 +30,8 @@ from web.api import moderation as moderation_api
 from web.api import settings as settings_api
 from web.api import content as content_api
 from web.api import ws as ws_api
-from web.pages import router as views_router
-from web.pages._shared import templates
+from bot.pages import router as views_router
+from bot.pages._shared import templates
 from web.services.bot_ipc import get_ipc
 
 log = get_logger("web.app")

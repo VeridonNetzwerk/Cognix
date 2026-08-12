@@ -66,7 +66,7 @@ ignore = ["S101", "S104"]
 "bot/database/migrations/**" = ["E501"]
 "bot/database/models/**" = ["E501", "UP042"]
 "bot/config/**" = ["E501", "S105", "RUF100"]
-"web/pages/**" = ["E501", "S110", "SIM105", "RUF100"]
+"bot/pages/**" = ["E501", "S110", "SIM105", "RUF100"]
 "web/api/**" = ["E501", "S110", "SIM105", "RUF100", "I001"]
 
 [tool.mypy]

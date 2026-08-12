@@ -15,7 +15,7 @@ from bot.database.models.server_config import ServerConfig
 from bot.database.models.ticket import Ticket, TicketStatus
 from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE
-from web.pages._shared import (
+from bot.pages._shared import (
     _current_user,
     _render,
     _require_user,

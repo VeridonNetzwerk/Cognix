@@ -20,7 +20,7 @@ from bot.database.models.web_user_settings import (
 )
 from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE
-from web.pages._shared import _render, _require_cog, _require_user, router
+from bot.pages._shared import _render, _require_cog, _require_user, router
 from web.security import totp as _totp
 from web.security.permissions import get_permission_map, has_permission
 

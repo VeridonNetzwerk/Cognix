@@ -10,7 +10,7 @@ from bot.database.models.audit_log import AuditLog
 from bot.database.session import db_session
 from web.api.auth.auth import _clear_cookies, _set_cookies
 from web.deps import ACCESS_COOKIE
-from web.pages._shared import (
+from bot.pages._shared import (
     _current_user,
     _render,
     _system_configured,
