@@ -7,7 +7,7 @@ broadcast as events for the dashboard.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import discord
@@ -24,7 +24,7 @@ log = get_logger("bot.cogs.moderation")
 
 
 def _now() -> datetime:
-    return datetime.now(tz=timezone.utc)
+    return datetime.now(UTC)
 
 
 async def _record(
@@ -143,10 +143,14 @@ class Moderation(commands.Cog):
     async def kick(
         self, interaction: discord.Interaction, user: discord.Member, reason: str = ""
     ) -> None:
+        guild_id = interaction.guild_id
+        if guild_id is None:
+            await interaction.response.send_message("Guild only", ephemeral=True)
+            return
         try:
             await user.kick(reason=reason)
             await _record(
-                guild_id=interaction.guild_id or 0,
+                guild_id=guild_id,
                 action=ModerationActionType.KICK,
                 moderator_id=interaction.user.id,
                 target_id=user.id,
@@ -166,6 +170,10 @@ class Moderation(commands.Cog):
         reason: str = "",
         duration: str | None = None,
     ) -> None:
+        guild_id = interaction.guild_id
+        if guild_id is None:
+            await interaction.response.send_message("Guild only", ephemeral=True)
+            return
         secs = parse_duration(duration)
         # Discord max timeout is 28 days
         max_secs = 28 * 86400
@@ -174,7 +182,7 @@ class Moderation(commands.Cog):
         try:
             await user.timeout(until, reason=reason)
             await _record(
-                guild_id=interaction.guild_id or 0,
+                guild_id=guild_id,
                 action=ModerationActionType.MUTE,
                 moderator_id=interaction.user.id,
                 target_id=user.id,
@@ -193,10 +201,14 @@ class Moderation(commands.Cog):
     async def unmute(
         self, interaction: discord.Interaction, user: discord.Member, reason: str = ""
     ) -> None:
+        guild_id = interaction.guild_id
+        if guild_id is None:
+            await interaction.response.send_message("Guild only", ephemeral=True)
+            return
         try:
             await user.timeout(None, reason=reason)
             await _record(
-                guild_id=interaction.guild_id or 0,
+                guild_id=guild_id,
                 action=ModerationActionType.UNMUTE,
                 moderator_id=interaction.user.id,
                 target_id=user.id,
@@ -211,17 +223,21 @@ class Moderation(commands.Cog):
     async def warn(
         self, interaction: discord.Interaction, user: discord.Member, reason: str
     ) -> None:
+        guild_id = interaction.guild_id
+        if guild_id is None:
+            await interaction.response.send_message("Guild only", ephemeral=True)
+            return
         async with db_session() as s:
             s.add(
                 Warning_(
-                    server_id=interaction.guild_id or 0,
+                    server_id=guild_id,
                     target_id=user.id,
                     moderator_id=interaction.user.id,
                     reason=reason,
                 )
             )
         await _record(
-            guild_id=interaction.guild_id or 0,
+            guild_id=guild_id,
             action=ModerationActionType.WARN,
             moderator_id=interaction.user.id,
             target_id=user.id,
@@ -312,25 +328,34 @@ class Moderation(commands.Cog):
                 await guild.unban(obj, reason=reason)
                 act = ModerationActionType.UNBAN
             await _record(
-                guild_id=guild.id, action=act, moderator_id=moderator_id,
-                target_id=int(target_id), reason=reason, web_user_id=p.get("web_user_id"),
+                guild_id=guild.id, action=act,
+                moderator_id=moderator_id,
+                target_id=int(target_id), reason=reason,
+                web_user_id=p.get("web_user_id"),
             )
             return
 
         if action in ("kick", "mute", "unmute", "warn") and target_id is not None:
-            member = guild.get_member(int(target_id)) or await guild.fetch_member(int(target_id))
+            member = guild.get_member(int(target_id))
+            if member is None:
+                try:
+                    member = await guild.fetch_member(int(target_id))
+                except discord.NotFound:
+                    raise ValueError(f"member {target_id} not found in guild") from None
             if action == "kick":
                 await member.kick(reason=reason)
                 act = ModerationActionType.KICK
-            elif action == "mute":
-                secs = p.get("duration_seconds") or (28 * 86400)
-                await member.timeout(_now() + timedelta(seconds=int(secs)), reason=reason)
+            # Duration defaults to max timeout when not specified
+            duration_secs = int(p.get("duration_seconds") or (28 * 86400))
+            if action == "mute":
+                secs = duration_secs
+                await member.timeout(_now() + timedelta(seconds=secs), reason=reason)
                 act = ModerationActionType.MUTE
-                duration = int(secs)
+                duration = secs
                 await _record(
                     guild_id=guild.id, action=act, moderator_id=moderator_id,
-                    target_id=member.id, reason=reason, duration=duration,
-                    web_user_id=p.get("web_user_id"),
+                    target_id=member.id, reason=reason,
+                    duration=duration, web_user_id=p.get("web_user_id"),
                 )
                 return
             elif action == "unmute":

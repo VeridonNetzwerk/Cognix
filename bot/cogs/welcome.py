@@ -126,6 +126,8 @@ class Welcome(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member) -> None:
+        if member.bot:
+            return  # Skip bot join events
         cfg = await self._config(member.guild.id)
         if cfg is None:
             return

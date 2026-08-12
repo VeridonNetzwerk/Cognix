@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -17,6 +18,7 @@ from config.settings import Settings, get_settings
 
 _engine: AsyncEngine | None = None
 _sessionmaker: async_sessionmaker[AsyncSession] | None = None
+_init_lock = threading.Lock()
 
 
 def _engine_kwargs(settings: Settings) -> dict[str, Any]:
@@ -30,16 +32,25 @@ def _engine_kwargs(settings: Settings) -> dict[str, Any]:
 
 
 def init_engine(database_url: str | None = None) -> AsyncEngine:
-    """Initialize (or replace) the global async engine."""
+    """Initialize (or replace) the global async engine.
+
+    Thread-safe via ``threading.Lock`` — prevents TOCTOU race where two
+    concurrent calls could both see ``_engine is None`` and create duplicate
+    engines. Call from sync code (main.py migrations) or ensure the caller
+    wraps it in ``asyncio.to_thread``.
+    """
     global _engine, _sessionmaker
-    settings = get_settings()
-    url = database_url or settings.database_url
     if _engine is not None:
         return _engine
-    _engine = create_async_engine(url, **_engine_kwargs(settings))
-    _sessionmaker = async_sessionmaker(
-        _engine, expire_on_commit=False, class_=AsyncSession
-    )
+    with _init_lock:  # threading.Lock — safe from any context
+        if _engine is not None:  # noqa: PLR1702
+            return _engine
+        settings = get_settings()
+        url = database_url or settings.database_url
+        _engine = create_async_engine(url, **_engine_kwargs(settings))
+        _sessionmaker = async_sessionmaker(
+            _engine, expire_on_commit=False, class_=AsyncSession
+        )
     return _engine
 
 

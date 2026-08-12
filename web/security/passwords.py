@@ -6,7 +6,7 @@ import bcrypt
 
 from config.settings import get_settings
 
-_BCRYPT_ROUNDS = 12
+_BCRYPT_ROUNDS = 14  # Minimum 14 for modern hardware (GPU resistance)
 
 
 def _peppered(password: str) -> bytes:

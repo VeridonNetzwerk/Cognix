@@ -36,3 +36,5 @@ frontend/.env*.local
 # Logs
 *.log
 logs/
+
+Cognix.wiki/

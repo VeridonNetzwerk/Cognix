@@ -65,18 +65,41 @@ class IpcConsumer:
         assert self._redis is not None
         ps = self._redis.pubsub()
         await ps.subscribe(IPC_CMD_CHANNEL)
-        async for msg in ps.listen():
-            if msg.get("type") != "message":
-                continue
+        last_pong = asyncio.get_running_loop().time()
+        PONG_TIMEOUT = 30.0  # seconds
+        try:
+            async for msg in ps.listen():
+                # Periodic health-check: if Redis goes silent, abort the loop
+                now = asyncio.get_running_loop().time()
+                if now - last_pong > PONG_TIMEOUT:
+                    log.warning("ipc_redis_dead", reconnecting=True)
+                    break
+                last_pong = now
+
+                if msg.get("type") != "message":
+                    continue
+                try:
+                    data = json.loads(msg["data"])
+                    rid = data["request_id"]
+                    cmd = data["command"]
+                    payload = data.get("payload", {})
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("ipc_decode_failed", error=str(exc))
+                    continue
+                # Store task reference to prevent GC and capture exceptions
+                task = asyncio.create_task(self._handle(rid, cmd, payload), name=f"ipc-{cmd}")
+                task.add_done_callback(
+                    lambda t: t.exception()
+                    and log.warning("ipc_handler_crashed", command=cmd, error=str(t.exception()))
+                )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("ipc_loop_error", error=str(exc))
+        finally:
             try:
-                data = json.loads(msg["data"])
-                rid = data["request_id"]
-                cmd = data["command"]
-                payload = data.get("payload", {})
-            except Exception as exc:  # noqa: BLE001
-                log.warning("ipc_decode_failed", error=str(exc))
-                continue
-            asyncio.create_task(self._handle(rid, cmd, payload))
+                await ps.unsubscribe(IPC_CMD_CHANNEL)
+            except Exception:  # noqa: BLE001
+                pass
+            log.info("ipc_consumer_exited", reason="redis_disconnected")
 
     async def _handle(self, rid: str, cmd: str, payload: dict[str, Any]) -> None:
         handler = self._handlers.get(cmd)

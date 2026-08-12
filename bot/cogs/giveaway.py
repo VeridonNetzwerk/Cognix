@@ -7,10 +7,11 @@ Giveaways are persisted to the ``giveaways`` table and are checked every
 
 from __future__ import annotations
 
+import asyncio
 import random
 import re
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import discord
@@ -72,6 +73,10 @@ class Giveaways(commands.Cog):
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
+        # Per-giveaway locks prevent concurrent end() calls (tick vs user command)
+        self._locks: dict[uuid.UUID, asyncio.Lock] = {}
+        # Global lock for creating per-giveaway locks safely
+        self._lock_create_global = asyncio.Lock()
         self._tick.start()
 
     def cog_unload(self) -> None:
@@ -80,7 +85,7 @@ class Giveaways(commands.Cog):
     @tasks.loop(seconds=30.0)
     async def _tick(self) -> None:
         try:
-            now = datetime.now(tz=timezone.utc)
+            now = datetime.now(UTC)
             async with db_session() as s:
                 rows = (
                     await s.scalars(
@@ -96,6 +101,15 @@ class Giveaways(commands.Cog):
                     await self._end_giveaway(g.id)
                 except Exception as exc:  # noqa: BLE001
                     log.warning("giveaway_end_failed", id=str(g.id), error=str(exc))
+            # Periodic cleanup: remove locks for giveaways that no longer exist or are ended.
+            # Only do this when there are no active ticking giveaways to avoid interfering with in-progress ones.
+            if not rows:
+                active_ids = {g.id for g in (
+                    await s.scalars(select(Giveaway).where(Giveaway.ended.is_(False))).all()
+                )}
+                stale = [gid for gid in self._locks if gid not in active_ids]
+                for gid in stale:
+                    self._locks.pop(gid, None)
         except Exception as exc:  # noqa: BLE001
             log.warning("giveaway_tick_failed", error=str(exc))
 
@@ -128,6 +142,18 @@ class Giveaways(commands.Cog):
         return [u.id for u in winners]
 
     async def _end_giveaway(self, giveaway_id: uuid.UUID) -> Giveaway | None:
+        # Per-giveaway lock prevents race between tick loop and user-initiated end
+        lock = self._locks.get(giveaway_id)
+        if lock is None:
+            async with self._lock_create_global:
+                lock = self._locks.get(giveaway_id)
+                if lock is None:
+                    lock = asyncio.Lock()
+                    self._locks[giveaway_id] = lock
+        async with lock:
+            return await self._end_giveaway_inner(giveaway_id)
+
+    async def _end_giveaway_inner(self, giveaway_id: uuid.UUID) -> Giveaway | None:
         async with db_session() as s:
             g = await s.get(Giveaway, giveaway_id)
             if g is None or g.ended:
@@ -199,7 +225,7 @@ class Giveaways(commands.Cog):
             )
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
-        ends_at = datetime.now(tz=timezone.utc) + delta
+        ends_at = datetime.now(UTC) + delta
         g = Giveaway(
             server_id=interaction.guild.id,
             channel_id=target.id,

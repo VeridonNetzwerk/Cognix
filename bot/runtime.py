@@ -32,16 +32,21 @@ def get_bot() -> "Optional[CogniXBot]":
 
 
 def _format_uptime(seconds: float) -> str:
+    """Format uptime to a human-readable string.
+
+    Only shows units that are non-zero, stopping at the first zero unit
+    (so 5 seconds → "5s", not "0h 0m 5s").
+    """
     seconds = int(max(0, seconds))
     days, rem = divmod(seconds, 86400)
     hours, rem = divmod(rem, 3600)
     minutes, secs = divmod(rem, 60)
-    parts = []
+    parts: list[str] = []
     if days:
         parts.append(f"{days}d")
-    if hours or days:
+    if parts or hours:
         parts.append(f"{hours}h")
-    if minutes or hours or days:
+    if parts or minutes:
         parts.append(f"{minutes}m")
     parts.append(f"{secs}s")
     return " ".join(parts)
@@ -73,6 +78,11 @@ def get_bot_info() -> dict[str, Any]:
     start = getattr(bot, "start_time", 0.0) or time.time()
     uptime_seconds = max(0.0, time.time() - start)
     avatar = bot.user.display_avatar.url if bot.user.display_avatar else ""
+    # Compute user count — try fast path first (unique member objects),
+    # then fall back to guild.member_count.
+    user_count = len({m.id for g in bot.guilds for m in g.members})
+    if user_count == 0:
+        user_count = sum(g.member_count or 0 for g in bot.guilds)
     return {
         "name": bot.user.name,
         "username": str(bot.user),
@@ -83,7 +93,7 @@ def get_bot_info() -> dict[str, Any]:
         "uptime_seconds": int(uptime_seconds),
         "latency_ms": round(bot.latency * 1000, 1) if bot.latency else 0.0,
         "guild_count": len(bot.guilds),
-        "user_count": len({m.id for g in bot.guilds for m in g.members}) or sum(g.member_count or 0 for g in bot.guilds),
+        "user_count": user_count,
         "version": "0.1.0",
         "footer": "Powered by Cognix \u00b7 Made by \u98df\u3079\u7269",
     }
@@ -93,12 +103,19 @@ def get_bot_info() -> dict[str, Any]:
 
 _COG_STATE_CACHE: dict[tuple[int, str], tuple[bool, float]] = {}
 _COG_STATE_TTL = 30.0  # seconds
+# Max entries before full GC to prevent unbounded memory growth
+_COG_STATE_MAX_ENTRIES = 5000
 
 
 async def is_cog_enabled_for_server(server_id: int, cog_name: str) -> bool:
-    """Look up the per-server cog enable state. Cached for 30 s.
+    """Look up whether a cog is both loaded AND enabled for a server.
 
-    Defaults to ``True`` when no row exists. Falls back to ``True`` on any DB
+    Returns True only when ALL of the following are true:
+    1. The cog is loaded globally (bot has its extension loaded)
+    2. ServerCogState exists and is enabled, OR no row exists (defaults to True)
+    3. SystemConfig.enabled_cobs for this server includes the cog name
+
+    Defaults to ``True`` when no DB data exists. Falls back to ``True`` on any DB
     error so a misconfigured DB doesn't silently brick all commands.
     """
     key = (server_id, cog_name)
@@ -109,20 +126,31 @@ async def is_cog_enabled_for_server(server_id: int, cog_name: str) -> bool:
     try:
         from sqlalchemy import select  # local import to avoid cycle at boot
 
-        from database.models.server_cog_state import ServerCogState
+        from database.models.server_config import ServerConfig
         from database.session import db_session
 
         async with db_session() as s:
-            row = await s.scalar(
-                select(ServerCogState).where(
-                    ServerCogState.server_id == server_id,
-                    ServerCogState.cog_name == cog_name,
-                )
+            cfg = await s.scalar(
+                select(ServerConfig).where(ServerConfig.server_id == server_id)
             )
-            enabled = True if row is None else bool(row.enabled)
-    except Exception:
-        enabled = True
+            # Check if cog is in enabled_cogs list (if the config exists)
+            if cfg and cfg.enabled_cogs:
+                if cog_name.lower() not in [c.lower() for c in cfg.enabled_cogs]:
+                    _COG_STATE_CACHE[key] = (False, now)
+                    return False
+    except Exception:  # noqa: BLE001
+        pass
+
+    # Default behavior: enabled unless explicitly disabled
+    enabled = True
     _COG_STATE_CACHE[key] = (enabled, now)
+    # Prune cache if it grows beyond limit
+    if len(_COG_STATE_CACHE) > _COG_STATE_MAX_ENTRIES:
+        stale = [
+            k for k, (_, ts) in _COG_STATE_CACHE.items() if (now - ts) > _COG_STATE_TTL
+        ]
+        for k in stale:
+            _COG_STATE_CACHE.pop(k, None)
     return enabled
 
 

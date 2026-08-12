@@ -42,7 +42,10 @@ async def get_current_user(
         payload = decode_token(token, expected_type="access")
     except TokenError as exc:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid token") from exc
-    user_id = uuid.UUID(payload["sub"])
+    try:
+        user_id = uuid.UUID(payload["sub"])
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid token") from exc
     user = await session.get(WebUser, user_id)
     if user is None or not user.is_active or user.deleted_at is not None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "inactive user")

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Cookie, HTTPException, Request, Response, status
 
@@ -51,7 +51,7 @@ def _set_cookies(
         httponly=True,
         secure=secure,
         samesite="lax",
-        max_age=int((refresh_exp - datetime.utcnow().replace(tzinfo=refresh_exp.tzinfo)).total_seconds()),
+        max_age=int((refresh_exp - datetime.now(timezone.utc)).total_seconds()),
         path="/",
     )
 

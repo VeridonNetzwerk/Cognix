@@ -160,6 +160,9 @@ class GuildPlayer:
       * ``"queue"`` — push finished track back to the end of the queue
     """
 
+    _cleanup_interval = 60.0  # seconds between idle-guild checks
+    _last_cleanup: float = 0.0
+
     def __init__(self, bot: discord.Client, guild_id: int) -> None:
         self.bot = bot
         self.guild_id = guild_id
@@ -390,6 +393,41 @@ class AudioManager:
 
     def all(self) -> dict[int, GuildPlayer]:
         return dict(self._players)
+
+    def cleanup_idle_players(self) -> int:
+        """Remove players that have been idle for more than 10 minutes.
+
+        Returns the number of removed players.
+        """
+        now = time.monotonic()
+        if now - GuildPlayer._last_cleanup < GuildPlayer._cleanup_interval:
+            return 0
+        GuildPlayer._last_cleanup = now
+        stale_keys: list[int] = []
+        for gid, player in self._players.items():
+            # Player is idle if no voice client and nothing playing
+            vc = player.voice_client
+            if vc is None:
+                # Also check if the guild still exists on Discord
+                guild = player.bot.get_guild(player.guild_id)
+                if guild is None or not guild.me.voice:
+                    stale_keys.append(gid)
+        for gid in stale_keys:
+            player = self._players.pop(gid, None)
+            if player and player._task and not player._task.done():
+                player._task.cancel()
+            # Clean up giveaway locks too
+            try:
+                from bot.cogs.giveaway import Giveaways
+                if hasattr(player.bot, 'get_cog'):
+                    cog = player.bot.get_cog('Giveaways')
+                    if cog and gid in cog._locks:
+                        del cog._locks[gid]
+            except Exception:  # noqa: BLE001
+                pass
+        return len(stale_keys)
+
+
 
 
 _manager = AudioManager()

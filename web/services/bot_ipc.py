@@ -13,9 +13,11 @@ except ImportError:  # pragma: no cover
     aioredis = None  # type: ignore[assignment]
 
 from config.constants import IPC_ACK_CHANNEL, IPC_CMD_CHANNEL, IPC_EVENT_CHANNEL
+from config.logging import get_logger
 from config.settings import get_settings
 
 _client: "BotIpc | None" = None
+log = get_logger("web.ipc")
 
 
 class BotIpc:
@@ -61,7 +63,8 @@ class BotIpc:
         if not self._connected and not await self.connect():
             raise RuntimeError("bot IPC unavailable (Redis not reachable)")
         request_id = uuid.uuid4().hex
-        fut: asyncio.Future[dict[str, Any]] = asyncio.get_event_loop().create_future()
+        loop = asyncio.get_running_loop()
+        fut: asyncio.Future[dict[str, Any]] = loop.create_future()
         self._pending[request_id] = fut
         msg = {"request_id": request_id, "command": command, "payload": payload}
         await self._redis.publish(IPC_CMD_CHANNEL, json.dumps(msg))  # type: ignore[union-attr]
@@ -86,37 +89,51 @@ class BotIpc:
         self._event_subscribers.discard(q)
 
     async def _listen_acks(self) -> None:
-        assert self._redis is not None
         ps = self._redis.pubsub()
         await ps.subscribe(IPC_ACK_CHANNEL)
-        async for msg in ps.listen():
-            if msg.get("type") != "message":
-                continue
+        try:
+            async for msg in ps.listen():
+                if msg.get("type") != "message":
+                    continue
+                try:
+                    data = json.loads(msg["data"])
+                except Exception:  # noqa: BLE001
+                    continue
+                rid = data.get("request_id")
+                fut = self._pending.get(rid)
+                if fut and not fut.done():
+                    fut.set_result(data)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("ipc_ack_listener_error", error=str(exc))
+        finally:
             try:
-                data = json.loads(msg["data"])
+                await ps.unsubscribe(IPC_ACK_CHANNEL)
             except Exception:  # noqa: BLE001
-                continue
-            rid = data.get("request_id")
-            fut = self._pending.get(rid)
-            if fut and not fut.done():
-                fut.set_result(data)
+                pass
 
     async def _listen_events(self) -> None:
-        assert self._redis is not None
         ps = self._redis.pubsub()
         await ps.subscribe(IPC_EVENT_CHANNEL)
-        async for msg in ps.listen():
-            if msg.get("type") != "message":
-                continue
-            try:
-                data = json.loads(msg["data"])
-            except Exception:  # noqa: BLE001
-                continue
-            for q in list(self._event_subscribers):
+        try:
+            async for msg in ps.listen():
+                if msg.get("type") != "message":
+                    continue
                 try:
-                    q.put_nowait(data)
-                except asyncio.QueueFull:
-                    pass
+                    data = json.loads(msg["data"])
+                except Exception:  # noqa: BLE001
+                    continue
+                for q in list(self._event_subscribers):
+                    try:
+                        q.put_nowait(data)
+                    except asyncio.QueueFull:
+                        pass
+        except Exception as exc:  # noqa: BLE001
+            log.warning("ipc_event_listener_error", error=str(exc))
+        finally:
+            try:
+                await ps.unsubscribe(IPC_EVENT_CHANNEL)
+            except Exception:  # noqa: BLE001
+                pass
 
 
 def get_ipc() -> BotIpc:

@@ -44,8 +44,14 @@ def decrypt_secret(token: str, *, aad: bytes | None = None) -> str:
     if token == "":
         return ""
     raw = base64.b64decode(token)
-    if len(raw) < 13:
+    # AES-GCM format: 12-byte nonce + ciphertext + 16-byte authentication tag
+    MIN_LENGTH = 12 + 16  # minimum without payload
+    if len(raw) < MIN_LENGTH:
         raise CryptoError("ciphertext too short")
-    nonce, ct = raw[:12], raw[12:]
+    nonce, tagged_ciphertext = raw[:12], raw[12:]
     aes = AESGCM(_master_key_bytes())
-    return aes.decrypt(nonce, ct, aad).decode("utf-8")
+    try:
+        plaintext = aes.decrypt(nonce, tagged_ciphertext, aad)
+    except Exception as exc:  # noqa: BLE001
+        raise CryptoError("decryption failed – possible tampering or wrong key") from exc
+    return plaintext.decode("utf-8")

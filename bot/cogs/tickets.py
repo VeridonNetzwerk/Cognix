@@ -16,9 +16,10 @@ them via the in-thread panel or ``/ticket-close``.
 
 from __future__ import annotations
 
+import asyncio
 import io
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import discord
@@ -113,6 +114,10 @@ class Tickets(commands.Cog):
         ipc = getattr(bot, "ipc", None)
         if ipc is not None:
             ipc.register("ticket.close", self._ipc_close)
+        # Per-ticket locks for concurrency control (cleaned up in _archive_and_delete)
+        self._ticket_locks: dict[int, asyncio.Lock] = {}
+        # Global lock for creating per-ticket locks safely
+        self._lock_create_global = asyncio.Lock()
 
     # ------------------------------------------------------------- helpers
 
@@ -251,7 +256,7 @@ class Tickets(commands.Cog):
                         thread_id=channel.id,
                         channel_id=channel.id,
                         title=f"Ticket from {interaction.user.name}",
-                        last_activity_at=datetime.now(tz=timezone.utc),
+                        last_activity_at=datetime.now(UTC),
                     )
                     s.add(t)
                     await s.flush()
@@ -310,7 +315,7 @@ class Tickets(commands.Cog):
                     thread_id=thread.id,
                     channel_id=interaction.channel.id,
                     title=f"Ticket from {interaction.user.name}",
-                    last_activity_at=datetime.now(tz=timezone.utc),
+                    last_activity_at=datetime.now(UTC),
                 )
                 s.add(t)
                 await s.flush()
@@ -343,15 +348,46 @@ class Tickets(commands.Cog):
                 "Run inside a ticket thread", ephemeral=True
             )
             return
-        await interaction.response.send_message(
-            embed=ok_embed("Closing ticket", "Archiving and deleting the thread\u2026"),
-            ephemeral=True,
-        )
-        await self._archive_and_delete(
-            interaction.channel, closed_by=interaction.user.id, reason="manual close"
-        )
+        # Guard against concurrent close attempts
+        async with self._lock_create_global:
+            lock = self._ticket_locks.pop(interaction.channel.id, None)
+        if lock is None:
+            lock = asyncio.Lock()
+        try:
+            await interaction.response.send_message(
+                embed=ok_embed("Closing ticket", "Archiving and deleting the thread\u2026"),
+                ephemeral=True,
+            )
+            async with lock:
+                await self._archive_and_delete(
+                    interaction.channel, closed_by=interaction.user.id, reason="manual close"
+                )
+        finally:
+            # Cleanup lock reference to prevent memory leak
+            async with self._lock_create_global:
+                self._ticket_locks.pop(interaction.channel.id, None)
 
     # ------------------------------------------------------------- panel actions
+
+    async def _do_close_thread(
+        self,
+        interaction: discord.Interaction,
+        thread: discord.Thread,
+        closed_by: int,
+        reason: str,
+    ) -> None:
+        """Respond first, then close (to avoid token invalidation)."""
+        try:
+            await interaction.response.send_message(
+                embed=ok_embed(
+                    "Ticket closed",
+                    f"Closed by {interaction.user.mention}. Archiving the thread\u2026",
+                )
+            )
+        except (discord.InteractionResponded, discord.HTTPException) as exc:
+            if isinstance(exc, discord.HTTPException):
+                log.warning("ticket_close_response_failed", error=str(exc))
+        await self._archive_and_delete(thread, closed_by=closed_by, reason=reason)
 
     async def _handle_close_button(self, interaction: discord.Interaction) -> None:
         thread = interaction.channel
@@ -360,24 +396,18 @@ class Tickets(commands.Cog):
                 "Only usable inside a ticket thread.", ephemeral=True
             )
             return
-        # IMPORTANT: respond FIRST, then mutate the thread. Editing the thread
-        # to archived=True invalidates the interaction token and any subsequent
-        # send_message returns 403 "Thread is archived".
+        # Guard against concurrent close attempts
+        async with self._lock_create_global:
+            lock = self._ticket_locks.pop(thread.id, None)
+        if lock is None:
+            lock = asyncio.Lock()
         try:
-            await interaction.response.send_message(
-                embed=ok_embed(
-                    "Ticket closed",
-                    f"Closed by {interaction.user.mention}. Archiving the thread\u2026",
-                )
-            )
-        except discord.InteractionResponded:
-            pass
-        except discord.HTTPException as exc:
-            log.warning("ticket_close_response_failed", error=str(exc))
-
-        await self._archive_and_delete(
-            thread, closed_by=interaction.user.id, reason="closed via panel"
-        )
+            async with lock:
+                await self._do_close_thread(interaction, thread, interaction.user.id, "closed via panel")
+        finally:
+            # Cleanup lock reference to prevent memory leak
+            async with self._lock_create_global:
+                self._ticket_locks.pop(thread.id, None)
 
     async def _handle_claim(self, interaction: discord.Interaction) -> None:
         if not isinstance(interaction.channel, discord.Thread):
@@ -429,7 +459,7 @@ class Tickets(commands.Cog):
                 )
                 if t is None or t.status != TicketStatus.OPEN:
                     return
-                t.last_activity_at = datetime.now(tz=timezone.utc)
+                t.last_activity_at = datetime.now(UTC)
                 s.add(
                     TicketMessage(
                         ticket_id=t.id,
@@ -461,7 +491,7 @@ class Tickets(commands.Cog):
                 )
                 if t is not None:
                     t.status = TicketStatus.ARCHIVED
-                    t.closed_at = datetime.now(tz=timezone.utc)
+                    t.closed_at = datetime.now(UTC)
                     t.closed_by = closed_by
                     s.add(
                         TicketMessage(
@@ -512,7 +542,7 @@ class Tickets(commands.Cog):
                 )
             except discord.NotFound:
                 t.status = TicketStatus.ARCHIVED
-                t.closed_at = datetime.now(tz=timezone.utc)
+                t.closed_at = datetime.now(UTC)
                 t.closed_by = 0
                 return {"status": "ok"}
         if isinstance(thread, discord.Thread):

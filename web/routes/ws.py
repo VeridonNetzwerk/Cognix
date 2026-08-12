@@ -14,7 +14,8 @@ router = APIRouter(tags=["ws"])
 
 @router.websocket("/ws")
 async def ws_gateway(websocket: WebSocket) -> None:
-    token = websocket.cookies.get("cognix_access") or websocket.query_params.get("token")
+    # Only accept token from cookie (query param = credential exposure in logs/history)
+    token = websocket.cookies.get("cognix_access")
     if not token:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return

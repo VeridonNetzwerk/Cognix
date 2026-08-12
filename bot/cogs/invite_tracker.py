@@ -7,7 +7,7 @@ Storage: ``invite_stats`` (aggregate per inviter) + ``invite_uses``
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Optional
 
 import discord
@@ -30,6 +30,8 @@ class InviteTracker(commands.Cog):
         self.bot = bot
         # guild_id -> {invite_code: uses}
         self._cache: dict[int, dict[str, int]] = {}
+        # Periodic cache size check — prevent unbounded growth
+        self._cache_max_per_guild = 500
 
     # ---------- cache helpers ----------
 
@@ -38,7 +40,9 @@ class InviteTracker(commands.Cog):
             invites = await guild.invites()
         except (discord.Forbidden, discord.HTTPException):
             return
-        self._cache[guild.id] = {inv.code: (inv.uses or 0) for inv in invites}
+        # Limit cache size to prevent memory leak on large servers
+        cached = {inv.code: (inv.uses or 0) for inv in invites}
+        self._cache[guild.id] = dict(list(cached.items())[-self._cache_max_per_guild:])
 
     async def _bump_stats(
         self,
@@ -140,7 +144,7 @@ class InviteTracker(commands.Cog):
         # Fake = account younger than 7 days
         is_fake = (
             member.created_at is not None
-            and (datetime.now(timezone.utc) - member.created_at).days < 7
+            and (datetime.now(UTC) - member.created_at).days < 7
         )
         await self._bump_stats(
             server_id=guild.id,
@@ -165,7 +169,7 @@ class InviteTracker(commands.Cog):
             )
             if row is None or row.inviter_id is None:
                 return
-            row.left_at = datetime.now(timezone.utc)
+            row.left_at = datetime.now(UTC)
             await s.commit()
             inviter_id = row.inviter_id
         await self._bump_stats(

@@ -5,6 +5,8 @@ Allow-list: setup endpoints, health checks, and static frontend assets.
 
 from __future__ import annotations
 
+import time
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -34,7 +36,21 @@ ALLOWED_PREFIXES = (
 class SetupGateMiddleware(BaseHTTPMiddleware):
     """Returns 423 when system is not configured yet (except setup endpoints)."""
 
-    _cached_configured: bool = False
+    # Cache key: process start time (monotonic) so it invalidates on restart.
+    _cache: tuple[bool, float] = (False, 0.0)
+    _CACHE_TTL = 5.0  # seconds
+
+    @classmethod
+    def _is_configured_cached(cls) -> bool:
+        now = time.monotonic()
+        configured, ts = cls._cache
+        if configured and (now - ts) < cls._CACHE_TTL:
+            return True
+        return False
+
+    @classmethod
+    def invalidate(cls) -> None:
+        cls._cache = (False, 0.0)
 
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
         path = request.url.path
@@ -42,23 +58,23 @@ class SetupGateMiddleware(BaseHTTPMiddleware):
         if path == "/" or path.startswith(ALLOWED_PREFIXES):
             return await call_next(request)
 
-        if not self._cached_configured:
+        configured = self._is_configured_cached()
+        if not configured:
             async with db_session() as session:
                 row = await session.scalar(select(SystemConfig).where(SystemConfig.id == 1))
                 configured = bool(row and row.configured)
-            if not configured:
-                if path.startswith("/api/"):
-                    return JSONResponse(
-                        {"error": "setup_required", "detail": "First-run setup is required."},
-                        status_code=423,
-                    )
-                # HTML routes: redirect everything to /setup until configured.
-                from starlette.responses import RedirectResponse
-                return RedirectResponse("/setup", status_code=303)
-            type(self)._cached_configured = True
+                # Update cache only on positive result (avoid caching False permanently)
+                if configured:
+                    self._cache = (True, time.monotonic())
+
+        if not configured:
+            if path.startswith("/api/"):
+                return JSONResponse(
+                    {"error": "setup_required", "detail": "First-run setup is required."},
+                    status_code=423,
+                )
+            # HTML routes: redirect everything to /setup until configured.
+            from starlette.responses import RedirectResponse
+            return RedirectResponse("/setup", status_code=303)
 
         return await call_next(request)
-
-    @classmethod
-    def invalidate(cls) -> None:
-        cls._cached_configured = False

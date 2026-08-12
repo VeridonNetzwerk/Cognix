@@ -9,7 +9,7 @@ All persistence is best-effort and never raises into discord.py.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import discord
@@ -24,7 +24,7 @@ log = get_logger("bot.activity_log")
 
 
 def _now() -> datetime:
-    return datetime.now(tz=timezone.utc)
+    return datetime.now(UTC)
 
 
 class ActivityLog(commands.Cog):

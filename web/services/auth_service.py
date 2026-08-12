@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import hashlib
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,7 +26,7 @@ class AuthError(Exception):
 
 
 def _now() -> datetime:
-    return datetime.now(tz=timezone.utc)
+    return datetime.now(UTC)
 
 
 async def authenticate(session: AsyncSession, req: LoginRequest) -> WebUser:

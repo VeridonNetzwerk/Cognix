@@ -11,7 +11,7 @@ Playlists are persisted via :class:`MusicPlaylist`.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import discord
 from discord import app_commands
@@ -355,7 +355,7 @@ class Music(commands.Cog):
                     embed=err_embed("Already exists"), ephemeral=True
                 )
                 return
-            now = datetime.now(tz=timezone.utc)
+            now = datetime.now(UTC)
             s.add(
                 MusicPlaylist(
                     id=uuid.uuid4(),
@@ -399,7 +399,7 @@ class Music(commands.Cog):
                 await interaction.followup.send(embed=err_embed("Playlist not found"))
                 return
             pl.tracks = list(pl.tracks) + [tracks[0].to_dict()]
-            pl.updated_at = datetime.now(tz=timezone.utc)
+            pl.updated_at = datetime.now(UTC)
         await interaction.followup.send(
             embed=ok_embed("Added", f"{tracks[0].title} → {name}")
         )
@@ -429,7 +429,7 @@ class Music(commands.Cog):
                 return
             removed = tracks.pop(index - 1)
             pl.tracks = tracks
-            pl.updated_at = datetime.now(tz=timezone.utc)
+            pl.updated_at = datetime.now(UTC)
         await interaction.response.send_message(
             embed=ok_embed("Removed", removed.get("title", "?")), ephemeral=True
         )

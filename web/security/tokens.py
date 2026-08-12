@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import secrets
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import jwt
@@ -19,7 +19,7 @@ class TokenError(Exception):
 
 
 def _now() -> datetime:
-    return datetime.now(tz=timezone.utc)
+    return datetime.now(UTC)
 
 
 def issue_access_token(*, subject: str, role: str, extra: dict[str, Any] | None = None,

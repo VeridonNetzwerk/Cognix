@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import JSON, BigInteger, ForeignKey, String
+from sqlalchemy import JSON, BigInteger, Boolean, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database.base import Base, TimestampMixin
@@ -28,5 +28,8 @@ class ServerConfig(Base, TimestampMixin):
     music_dj_role_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     extras: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+
+    # Per-server cog enable state (JSON: list of enabled cog names)
+    enabled_cogs: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
 
     server = relationship("Server", back_populates="config")

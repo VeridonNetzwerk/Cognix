@@ -51,7 +51,7 @@ class Utility(commands.Cog):
 
     @app_commands.command(name="info", description="Bot information")
     async def info(self, interaction: discord.Interaction) -> None:
-        from datetime import datetime, timezone
+        from datetime import UTC, datetime, timezone
 
         bot = self.bot
         start = getattr(bot, "start_time", time.time())
@@ -125,7 +125,7 @@ class Utility(commands.Cog):
     async def userinfo(
         self, interaction: discord.Interaction, user: discord.Member | None = None
     ) -> None:
-        from datetime import datetime, timezone
+        from datetime import UTC, datetime
 
         from sqlalchemy import func
 
@@ -140,8 +140,8 @@ class Utility(commands.Cog):
             if not dt:
                 return "—"
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
-            delta = datetime.now(tz=timezone.utc) - dt
+                dt = dt.replace(tzinfo=UTC)
+            delta = datetime.now(UTC) - dt
             seconds = max(0, int(delta.total_seconds()))
             years, rem = divmod(seconds, 365 * 24 * 3600)
             months, rem = divmod(rem, 30 * 24 * 3600)

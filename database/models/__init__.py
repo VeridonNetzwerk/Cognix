@@ -1,5 +1,6 @@
 """All ORM models. Importing this package registers them on Base.metadata."""
 
+from database.models.cog_package import CogPackage
 from database.models.audit_log import AuditLog
 from database.models.backup import Backup
 from database.models.bot_profile import BotProfile
@@ -43,6 +44,7 @@ __all__ = [
     "Backup",
     "BackupCode",
     "BotProfile",
+    "CogPackage",
     "CogState",
     "DiscordEvent",
     "DiscordEventType",

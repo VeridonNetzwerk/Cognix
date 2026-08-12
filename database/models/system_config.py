@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Boolean, Integer, String, Text
+from sqlalchemy import Boolean, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database.base import Base, TimestampMixin
@@ -34,3 +34,6 @@ class SystemConfig(Base, TimestampMixin):
     google_oauth_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     music_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     registration_open: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Per-server cog enable state (JSONB: {"server_id": ["cog1", "cog2"], ...})
+    enabled_cogs: Mapped[dict[str, list[str]]] = mapped_column(JSON, default=dict, nullable=False)

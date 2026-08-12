@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import discord
 from discord.ext import commands, tasks
@@ -54,6 +54,9 @@ class Stats(commands.Cog):
         user_id: int | None = None,
         name: str = "",
     ) -> None:
+        # Reject events without a valid server context (DMs, etc.)
+        if server_id is None:
+            return
         if not await self._ensure_server(server_id):
             return
         try:
@@ -64,7 +67,7 @@ class Stats(commands.Cog):
                         event_type=event_type,
                         user_id=user_id,
                         name=name[:64],
-                        occurred_at=datetime.now(tz=timezone.utc),
+                        occurred_at=datetime.now(UTC),
                     )
                 )
         except Exception as exc:  # noqa: BLE001
