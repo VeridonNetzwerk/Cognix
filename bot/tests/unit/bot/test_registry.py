@@ -56,36 +56,36 @@ class TestGetCogInfo:
     """Tests for get_cog_info() — name matching logic."""
 
     def test_match_by_module_path(self):
-        info = get_cog_info("bot.cogs.moderation")
+        info = get_cog_info("bot.cogs.moderation.moderation")
         assert info is not None
         assert info["name"] == "Moderation"
 
     def test_match_by_name(self):
         info = get_cog_info("Moderation")
         assert info is not None
-        assert info["module"] == "bot.cogs.moderation"
+        assert info["module"] == "bot.cogs.moderation.moderation"
 
     def test_match_by_name_case_insensitive(self):
         info = get_cog_info("moderation")
         assert info is not None
-        assert info["module"] == "bot.cogs.moderation"
+        assert info["module"] == "bot.cogs.moderation.moderation"
 
     def test_match_by_name_with_spaces(self):
         info = get_cog_info("Activity Log")
         assert info is not None
-        assert info["module"] == "bot.cogs.activity_log"
+        assert info["module"] == "bot.cogs.logging.activity_log"
 
     def test_match_by_name_with_underscores(self):
         """Should match 'Activity_Log' -> 'Activity Log' cog."""
         info = get_cog_info("Activity_Log")
         assert info is not None
-        assert info["module"] == "bot.cogs.activity_log"
+        assert info["module"] == "bot.cogs.logging.activity_log"
 
     def test_match_by_name_with_underscores_welcome(self):
         """Should match 'Welcome_Leave' -> 'Welcome/Leave' cog."""
         info = get_cog_info("Welcome_Leave")
         assert info is not None
-        assert info["module"] == "bot.cogs.welcome"
+        assert info["module"] == "bot.cogs.welcome.welcome"
 
     def test_unknown_cog_returns_none(self):
         assert get_cog_info("nonexistent_cog") is None
@@ -104,24 +104,24 @@ class TestLoadedCogs:
 
     def test_update_loaded_state_add(self):
         _loaded_cogs.clear()
-        _update_loaded_state("bot.cogs.moderation", True)
-        assert "bot.cogs.moderation" in _loaded_cogs
-        assert "bot.cogs.moderation" in get_loaded_cogs()
+        _update_loaded_state("bot.cogs.moderation.moderation", True)
+        assert "bot.cogs.moderation.moderation" in _loaded_cogs
+        assert "bot.cogs.moderation.moderation" in get_loaded_cogs()
 
     def test_update_loaded_state_remove(self):
         _loaded_cogs.clear()
-        _update_loaded_state("bot.cogs.moderation", True)
-        _update_loaded_state("bot.cogs.moderation", False)
-        assert "bot.cogs.moderation" not in _loaded_cogs
+        _update_loaded_state("bot.cogs.moderation.moderation", True)
+        _update_loaded_state("bot.cogs.moderation.moderation", False)
+        assert "bot.cogs.moderation.moderation" not in _loaded_cogs
 
     def test_is_cog_loaded_by_full_name(self):
         _loaded_cogs.clear()
-        _loaded_cogs.add("bot.cogs.moderation")
-        assert is_cog_loaded("bot.cogs.moderation") is True
+        _loaded_cogs.add("bot.cogs.moderation.moderation")
+        assert is_cog_loaded("bot.cogs.moderation.moderation") is True
 
     def test_is_cog_loaded_by_short_name(self):
         _loaded_cogs.clear()
-        _loaded_cogs.add("bot.cogs.moderation")
+        _loaded_cogs.add("bot.cogs.moderation.moderation")
         assert is_cog_loaded("moderation") is True
 
     def test_is_cog_loaded_not_loaded(self):
@@ -130,7 +130,7 @@ class TestLoadedCogs:
 
     def test_get_loaded_cogs_sorted(self):
         _loaded_cogs.clear()
-        _loaded_cogs.add("bot.cogs.utility")
-        _loaded_cogs.add("bot.cogs.moderation")
+        _loaded_cogs.add("bot.cogs.utility.utility")
+        _loaded_cogs.add("bot.cogs.moderation.moderation")
         result = get_loaded_cogs()
         assert result == sorted(result)

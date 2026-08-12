@@ -271,7 +271,7 @@ async def install_cog(req: InstallRequest, session: SessionDep) -> dict[str, Any
             return {"ok": True, "cog": builtin_info["name"]}
 
         # Marketplace cog: git clone or pip install
-        from bot.cogs.marketplace import install_cog_from_source, save_package_metadata
+        from bot.cogs.admin.marketplace import install_cog_from_source, save_package_metadata
 
         is_url = cog_or_url.startswith("http") or cog_or_url.startswith("file:")
         repo_url = cog_or_url
@@ -371,7 +371,7 @@ async def uninstall_cog(req: UninstallRequest, session: SessionDep) -> dict[str,
             return {"ok": True, "cog": req.cog_name}
 
         # Marketplace cog: uninstall + delete files
-        from bot.cogs.marketplace import uninstall_cog as _uninstall_cog
+        from bot.cogs.admin.marketplace import uninstall_cog as _uninstall_cog
 
         result = await _uninstall_cog(bot, req.cog_name)
         if not result.get("ok"):

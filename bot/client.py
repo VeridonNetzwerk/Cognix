@@ -245,7 +245,12 @@ class CogniXBot(commands.Bot):
         return {"loaded": list(self.extensions.keys())}
 
     async def _cog_action(self, name: str, action: str) -> dict[str, Any]:
-        ext = name if name.startswith("bot.cogs.") else f"bot.cogs.{name}"
+        from bot.cogs.registry import get_cog_info
+        if name.startswith("bot."):
+            ext = name
+        else:
+            info = get_cog_info(name)
+            ext = info["module"] if info else f"bot.cogs.{name}"
         try:
             if action == "load":
                 await self.load_extension(ext)
@@ -307,7 +312,7 @@ class CogniXBot(commands.Bot):
     async def _ipc_marketplace_install(self, p: dict[str, Any]) -> dict[str, Any]:
         """Handle marketplace install requests from the web layer."""
         try:
-            from bot.cogs.marketplace import install_cog_from_source, save_package_metadata
+            from bot.cogs.admin.marketplace import install_cog_from_source, save_package_metadata
 
             cog_or_url = p.get("cog_or_url", "")
             if not cog_or_url:
@@ -371,7 +376,7 @@ class CogniXBot(commands.Bot):
             if not cog_name:
                 return {"status": "error", "error": "cog_name required"}
 
-            from bot.cogs.marketplace import uninstall_cog
+            from bot.cogs.admin.marketplace import uninstall_cog
 
             result = await uninstall_cog(self, cog_name)
             if result.get("ok"):

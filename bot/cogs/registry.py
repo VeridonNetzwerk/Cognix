@@ -32,18 +32,18 @@ CogInfo = dict[str, str | bool]  # {module: ..., name: ..., description: ..., ca
 
 # Cog files that ship with the bot (excluding registry, marketplace, admin, __init__)
 _BUILTIN_COG_MODULES = [
-    "bot.cogs.moderation",
-    "bot.cogs.utility",
-    "bot.cogs.tickets",
-    "bot.cogs.stats",
-    "bot.cogs.backups",
-    "bot.cogs.music",
-    "bot.cogs.activity_log",
-    "bot.cogs.giveaway",
-    "bot.cogs.welcome",
-    "bot.cogs.invite_tracker",
-    "bot.cogs.embeds",
-    "bot.cogs.bot_profile",
+    "bot.cogs.moderation.moderation",
+    "bot.cogs.utility.utility",
+    "bot.cogs.tickets.tickets",
+    "bot.cogs.logging.stats",
+    "bot.cogs.backups.backups",
+    "bot.cogs.music.music",
+    "bot.cogs.logging.activity_log",
+    "bot.cogs.giveaways.giveaway",
+    "bot.cogs.welcome.welcome",
+    "bot.cogs.welcome.invite_tracker",
+    "bot.cogs.utility.embeds",
+    "bot.cogs.utility.bot_profile",
 ]
 
 
@@ -166,9 +166,13 @@ def get_loaded_cogs() -> list[str]:
 
 def is_cog_loaded(module_name: str) -> bool:
     """Check if a specific cog module is currently loaded."""
-    # Accept both short names (moderation) and full names (bot.cogs.moderation)
-    full = module_name if module_name.startswith("bot.") else f"bot.cogs.{module_name}"
-    return full in _loaded_cogs
+    if module_name.startswith("bot."):
+        return module_name in _loaded_cogs
+    # Search by short name via cog info
+    info = get_cog_info(module_name)
+    if info:
+        return info["module"] in _loaded_cogs
+    return module_name in _loaded_cogs
 
 
 def get_cog_info(name: str) -> CogInfo | None:

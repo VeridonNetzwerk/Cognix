@@ -25,6 +25,7 @@ from sqlalchemy import select
 from bot.cogs.registry import (
     AVAILABLE_COGS,
     get_all_cog_info,
+    get_cog_info,
     get_loaded_cogs,
     load_cog,
     reload_cog,
@@ -151,11 +152,7 @@ class AdminCog(commands.Cog):
         await interaction.response.defer(ephemeral=True, thinking=True)
 
         # Check if cog exists (accept both short name and full module path)
-        cog_info = None
-        for c in AVAILABLE_COGS:
-            if c["name"].lower() == cog.lower() or c["module"] == f"bot.cogs.{cog}":
-                cog_info = c
-                break
+        cog_info = get_cog_info(cog)
 
         if not cog_info:
             await interaction.followup.send(

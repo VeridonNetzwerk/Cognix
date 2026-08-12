@@ -24,7 +24,7 @@ from bot.pages._shared import _render, _require_cog, _require_user, router
 async def giveaways_view(request: Request,
                          access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.giveaway")
+    _require_cog("bot.cogs.giveaways.giveaway")
     async with db_session() as s:
         rows = (
             await s.scalars(
@@ -42,7 +42,7 @@ async def giveaway_detail_view(
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
 ) -> HTMLResponse:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.giveaway")
+    _require_cog("bot.cogs.giveaways.giveaway")
     try:
         gid = uuid.UUID(giveaway_id)
     except ValueError as exc:
@@ -65,7 +65,7 @@ async def giveaway_detail_view(
 async def giveaways_end(giveaway_id: str,
                          access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.giveaway")
+    _require_cog("bot.cogs.giveaways.giveaway")
     async with db_session() as s:
         g = await s.get(Giveaway, uuid.UUID(giveaway_id))
         if g is None:
@@ -88,7 +88,7 @@ async def giveaways_end(giveaway_id: str,
 async def giveaways_delete(giveaway_id: str,
                            access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.giveaway")
+    _require_cog("bot.cogs.giveaways.giveaway")
     async with db_session() as s:
         g = await s.get(Giveaway, uuid.UUID(giveaway_id))
         if g is not None:
@@ -101,7 +101,7 @@ async def giveaways_delete(giveaway_id: str,
 async def giveaways_reroll(giveaway_id: str,
                             access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.giveaway")
+    _require_cog("bot.cogs.giveaways.giveaway")
     async with db_session() as s:
         g = await s.get(Giveaway, uuid.UUID(giveaway_id))
         if g is None:
@@ -136,7 +136,7 @@ async def giveaways_extend(giveaway_id: str,
                             additional_seconds: int = Form(...),
                             access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.giveaway")
+    _require_cog("bot.cogs.giveaways.giveaway")
     extra = max(60, min(60 * 60 * 24 * 30, int(additional_seconds)))
     async with db_session() as s:
         g = await s.get(Giveaway, uuid.UUID(giveaway_id))
@@ -157,7 +157,7 @@ async def giveaways_edit(giveaway_id: str,
                           winner_count: int = Form(...),
                           access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.giveaway")
+    _require_cog("bot.cogs.giveaways.giveaway")
     prize = (prize or "").strip()[:256]
     if not prize:
         raise HTTPException(400, "prize required")
@@ -184,7 +184,7 @@ async def giveaways_create(
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
 ) -> Response:
     me = await _require_user(access_token)
-    _require_cog("bot.cogs.giveaway")
+    _require_cog("bot.cogs.giveaways.giveaway")
     prize = (prize or "").strip()[:256]
     if not prize:
         raise HTTPException(400, "prize required")

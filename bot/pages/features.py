@@ -37,7 +37,7 @@ def discord_obj_for(user_id: int) -> Any:
 async def embeds_view(request: Request,
                       access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.embeds")
+    _require_cog("bot.cogs.utility.embeds")
     return _render(request, "features/embeds.html", user=user)
 
 
@@ -47,7 +47,7 @@ async def info_embed_save(server_id: int = Form(...), name: str = Form("info"),
                           color: str = Form(default="#60a5fa"),
                           access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.embeds")
+    _require_cog("bot.cogs.utility.embeds")
     try:
         color_int = int(color.lstrip("#"), 16)
     except ValueError:
@@ -80,7 +80,7 @@ async def members_view(request: Request,
                        q: str = "",
                        access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.moderation")
+    _require_cog("bot.cogs.moderation.moderation")
     async with db_session() as s:
         servers = (await s.scalars(select(Server).order_by(Server.name))).all()
     members: list[dict[str, Any]] = []
@@ -120,7 +120,7 @@ async def members_view(request: Request,
 async def members_kick(server_id: str, member_id: str, reason: str = Form(default=""),
                        access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.moderation")
+    _require_cog("bot.cogs.moderation.moderation")
     bot = get_bot()
     if bot is not None:
         guild = bot.get_guild(int(server_id))
@@ -140,7 +140,7 @@ async def members_kick(server_id: str, member_id: str, reason: str = Form(defaul
 async def members_ban(server_id: str, member_id: str, reason: str = Form(default=""),
                       access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.moderation")
+    _require_cog("bot.cogs.moderation.moderation")
     bot = get_bot()
     if bot is not None:
         guild = bot.get_guild(int(server_id))
@@ -160,7 +160,7 @@ async def members_timeout(server_id: str, member_id: str,
                            reason: str = Form(default=""),
                            access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     me = await _require_user(access_token)
-    _require_cog("bot.cogs.moderation")
+    _require_cog("bot.cogs.moderation.moderation")
     bot = get_bot()
     if bot is not None:
         guild = bot.get_guild(int(server_id))
@@ -183,7 +183,7 @@ async def members_mute(server_id: str, member_id: str,
                         muted: str = Form(default="1"),
                         access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     me = await _require_user(access_token)
-    _require_cog("bot.cogs.moderation")
+    _require_cog("bot.cogs.moderation.moderation")
     bot = get_bot()
     flag = muted not in ("0", "false", "no", "")
     if bot is not None:
@@ -205,7 +205,7 @@ async def members_deafen(server_id: str, member_id: str,
                           deafened: str = Form(default="1"),
                           access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     me = await _require_user(access_token)
-    _require_cog("bot.cogs.moderation")
+    _require_cog("bot.cogs.moderation.moderation")
     bot = get_bot()
     flag = deafened not in ("0", "false", "no", "")
     if bot is not None:
@@ -227,7 +227,7 @@ async def members_dm(server_id: str, member_id: str,
                       message: str = Form(...),
                       access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     me = await _require_user(access_token)
-    _require_cog("bot.cogs.moderation")
+    _require_cog("bot.cogs.moderation.moderation")
     bot = get_bot()
     if bot is not None and message.strip():
         try:
@@ -248,7 +248,7 @@ async def members_dm(server_id: str, member_id: str,
 async def welcome_view(request: Request, server_id: int | None = None,
                        access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.welcome")
+    _require_cog("bot.cogs.welcome.welcome")
     async with db_session() as s:
         servers = (await s.scalars(select(Server).order_by(Server.name))).all()
         cfg: ServerEventConfig | None = None
@@ -281,7 +281,7 @@ async def welcome_save(
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
 ) -> Response:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.welcome")
+    _require_cog("bot.cogs.welcome.welcome")
 
     def _hex_to_int(h: str, fallback: int) -> int:
         try:
@@ -332,7 +332,7 @@ async def invites_view(
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
 ) -> HTMLResponse:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.invite_tracker")
+    _require_cog("bot.cogs.welcome.invite_tracker")
     rows = []
     recent = []
     servers = []
