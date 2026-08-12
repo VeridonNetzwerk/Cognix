@@ -13,9 +13,9 @@ from bot.config.constants import (
     AUDIT_USER_DELETED,
     AUDIT_USER_UPDATED,
 )
-from bot.database.models.audit_log import AuditLog
-from bot.database.models.web_user import WebRole, WebUser
-from bot.database.models.web_user_settings import (
+from bot.database.models.auth.audit_log import AuditLog
+from bot.database.models.auth.web_user import WebRole, WebUser
+from bot.database.models.auth.web_user_settings import (
     MODULES,
     WebUserModulePermission,
 )

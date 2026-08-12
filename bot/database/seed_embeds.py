@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
-from bot.database.models.embed_template import EmbedTemplate
+from bot.database.models.content.embed_template import EmbedTemplate
 from bot.database.session import db_session
 
 DEFAULT_TEMPLATES: list[dict] = [

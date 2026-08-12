@@ -147,7 +147,7 @@ async def is_cog_enabled_for_server(server_id: int, cog_name: str) -> bool:
     try:
         from sqlalchemy import select  # local import to avoid cycle at boot
 
-        from bot.database.models.server_config import ServerConfig
+        from bot.database.models.server.server_config import ServerConfig
         from bot.database.session import db_session
 
         async with db_session() as s:

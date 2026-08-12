@@ -23,8 +23,8 @@ import discord
 from discord.ext import commands
 
 from bot.config.logging import get_logger
-from bot.database.models.discord_event import DiscordEvent, DiscordEventType
-from bot.database.models.discord_message_cache import DiscordMessageCache
+from bot.database.models.stats.discord_event import DiscordEvent, DiscordEventType
+from bot.database.models.stats.discord_message_cache import DiscordMessageCache
 from bot.database.session import db_session
 
 log = get_logger("bot.activity_log")
@@ -303,7 +303,7 @@ class ActivityLog(commands.Cog):
             return
         try:
             from sqlalchemy import select
-            from bot.database.models.ticket import Ticket
+            from bot.database.models.tickets.ticket import Ticket
             from bot.database.session import db_session
 
             async with db_session() as s:

@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 
-from bot.database.models.moderation import ModerationAction
+from bot.database.models.moderation.moderation import ModerationAction
 from web.deps import CurrentUser, SessionDep, require_mod
 from web.schemas.common import ModerationActionOut, ModerationRequest
 from web.services.bot_ipc import get_ipc

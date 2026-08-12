@@ -126,7 +126,7 @@ def _get_installed_marketplace_cogs() -> list[Any]:
     from within the event loop thread.
     """
     try:
-        from bot.database.models.cog_package import CogPackage
+        from bot.database.models.cogs.cog_package import CogPackage
         from sqlalchemy import create_engine, select as sa_select
         from sqlalchemy.orm import Session
 
@@ -326,7 +326,7 @@ async def get_persisted_loaded_cogs() -> list[str]:
     """Get the list of cogs that SHOULD be loaded (from DB)."""
     try:
         from bot.database.session import db_session
-        from bot.database.models.system_config import SystemConfig
+        from bot.database.models.system.system_config import SystemConfig
         from sqlalchemy import select as sa_select
 
         async with db_session() as s:
@@ -347,7 +347,7 @@ async def persist_loaded_cogs(cog_names: list[str]) -> None:
         from sqlalchemy import select as sa_select
 
         async with db_session() as s:
-            from bot.database.models.system_config import SystemConfig
+            from bot.database.models.system.system_config import SystemConfig
 
             cfg = await s.scalar(sa_select(SystemConfig).where(SystemConfig.id == 1))
             if cfg is not None:

@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 
-from bot.database.models.ticket import Ticket
+from bot.database.models.tickets.ticket import Ticket
 from web.deps import SessionDep, require_mod
 from web.services.bot_ipc import get_ipc
 

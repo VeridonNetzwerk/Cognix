@@ -7,8 +7,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 
-from bot.database.models.server import Server
-from bot.database.models.server_config import ServerConfig
+from bot.database.models.server.server import Server
+from bot.database.models.server.server_config import ServerConfig
 from web.deps import SessionDep, require_admin, require_mod
 from web.schemas.common import ServerOut
 

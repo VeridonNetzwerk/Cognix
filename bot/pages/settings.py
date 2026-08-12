@@ -11,9 +11,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 
 from bot.runtime import get_bot
-from bot.database.models.bot_profile import BotProfile
-from bot.database.models.web_user import BackupCode, WebRole, WebUser
-from bot.database.models.web_user_settings import (
+from bot.database.models.content.bot_profile import BotProfile
+from bot.database.models.auth.web_user import BackupCode, WebRole, WebUser
+from bot.database.models.auth.web_user_settings import (
     MODULES,
     WebUserModulePermission,
     WebUserSettings,

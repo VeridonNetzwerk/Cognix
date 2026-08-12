@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from bot.config.crypto import decrypt_secret, encrypt_secret
-from bot.database.models.backup import Backup
+from bot.database.models.backups.backup import Backup
 from web.deps import CurrentUser, SessionDep, require_admin
 from web.services.bot_ipc import get_ipc
 

@@ -17,8 +17,8 @@ from sqlalchemy import func, select
 
 from bot.config.logging import get_logger
 from bot.database import db_session
-from bot.database.models.server import Server
-from bot.database.models.stats import AggregatedStat, StatEvent, StatEventType
+from bot.database.models.server.server import Server
+from bot.database.models.stats.stats import AggregatedStat, StatEvent, StatEventType
 
 
 log = get_logger("bot.cogs.stats")

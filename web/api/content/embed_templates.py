@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from bot.database.models.embed_template import EmbedTemplate
+from bot.database.models.content.embed_template import EmbedTemplate
 from web.deps import SessionDep, require_admin, require_mod
 
 router = APIRouter(prefix="/embeds", tags=["embeds"], dependencies=[Depends(require_mod)])

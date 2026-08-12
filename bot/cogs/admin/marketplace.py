@@ -39,7 +39,7 @@ from sqlalchemy import select as sa_select
 
 from bot.config.logging import get_logger
 from bot.database import db_session
-from bot.database.models.cog_package import CogPackage
+from bot.database.models.cogs.cog_package import CogPackage
 
 log = get_logger("bot.cogs.marketplace")
 

@@ -7,7 +7,7 @@ from pydantic import BaseModel, SecretStr
 from sqlalchemy import select
 
 from bot.config.crypto import encrypt_secret
-from bot.database.models.system_config import SystemConfig
+from bot.database.models.system.system_config import SystemConfig
 from web.deps import SessionDep, require_admin
 from web.services.bot_ipc import get_ipc
 

@@ -7,12 +7,12 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import desc, func, select
 
 from bot.runtime import get_bot, get_bot_info
-from bot.database.models.audit_log import AuditLog
-from bot.database.models.cog_state import CogState
-from bot.database.models.role_permission import RolePermission
-from bot.database.models.server import Server
-from bot.database.models.server_config import ServerConfig
-from bot.database.models.ticket import Ticket, TicketStatus
+from bot.database.models.auth.audit_log import AuditLog
+from bot.database.models.cogs.cog_state import CogState
+from bot.database.models.auth.role_permission import RolePermission
+from bot.database.models.server.server import Server
+from bot.database.models.server.server_config import ServerConfig
+from bot.database.models.tickets.ticket import Ticket, TicketStatus
 from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE
 from bot.pages._shared import (

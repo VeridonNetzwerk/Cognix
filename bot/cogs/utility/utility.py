@@ -26,7 +26,7 @@ from bot.config.settings import get_settings
 async def _load_embed_template(key: str):
     """Return EmbedTemplate row for ``key`` (server_id NULL = global) or None."""
     try:
-        from bot.database.models.embed_template import EmbedTemplate
+        from bot.database.models.content.embed_template import EmbedTemplate
         from bot.database.session import db_session
     except Exception:  # noqa: BLE001
         return None
@@ -136,8 +136,8 @@ class Utility(commands.Cog):
 
         from sqlalchemy import func
 
-        from bot.database.models.moderation import ModerationAction
-        from bot.database.models.stats import StatEvent, StatEventType
+        from bot.database.models.moderation.moderation import ModerationAction
+        from bot.database.models.stats.stats import StatEvent, StatEventType
         from bot.database.session import db_session
 
         target = user or interaction.user

@@ -18,8 +18,8 @@ from bot.services.audio_player import (
     search_tracks,
     yt_dlp_available,
 )
-from bot.database.models.music_play_history import MusicPlayHistory
-from bot.database.models.music_playlist import MusicPlaylist
+from bot.database.models.music.music_play_history import MusicPlayHistory
+from bot.database.models.music.music_playlist import MusicPlaylist
 from bot.database.session import db_session
 from web.deps import require_mod
 

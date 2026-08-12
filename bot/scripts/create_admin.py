@@ -13,7 +13,7 @@ import sys
 from sqlalchemy import select
 
 from bot.database import db_session, init_engine
-from bot.database.models.web_user import WebRole, WebUser
+from bot.database.models.auth.web_user import WebRole, WebUser
 from web.security.passwords import hash_password
 
 

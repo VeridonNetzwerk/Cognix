@@ -151,8 +151,8 @@ class CogniXBot(commands.Bot):
 
     async def _sync_all_guilds(self) -> None:
         from bot.database import db_session
-        from bot.database.models.server import Server
-        from bot.database.models.server_config import ServerConfig
+        from bot.database.models.server.server import Server
+        from bot.database.models.server.server_config import ServerConfig
 
         async with db_session() as s:
             for guild in self.guilds:
@@ -173,8 +173,8 @@ class CogniXBot(commands.Bot):
 
     async def on_guild_join(self, guild: discord.Guild) -> None:
         from bot.database import db_session
-        from bot.database.models.server import Server
-        from bot.database.models.server_config import ServerConfig
+        from bot.database.models.server.server import Server
+        from bot.database.models.server.server_config import ServerConfig
 
         async with db_session() as s:
             existing = await s.get(Server, guild.id)
@@ -416,7 +416,7 @@ async def run_bot() -> None:
         # Fetch from DB
         from sqlalchemy import select
         from bot.database import db_session
-        from bot.database.models.system_config import SystemConfig
+        from bot.database.models.system.system_config import SystemConfig
 
         async with db_session() as s:
             cfg = await s.scalar(select(SystemConfig).where(SystemConfig.id == 1))

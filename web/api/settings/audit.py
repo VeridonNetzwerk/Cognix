@@ -8,8 +8,8 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import select
 
-from bot.database.models.audit_log import AuditLog
-from bot.database.models.web_user import WebUser
+from bot.database.models.auth.audit_log import AuditLog
+from bot.database.models.auth.web_user import WebUser
 from web.deps import SessionDep, require_admin
 
 router = APIRouter(prefix="/audit", tags=["audit"])

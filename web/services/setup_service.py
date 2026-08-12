@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.config.crypto import encrypt_secret
 from bot.config.logging import get_logger
 from bot.config.settings import get_settings
-from bot.database.models.system_config import SystemConfig
-from bot.database.models.web_user import BackupCode, WebRole, WebUser
+from bot.database.models.system.system_config import SystemConfig
+from bot.database.models.auth.web_user import BackupCode, WebRole, WebUser
 from web.middleware.auth.setup_gate import SetupGateMiddleware
 from web.schemas.auth import SetupRequest, SetupResponse
 from web.security.passwords import hash_password

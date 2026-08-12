@@ -24,7 +24,7 @@ class Embeds(commands.Cog):
     @app_commands.command(name="embed", description="Send a saved embed template by name")
     @app_commands.describe(name="The embed template key/name to send")
     async def embed(self, interaction: discord.Interaction, name: str) -> None:
-        from bot.database.models.embed_template import EmbedTemplate
+        from bot.database.models.content.embed_template import EmbedTemplate
         from bot.database.session import db_session
 
         try:

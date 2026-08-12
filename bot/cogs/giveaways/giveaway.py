@@ -28,7 +28,7 @@ from sqlalchemy import select
 from bot.utils.embeds import err_embed, info_embed, ok_embed
 from bot.config.logging import get_logger
 from bot.database import db_session
-from bot.database.models.giveaway import Giveaway, GiveawayStatus
+from bot.database.models.giveaways.giveaway import Giveaway, GiveawayStatus
 
 log = get_logger("bot.cogs.giveaway")
 FOOTER_TEXT = "Powered by Cognix \u00b7 Made by \u98df\u3079\u7269"

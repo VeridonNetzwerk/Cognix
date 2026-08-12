@@ -39,8 +39,8 @@ from bot.utils.embeds import err_embed, info_embed, ok_embed
 from bot.config.crypto import CryptoError, decrypt_secret, encrypt_secret
 from bot.config.logging import get_logger
 from bot.database import db_session
-from bot.database.models.backup import Backup
-from bot.database.models.server import Server
+from bot.database.models.backups.backup import Backup
+from bot.database.models.server.server import Server
 
 log = get_logger("bot.cogs.backups")
 

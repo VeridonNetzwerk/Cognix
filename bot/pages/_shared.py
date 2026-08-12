@@ -12,8 +12,8 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 
 from bot.runtime import get_bot, get_bot_info
-from bot.database.models.system_config import SystemConfig
-from bot.database.models.web_user import WebUser
+from bot.database.models.system.system_config import SystemConfig
+from bot.database.models.auth.web_user import WebUser
 from bot.database.session import db_session
 from web.security.tokens import TokenError, decode_token
 

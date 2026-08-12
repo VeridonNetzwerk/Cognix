@@ -13,7 +13,7 @@ from starlette.responses import JSONResponse
 
 from sqlalchemy import select
 
-from bot.database.models.system_config import SystemConfig
+from bot.database.models.system.system_config import SystemConfig
 from bot.database.session import db_session
 
 ALLOWED_PREFIXES = (

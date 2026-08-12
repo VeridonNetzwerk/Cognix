@@ -444,7 +444,7 @@ async def _record_play_history(guild_id: int, track: "Track") -> None:
     """Best-effort write to music_play_history. Errors are swallowed."""
     try:
         from bot.database.session import db_session
-        from bot.database.models.music_play_history import MusicPlayHistory
+        from bot.database.models.music.music_play_history import MusicPlayHistory
 
         async with db_session() as s:
             s.add(MusicPlayHistory(

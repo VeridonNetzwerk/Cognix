@@ -24,8 +24,8 @@ from sqlalchemy import select
 
 from bot.config.logging import get_logger
 from bot.database import db_session
-from bot.database.models.invite_stats import InviteStats
-from bot.database.models.invite_uses import InviteUse
+from bot.database.models.invites.invite_stats import InviteStats
+from bot.database.models.invites.invite_uses import InviteUse
 
 log = get_logger("bot.cogs.invite_tracker")
 

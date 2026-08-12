@@ -23,7 +23,7 @@ from discord.ext import commands
 
 from bot.config.logging import get_logger
 from bot.database import db_session
-from bot.database.models.moderation import ModerationAction, ModerationActionType, Warning_
+from bot.database.models.moderation.moderation import ModerationAction, ModerationActionType, Warning_
 from bot.utils.embeds import err_embed, ok_embed
 from bot.utils.time_parser import humanize_seconds, parse_duration
 

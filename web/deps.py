@@ -9,7 +9,7 @@ import uuid
 from fastapi import Cookie, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.database.models.web_user import WebRole, WebUser
+from bot.database.models.auth.web_user import WebRole, WebUser
 from bot.database.session import db_session
 from web.security.tokens import TokenError, decode_token
 

@@ -33,7 +33,7 @@ from bot.services.audio_player import (
 )
 from bot.utils.embeds import err_embed, info_embed, ok_embed
 from bot.config.logging import get_logger
-from bot.database.models.music_playlist import MusicPlaylist
+from bot.database.models.music.music_playlist import MusicPlaylist
 from bot.database.session import db_session
 
 log = get_logger("bot.cogs.music")

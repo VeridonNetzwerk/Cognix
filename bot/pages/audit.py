@@ -9,10 +9,10 @@ from fastapi import Cookie, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy import desc, select
 
-from bot.database.models.audit_log import AuditLog
-from bot.database.models.discord_event import DiscordEvent, DiscordEventType
-from bot.database.models.server import Server
-from bot.database.models.web_user import WebRole, WebUser
+from bot.database.models.auth.audit_log import AuditLog
+from bot.database.models.stats.discord_event import DiscordEvent, DiscordEventType
+from bot.database.models.server.server import Server
+from bot.database.models.auth.web_user import WebRole, WebUser
 from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE
 from bot.pages._shared import _render, _require_cog, _require_user, router
