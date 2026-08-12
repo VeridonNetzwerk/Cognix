@@ -64,6 +64,7 @@ ignore = ["S101", "S104"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S105", "S106", "S311"]
 "database/migrations/**" = ["E501"]
+"web/routes/views/**" = ["E501", "S110", "SIM105", "RUF100"]
 
 [tool.mypy]
 python_version = "3.12"

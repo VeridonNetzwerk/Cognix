@@ -80,17 +80,29 @@ CogniX/
 │   │   ├── bot_profile.py  #     Bot profile management
 │   │   ├── stats.py        #     Message/command statistics
 │   │   └── utility.py      #     Ping, info, userinfo, etc.
-│   ├── ipc/                #   Redis IPC (optional, for multi-process)
+│   ├── ipc.py              #   Redis IPC consumer (optional, multi-process)
 │   ├── services/           #   Audio player service
 │   └── utils/              #   Embed helpers, time parser
 ├── web/                    # Web dashboard + JSON API
 │   ├── app.py              #   FastAPI app factory
 │   ├── deps.py             #   Shared dependencies (auth, DB session)
 │   ├── routes/             #   API + HTML view routes
-│   │   ├── views.py        #     Jinja2 HTML dashboard (primary UI)
+│   │   ├── views/          #     Jinja2 HTML dashboard (primary UI)
+│   │   │   ├── _shared.py  #       Shared helpers, router, templates
+│   │   │   ├── auth.py     #       Login/logout/setup wizard
+│   │   │   ├── dashboard.py#       Dashboard, servers, server detail
+│   │   │   ├── cogs.py     #       Cogs management, marketplace
+│   │   │   ├── tickets.py  #       Tickets, types, panels
+│   │   │   ├── audit.py    #       Audit log, Discord log
+│   │   │   ├── users.py    #       Web user management
+│   │   │   ├── backups.py  #       Backups, server permissions
+│   │   │   ├── settings.py #       Settings, 2FA, bot profile
+│   │   │   ├── music.py    #       Music page + API
+│   │   │   ├── giveaways.py#       Giveaways management
+│   │   │   └── features.py #       Members, embeds, invites, misc API
 │   │   ├── marketplace.py  #     Marketplace API (install/uninstall)
-│   │   ├── auth.py         #     Login/logout/setup
-│   │   └── ...             #     Feature-specific API routes
+│   │   ├── auth.py         #     JSON auth API (login/logout/setup)
+│   │   └── ...             #     Feature-specific JSON API routes
 │   ├── templates/          #   Jinja2 HTML templates
 │   ├── middleware/         #   Auth refresh, rate limit, setup gate
 │   ├── schemas/            #   Pydantic request/response schemas

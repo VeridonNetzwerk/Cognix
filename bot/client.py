@@ -13,7 +13,7 @@ from discord.ext import commands
 from config.crypto import decrypt_secret
 from config.logging import get_logger
 from config.settings import get_settings
-from bot.ipc.consumer import IpcConsumer
+from bot.ipc import IpcConsumer
 
 log = get_logger("bot.client")
 
