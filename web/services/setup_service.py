@@ -13,7 +13,7 @@ from bot.config.logging import get_logger
 from bot.config.settings import get_settings
 from bot.database.models.system_config import SystemConfig
 from bot.database.models.web_user import BackupCode, WebRole, WebUser
-from web.middleware.setup_gate import SetupGateMiddleware
+from web.middleware.auth.setup_gate import SetupGateMiddleware
 from web.schemas.auth import SetupRequest, SetupResponse
 from web.security.passwords import hash_password
 from web.security.totp import (

@@ -20,10 +20,8 @@ from bot.config.logging import configure_logging, get_logger
 from bot.config.settings import get_settings
 from bot.database import init_engine
 from bot.database.session import dispose_engine
-from web.middleware.auth_refresh import AuthRefreshMiddleware
-from web.middleware.rate_limit import RateLimitMiddleware
-from web.middleware.request_id import RequestIDMiddleware
-from web.middleware.setup_gate import SetupGateMiddleware
+from web.middleware.auth import AuthRefreshMiddleware, SetupGateMiddleware
+from web.middleware.core import RateLimitMiddleware, RequestIDMiddleware
 from web.api import auth as auth_api
 from web.api import bot as bot_api
 from web.api import servers as servers_api
