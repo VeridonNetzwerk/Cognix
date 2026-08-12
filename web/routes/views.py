@@ -90,6 +90,29 @@ def _render(request: Request, template: str, **ctx: Any) -> HTMLResponse:
     return templates.TemplateResponse(request, template, ctx)
 
 
+def _get_loaded_cogs() -> set[str]:
+    """Return set of currently loaded cog module names."""
+    from bot.cogs.registry import get_loaded_cogs
+    loaded = set(get_loaded_cogs())
+    bot = get_bot()
+    if bot is not None:
+        loaded |= set(bot.extensions.keys())
+    return loaded
+
+
+def _require_cog(cog_module: str) -> None:
+    """Raise 404 if the given cog is not loaded.
+
+    Use '__any__' to require at least one cog to be loaded.
+    """
+    loaded = _get_loaded_cogs()
+    if cog_module == "__any__":
+        if not loaded:
+            raise HTTPException(404, "No cogs loaded. Load a cog from the marketplace first.")
+    elif cog_module not in loaded:
+        raise HTTPException(404, f"This feature requires the '{cog_module.split('.')[-1].title()}' cog to be loaded.")
+
+
 
 # ------------------------------------------------------------- login / setup
 
@@ -440,6 +463,7 @@ async def marketplace_view(request: Request,
 async def embeds_view(request: Request,
                       access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
+    _require_cog("__any__")
     return _render(request, "embeds.html", user=user)
 
 
@@ -447,6 +471,7 @@ async def embeds_view(request: Request,
 async def music_view(request: Request,
                      access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
+    _require_cog("bot.cogs.music")
     async with db_session() as s:
         servers = (await s.scalars(select(Server).order_by(Server.name))).all()
     servers_json = json.dumps(
@@ -460,6 +485,7 @@ async def tickets_view(request: Request,
                        status_filter: str | None = None,
                        access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
+    _require_cog("bot.cogs.tickets")
     async with db_session() as s:
         q = select(Ticket).order_by(desc(Ticket.created_at)).limit(200)
         if status_filter in ("open", "closed", "archived"):
@@ -480,6 +506,7 @@ async def tickets_view(request: Request,
 async def tickets_close(ticket_id: str,
                         access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     await _require_user(access_token)
+    _require_cog("bot.cogs.tickets")
     from web.services.bot_ipc import get_ipc
     try:
         await get_ipc().call("ticket.close", {"ticket_id": ticket_id}, timeout=5.0)
@@ -499,6 +526,7 @@ async def tickets_save(server_id: int = Form(...),
                        ticket_support_role_ids: str = Form(default=""),
                        access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     await _require_user(access_token)
+    _require_cog("bot.cogs.tickets")
     role_ids = [int(x.strip()) for x in ticket_support_role_ids.split(",") if x.strip().isdigit()]
     async with db_session() as s:
         cfg = await s.get(ServerConfig, server_id)
@@ -517,6 +545,7 @@ async def tickets_save(server_id: int = Form(...),
 async def tickets_archive(request: Request,
                           access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
+    _require_cog("bot.cogs.tickets")
     async with db_session() as s:
         tickets = (await s.scalars(
             select(Ticket)
@@ -540,6 +569,7 @@ async def tickets_archive(request: Request,
 async def tickets_settings(request: Request,
                             access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
+    _require_cog("bot.cogs.tickets")
     async with db_session() as s:
         servers = (await s.scalars(select(Server).order_by(Server.name))).all()
         configs = (await s.scalars(select(ServerConfig))).all()
@@ -608,6 +638,7 @@ async def discord_log_view(request: Request,
                            date_to: str | None = None,
                            access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     me = await _require_user(access_token)
+    _require_cog("bot.cogs.activity_log")
     if me.role == WebRole.VIEWER:
         return _render(request, "error.html", user=me, status=403,
                        title="Forbidden", detail="Moderator+ only.")
@@ -796,6 +827,7 @@ async def users_delete(user_id: str,
 async def backups_view(request: Request,
                        access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
+    _require_cog("bot.cogs.backups")
     async with db_session() as s:
         rows = (
             await s.scalars(select(Backup).order_by(desc(Backup.created_at)).limit(200))
@@ -811,6 +843,7 @@ async def backups_create(server_id: int = Form(...),
                          name: str = Form(default=""),
                          message_limit: int = Form(default=0),
                          access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
+    _require_cog("bot.cogs.backups")
     me = await _require_user(access_token)
     bot = get_bot()
     if bot is None:
@@ -833,6 +866,7 @@ async def backups_load(backup_id: str,
                        target_server_id: int = Form(...),
                        access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     await _require_user(access_token)
+    _require_cog("bot.cogs.backups")
     bot = get_bot()
     if bot is None:
         raise HTTPException(503, "bot offline")
@@ -850,6 +884,7 @@ async def backups_load(backup_id: str,
 async def backups_delete(backup_id: str,
                          access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     await _require_user(access_token)
+    _require_cog("bot.cogs.backups")
     async with db_session() as s:
         b = await s.get(Backup, uuid.UUID(backup_id))
         if b is not None:
@@ -1108,6 +1143,7 @@ async def bot_profile_view(
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
 ) -> HTMLResponse:
     user = await _require_user(access_token)
+    _require_cog("__any__")
     async with db_session() as s:
         if not await has_permission(s, user, "bot_profile", level="read"):
             raise HTTPException(403, "forbidden")
@@ -1132,6 +1168,7 @@ async def bot_profile_save(
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
 ) -> Response:
     user = await _require_user(access_token)
+    _require_cog("__any__")
     async with db_session() as s:
         if not await has_permission(s, user, "bot_profile", level="write"):
             raise HTTPException(403, "forbidden")
@@ -1350,6 +1387,7 @@ from database.models.embed_template import EmbedTemplate  # noqa: E402
 async def giveaways_view(request: Request,
                          access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
+    _require_cog("bot.cogs.giveaway")
     async with db_session() as s:
         rows = (
             await s.scalars(
@@ -1368,6 +1406,7 @@ async def giveaway_detail_view(
 ) -> HTMLResponse:
     """FEAT #5: dedicated giveaway detail view with live countdown."""
     user = await _require_user(access_token)
+    _require_cog("bot.cogs.giveaway")
     try:
         gid = uuid.UUID(giveaway_id)
     except ValueError as exc:
@@ -1390,6 +1429,7 @@ async def giveaway_detail_view(
 async def giveaways_end(giveaway_id: str,
                          access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     user = await _require_user(access_token)
+    _require_cog("bot.cogs.giveaway")
     async with db_session() as s:
         g = await s.get(Giveaway, uuid.UUID(giveaway_id))
         if g is None:
@@ -1412,6 +1452,7 @@ async def giveaways_end(giveaway_id: str,
 async def giveaways_delete(giveaway_id: str,
                            access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     user = await _require_user(access_token)
+    _require_cog("bot.cogs.giveaway")
     async with db_session() as s:
         g = await s.get(Giveaway, uuid.UUID(giveaway_id))
         if g is not None:
@@ -1426,6 +1467,7 @@ async def giveaways_delete(giveaway_id: str,
 async def giveaways_reroll(giveaway_id: str,
                             access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     user = await _require_user(access_token)
+    _require_cog("bot.cogs.giveaway")
     async with db_session() as s:
         g = await s.get(Giveaway, uuid.UUID(giveaway_id))
         if g is None:
@@ -1460,6 +1502,7 @@ async def giveaways_extend(giveaway_id: str,
                             additional_seconds: int = Form(...),
                             access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     user = await _require_user(access_token)
+    _require_cog("bot.cogs.giveaway")
     extra = max(60, min(60 * 60 * 24 * 30, int(additional_seconds)))
     from datetime import timedelta as _td
     async with db_session() as s:
@@ -1481,6 +1524,7 @@ async def giveaways_edit(giveaway_id: str,
                           winner_count: int = Form(...),
                           access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     user = await _require_user(access_token)
+    _require_cog("bot.cogs.giveaway")
     prize = (prize or "").strip()[:256]
     if not prize:
         raise HTTPException(400, "prize required")
@@ -1503,6 +1547,7 @@ async def members_view(request: Request,
                        q: str = "",
                        access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
+    _require_cog("bot.cogs.moderation")
     async with db_session() as s:
         servers = (await s.scalars(select(Server).order_by(Server.name))).all()
     members: list[dict[str, Any]] = []
@@ -1542,6 +1587,7 @@ async def members_view(request: Request,
 async def members_kick(server_id: str, member_id: str, reason: str = Form(default=""),
                        access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     user = await _require_user(access_token)
+    _require_cog("bot.cogs.moderation")
     bot = get_bot()
     if bot is not None:
         guild = bot.get_guild(int(server_id))
@@ -1561,6 +1607,7 @@ async def members_kick(server_id: str, member_id: str, reason: str = Form(defaul
 async def members_ban(server_id: str, member_id: str, reason: str = Form(default=""),
                       access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     user = await _require_user(access_token)
+    _require_cog("bot.cogs.moderation")
     bot = get_bot()
     if bot is not None:
         guild = bot.get_guild(int(server_id))
@@ -1585,6 +1632,7 @@ def discord_obj_for(user_id: int) -> Any:
 async def log_view(request: Request, tab: str = "web",
                    access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
+    _require_cog("bot.cogs.activity_log")
     if tab not in ("web", "discord"):
         tab = "web"
     web_rows: list[Any] = []
@@ -1694,6 +1742,7 @@ async def ticket_panels_delete(panel_id: str,
 async def welcome_view(request: Request, server_id: int | None = None,
                        access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
+    _require_cog("bot.cogs.welcome")
     async with db_session() as s:
         servers = (await s.scalars(select(Server).order_by(Server.name))).all()
         cfg: ServerEventConfig | None = None
@@ -1726,6 +1775,7 @@ async def welcome_save(
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
 ) -> Response:
     user = await _require_user(access_token)
+    _require_cog("bot.cogs.welcome")
 
     def _hex_to_int(h: str, fallback: int) -> int:
         try:
@@ -1775,6 +1825,7 @@ async def info_embed_save(server_id: int = Form(...), name: str = Form("info"),
                           color: str = Form(default="#60a5fa"),
                           access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     user = await _require_user(access_token)
+    _require_cog("__any__")
     try:
         color_int = int(color.lstrip("#"), 16)
     except ValueError:
@@ -1841,6 +1892,7 @@ async def invites_view(
 ) -> HTMLResponse:
     """FEAT #8: dashboard tab for invite tracker stats."""
     user = await _require_user(access_token)
+    _require_cog("bot.cogs.invite_tracker")
     rows = []
     recent = []
     servers = []
@@ -1942,6 +1994,7 @@ async def members_timeout(server_id: str, member_id: str,
                            reason: str = Form(default=""),
                            access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     me = await _require_user(access_token)
+    _require_cog("bot.cogs.moderation")
     bot = get_bot()
     if bot is not None:
         guild = bot.get_guild(int(server_id))
@@ -1964,6 +2017,7 @@ async def members_mute(server_id: str, member_id: str,
                         muted: str = Form(default="1"),
                         access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     me = await _require_user(access_token)
+    _require_cog("bot.cogs.moderation")
     bot = get_bot()
     flag = muted not in ("0", "false", "no", "")
     if bot is not None:
@@ -1985,6 +2039,7 @@ async def members_deafen(server_id: str, member_id: str,
                           deafened: str = Form(default="1"),
                           access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     me = await _require_user(access_token)
+    _require_cog("bot.cogs.moderation")
     bot = get_bot()
     flag = deafened not in ("0", "false", "no", "")
     if bot is not None:
@@ -2006,6 +2061,7 @@ async def members_dm(server_id: str, member_id: str,
                       message: str = Form(...),
                       access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     me = await _require_user(access_token)
+    _require_cog("bot.cogs.moderation")
     bot = get_bot()
     if bot is not None and message.strip():
         try:
@@ -2173,6 +2229,7 @@ async def giveaways_create(
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
 ) -> Response:
     me = await _require_user(access_token)
+    _require_cog("bot.cogs.giveaway")
     prize = (prize or "").strip()[:256]
     if not prize:
         raise HTTPException(400, "prize required")
