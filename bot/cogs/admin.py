@@ -30,9 +30,9 @@ from bot.cogs.registry import (
     reload_cog,
     unload_cog,
 )
-from config.logging import get_logger
-from database import db_session
-from database.models.server_config import ServerConfig
+from bot.config.logging import get_logger
+from bot.database import db_session
+from bot.database.models.server_config import ServerConfig
 
 log = get_logger("bot.cogs.admin")
 

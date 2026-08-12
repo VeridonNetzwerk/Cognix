@@ -13,7 +13,7 @@ try:
 except ImportError:  # pragma: no cover
     aioredis = None  # type: ignore[assignment]
 
-from config.settings import get_settings
+from bot.config.settings import get_settings
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):

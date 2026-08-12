@@ -13,8 +13,8 @@ from starlette.responses import JSONResponse
 
 from sqlalchemy import select
 
-from database.models.system_config import SystemConfig
-from database.session import db_session
+from bot.database.models.system_config import SystemConfig
+from bot.database.session import db_session
 
 ALLOWED_PREFIXES = (
     "/api/v1/setup",

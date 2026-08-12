@@ -10,9 +10,9 @@ import discord
 import psutil
 from discord.ext import commands
 
-from config.crypto import decrypt_secret
-from config.logging import get_logger
-from config.settings import get_settings
+from bot.config.crypto import decrypt_secret
+from bot.config.logging import get_logger
+from bot.config.settings import get_settings
 from bot.ipc import IpcConsumer
 
 log = get_logger("bot.client")
@@ -150,9 +150,9 @@ class CogniXBot(commands.Bot):
             log.warning("guild_sync_failed", error=str(exc))
 
     async def _sync_all_guilds(self) -> None:
-        from database import db_session
-        from database.models.server import Server
-        from database.models.server_config import ServerConfig
+        from bot.database import db_session
+        from bot.database.models.server import Server
+        from bot.database.models.server_config import ServerConfig
 
         async with db_session() as s:
             for guild in self.guilds:
@@ -172,9 +172,9 @@ class CogniXBot(commands.Bot):
                         existing.member_count = guild.member_count
 
     async def on_guild_join(self, guild: discord.Guild) -> None:
-        from database import db_session
-        from database.models.server import Server
-        from database.models.server_config import ServerConfig
+        from bot.database import db_session
+        from bot.database.models.server import Server
+        from bot.database.models.server_config import ServerConfig
 
         async with db_session() as s:
             existing = await s.get(Server, guild.id)
@@ -410,8 +410,8 @@ async def run_bot() -> None:
     if not token:
         # Fetch from DB
         from sqlalchemy import select
-        from database import db_session
-        from database.models.system_config import SystemConfig
+        from bot.database import db_session
+        from bot.database.models.system_config import SystemConfig
 
         async with db_session() as s:
             cfg = await s.scalar(select(SystemConfig).where(SystemConfig.id == 1))

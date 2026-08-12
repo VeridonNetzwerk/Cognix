@@ -22,8 +22,8 @@ class BotProfile(commands.Cog):
 
     @app_commands.command(name="bot-profile", description="Show the current bot profile")
     async def show_profile(self, interaction: discord.Interaction) -> None:
-        from database.models.bot_profile import BotProfile
-        from database.session import db_session
+        from bot.database.models.bot_profile import BotProfile
+        from bot.database.session import db_session
 
         try:
             async with db_session() as s:

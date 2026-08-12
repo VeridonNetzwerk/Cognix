@@ -17,8 +17,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-from config.logging import get_logger
-from database.session import db_session
+from bot.config.logging import get_logger
+from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE, REFRESH_COOKIE
 from web.api.auth import _set_cookies
 from web.security.tokens import TokenError, decode_token

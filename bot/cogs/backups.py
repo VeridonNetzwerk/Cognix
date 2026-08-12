@@ -36,11 +36,11 @@ from discord.ext import commands
 from sqlalchemy import desc, select
 
 from bot.utils.embeds import err_embed, info_embed, ok_embed
-from config.crypto import CryptoError, decrypt_secret, encrypt_secret
-from config.logging import get_logger
-from database import db_session
-from database.models.backup import Backup
-from database.models.server import Server
+from bot.config.crypto import CryptoError, decrypt_secret, encrypt_secret
+from bot.config.logging import get_logger
+from bot.database import db_session
+from bot.database.models.backup import Backup
+from bot.database.models.server import Server
 
 log = get_logger("bot.cogs.backups")
 

@@ -5,9 +5,9 @@ from __future__ import annotations
 from fastapi import Cookie, Form, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from config.constants import AUDIT_LOGOUT
-from database.models.audit_log import AuditLog
-from database.session import db_session
+from bot.config.constants import AUDIT_LOGOUT
+from bot.database.models.audit_log import AuditLog
+from bot.database.session import db_session
 from web.api.auth import _clear_cookies, _set_cookies
 from web.deps import ACCESS_COOKIE
 from web.pages._shared import (

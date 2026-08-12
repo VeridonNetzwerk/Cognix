@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models.web_user import RefreshToken, WebUser
+from bot.database.models.web_user import RefreshToken, WebUser
 from web.schemas.auth import LoginRequest
 from web.security.passwords import verify_password
 from web.security.tokens import (

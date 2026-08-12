@@ -20,14 +20,14 @@ from sqlalchemy import select
 
 from bot.utils.embeds import info_embed, ok_embed
 from bot.utils.time_parser import humanize_seconds
-from config.settings import get_settings
+from bot.config.settings import get_settings
 
 
 async def _load_embed_template(key: str):
     """Return EmbedTemplate row for ``key`` (server_id NULL = global) or None."""
     try:
-        from database.models.embed_template import EmbedTemplate
-        from database.session import db_session
+        from bot.database.models.embed_template import EmbedTemplate
+        from bot.database.session import db_session
     except Exception:  # noqa: BLE001
         return None
     try:
@@ -136,9 +136,9 @@ class Utility(commands.Cog):
 
         from sqlalchemy import func
 
-        from database.models.moderation import ModerationAction
-        from database.models.stats import StatEvent, StatEventType
-        from database.session import db_session
+        from bot.database.models.moderation import ModerationAction
+        from bot.database.models.stats import StatEvent, StatEventType
+        from bot.database.session import db_session
 
         target = user or interaction.user
         guild = interaction.guild

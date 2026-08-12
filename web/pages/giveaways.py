@@ -12,10 +12,10 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import desc, select
 
 from bot.runtime import get_bot
-from database.models.audit_log import AuditLog
-from database.models.giveaway import Giveaway, GiveawayStatus
-from database.models.server import Server
-from database.session import db_session
+from bot.database.models.audit_log import AuditLog
+from bot.database.models.giveaway import Giveaway, GiveawayStatus
+from bot.database.models.server import Server
+from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE
 from web.pages._shared import _render, _require_cog, _require_user, router
 

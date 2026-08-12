@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 
-from database.models.stats import AggregatedStat, StatEventType
+from bot.database.models.stats import AggregatedStat, StatEventType
 from web.deps import SessionDep, require_mod
 from web.schemas.common import StatsPoint, StatsSeries
 

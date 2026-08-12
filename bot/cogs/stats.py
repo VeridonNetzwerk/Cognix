@@ -15,10 +15,10 @@ import discord
 from discord.ext import commands, tasks
 from sqlalchemy import func, select
 
-from config.logging import get_logger
-from database import db_session
-from database.models.server import Server
-from database.models.stats import AggregatedStat, StatEvent, StatEventType
+from bot.config.logging import get_logger
+from bot.database import db_session
+from bot.database.models.server import Server
+from bot.database.models.stats import AggregatedStat, StatEvent, StatEventType
 
 
 log = get_logger("bot.cogs.stats")

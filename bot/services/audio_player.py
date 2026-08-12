@@ -17,7 +17,7 @@ from typing import Any
 
 import discord
 
-from config.logging import get_logger
+from bot.config.logging import get_logger
 
 log = get_logger("bot.audio")
 
@@ -443,8 +443,8 @@ def yt_dlp_available() -> bool:
 async def _record_play_history(guild_id: int, track: "Track") -> None:
     """Best-effort write to music_play_history. Errors are swallowed."""
     try:
-        from database.session import db_session
-        from database.models.music_play_history import MusicPlayHistory
+        from bot.database.session import db_session
+        from bot.database.models.music_play_history import MusicPlayHistory
 
         async with db_session() as s:
             s.add(MusicPlayHistory(

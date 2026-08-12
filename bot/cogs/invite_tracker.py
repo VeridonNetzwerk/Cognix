@@ -22,10 +22,10 @@ from discord import app_commands
 from discord.ext import commands
 from sqlalchemy import select
 
-from config.logging import get_logger
-from database import db_session
-from database.models.invite_stats import InviteStats
-from database.models.invite_uses import InviteUse
+from bot.config.logging import get_logger
+from bot.database import db_session
+from bot.database.models.invite_stats import InviteStats
+from bot.database.models.invite_uses import InviteUse
 
 log = get_logger("bot.cogs.invite_tracker")
 

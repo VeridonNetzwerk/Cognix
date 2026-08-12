@@ -61,9 +61,11 @@ See [docs/](docs/) for installation, first-run, commands, API, security, and Pte
 CogniX/
 ├── install.py              # Installer — creates venv, installs deps, generates secrets
 ├── main.py                 # Entry point — starts bot + web server
-├── bot/                    # Discord bot core
+├── alembic.ini             # Alembic config (migrations)
+├── bot/                    # Discord bot core + all backend logic
 │   ├── client.py           #   Bot client (CognixBot)
 │   ├── runtime.py          #   Runtime helpers (get_bot, get_bot_info)
+│   ├── ipc.py              #   Redis IPC consumer (optional, multi-process)
 │   ├── cogs/               #   Feature modules (lazy-loaded)
 │   │   ├── registry.py     #     Cog discovery, load/unload, BUILTIN_COGS
 │   │   ├── admin.py        #     /admin cog management commands
@@ -80,8 +82,23 @@ CogniX/
 │   │   ├── bot_profile.py  #     Bot profile management
 │   │   ├── stats.py        #     Message/command statistics
 │   │   └── utility.py      #     Ping, info, userinfo, etc.
-│   ├── ipc.py              #   Redis IPC consumer (optional, multi-process)
+│   ├── config/             #   Configuration
+│   │   ├── settings.py     #     Env-based settings
+│   │   ├── constants.py    #     API prefix, audit actions
+│   │   ├── crypto.py       #     AES-256-GCM encryption
+│   │   └── logging.py      #     Structured logging
+│   ├── database/           #   Database layer
+│   │   ├── models/         #     SQLAlchemy models (20+ tables)
+│   │   ├── migrations/     #     Alembic migrations
+│   │   ├── session.py      #     Async session factory
+│   │   └── seed_embeds.py  #     Default embed template seeder
+│   ├── scripts/            #   CLI utility scripts
+│   │   ├── create_admin.py #     Create admin account
+│   │   └── healthcheck.py  #     Health check
 │   ├── services/           #   Audio player service
+│   ├── tests/              #   Test suite
+│   │   ├── unit/           #     Unit tests (bot/, web/, database/, config/)
+│   │   └── conftest.py     #     Shared test fixtures
 │   └── utils/              #   Embed helpers, time parser
 ├── web/                    # Web dashboard + JSON API
 │   ├── app.py              #   FastAPI app factory
@@ -122,25 +139,7 @@ CogniX/
 │   ├── schemas/            #   Pydantic request/response schemas
 │   ├── security/           #   Passwords, tokens, TOTP, OAuth
 │   └── services/           #   Auth service, bot IPC client
-├── database/               # Database layer
-│   ├── models/             #   SQLAlchemy models (20+ tables)
-│   ├── migrations/         #   Alembic migrations
-│   ├── session.py          #   Async session factory
-│   └── seed_embeds.py      #   Default embed template seeder
-├── config/                 # Configuration
-│   ├── settings.py         #   Env-based settings
-│   ├── constants.py        #   API prefix, audit actions
-│   ├── crypto.py           #   AES-256-GCM encryption
-│   └── logging.py          #   Structured logging
-├── scripts/                # CLI utility scripts
-│   ├── create_admin.py     #   Create admin account
-│   └── healthcheck.py      #   Health check
-├── tests/                  # Test suite
-│   ├── unit/               #   Unit tests (bot/, web/, database/, config/)
-│   └── conftest.py         #   Shared test fixtures
 ├── docs/                   # Documentation
-├── docker-compose.yml      # Docker deployment
-├── Dockerfile              # Container image
 ├── requirements.txt        # Python dependencies
 └── pyproject.toml          # Project config (ruff, pytest)
 ```

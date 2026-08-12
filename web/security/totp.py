@@ -13,7 +13,7 @@ try:
 except ImportError:  # pragma: no cover
     qrcode = None  # type: ignore[assignment]
 
-from config.crypto import decrypt_secret, encrypt_secret
+from bot.config.crypto import decrypt_secret, encrypt_secret
 
 
 def generate_secret() -> str:

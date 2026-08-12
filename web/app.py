@@ -15,11 +15,11 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from bot.runtime import get_bot_info
-from config.constants import API_V1_PREFIX
-from config.logging import configure_logging, get_logger
-from config.settings import get_settings
-from database import init_engine
-from database.session import dispose_engine
+from bot.config.constants import API_V1_PREFIX
+from bot.config.logging import configure_logging, get_logger
+from bot.config.settings import get_settings
+from bot.database import init_engine
+from bot.database.session import dispose_engine
 from web.middleware.auth_refresh import AuthRefreshMiddleware
 from web.middleware.rate_limit import RateLimitMiddleware
 from web.middleware.request_id import RequestIDMiddleware
@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
         raise
     # Seed default embed templates so the dashboard isn't empty.
     try:
-        from database.seed_embeds import seed_default_embed_templates
+        from bot.database.seed_embeds import seed_default_embed_templates
         inserted = await seed_default_embed_templates()
         if inserted:
             log.info("embed_templates_seeded", count=inserted)

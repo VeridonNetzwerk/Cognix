@@ -9,9 +9,9 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy import select
 
 from bot.runtime import get_bot
-from database.models.music_playlist import MusicPlaylist
-from database.models.server import Server
-from database.session import db_session
+from bot.database.models.music_playlist import MusicPlaylist
+from bot.database.models.server import Server
+from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE
 from web.pages._shared import _render, _require_cog, _require_user, router
 

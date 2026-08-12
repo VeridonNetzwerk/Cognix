@@ -6,9 +6,9 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Cookie, HTTPException, Request, Response, status
 
-from config.constants import AUDIT_LOGIN, AUDIT_LOGIN_FAILED, AUDIT_LOGOUT
-from config.settings import get_settings
-from database.models.audit_log import AuditLog
+from bot.config.constants import AUDIT_LOGIN, AUDIT_LOGIN_FAILED, AUDIT_LOGOUT
+from bot.config.settings import get_settings
+from bot.database.models.audit_log import AuditLog
 from web.deps import ACCESS_COOKIE, REFRESH_COOKIE, CurrentUser, SessionDep
 from web.schemas.auth import LoginRequest, UserOut
 from web.services.auth_service import (

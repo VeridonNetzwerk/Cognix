@@ -9,8 +9,8 @@ import uuid
 from fastapi import Cookie, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models.web_user import WebRole, WebUser
-from database.session import db_session
+from bot.database.models.web_user import WebRole, WebUser
+from bot.database.session import db_session
 from web.security.tokens import TokenError, decode_token
 
 ACCESS_COOKIE = "cognix_access"

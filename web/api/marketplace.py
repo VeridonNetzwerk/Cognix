@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import select as sa_select
 
 from bot.cogs.registry import BUILTIN_COGS, get_loaded_cogs
-from database.models.cog_package import CogPackage
+from bot.database.models.cog_package import CogPackage
 from web.deps import SessionDep, require_admin
 from web.services.bot_ipc import get_ipc
 
@@ -381,7 +381,7 @@ async def uninstall_cog(req: UninstallRequest, session: SessionDep) -> dict[str,
 
         # Update DB record
         try:
-            from database.session import db_session
+            from bot.database.session import db_session
             async with db_session() as s:
                 pkg = await s.scalar(sa_select(CogPackage).where(CogPackage.name == req.cog_name))
                 if pkg:

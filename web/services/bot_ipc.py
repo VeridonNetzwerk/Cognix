@@ -12,9 +12,9 @@ try:
 except ImportError:  # pragma: no cover
     aioredis = None  # type: ignore[assignment]
 
-from config.constants import IPC_ACK_CHANNEL, IPC_CMD_CHANNEL, IPC_EVENT_CHANNEL
-from config.logging import get_logger
-from config.settings import get_settings
+from bot.config.constants import IPC_ACK_CHANNEL, IPC_CMD_CHANNEL, IPC_EVENT_CHANNEL
+from bot.config.logging import get_logger
+from bot.config.settings import get_settings
 
 _client: "BotIpc | None" = None
 log = get_logger("web.ipc")

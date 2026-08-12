@@ -62,8 +62,10 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "ASYNC", "S", "C4", "SIM", "RUF"]
 ignore = ["S101", "S104"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S105", "S106", "S311"]
-"database/migrations/**" = ["E501"]
+"bot/tests/**" = ["S105", "S106", "S311"]
+"bot/database/migrations/**" = ["E501"]
+"bot/database/models/**" = ["E501", "UP042"]
+"bot/config/**" = ["E501", "S105", "RUF100"]
 "web/pages/**" = ["E501", "S110", "SIM105", "RUF100"]
 "web/api/**" = ["E501", "S110", "SIM105", "RUF100"]
 
@@ -71,8 +73,8 @@ ignore = ["S101", "S104"]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
-exclude = ["database/migrations/"]
+exclude = ["bot/database/migrations/"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests/unit"]
+testpaths = ["bot/tests/unit"]

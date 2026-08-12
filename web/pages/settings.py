@@ -11,14 +11,14 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 
 from bot.runtime import get_bot
-from database.models.bot_profile import BotProfile
-from database.models.web_user import BackupCode, WebRole, WebUser
-from database.models.web_user_settings import (
+from bot.database.models.bot_profile import BotProfile
+from bot.database.models.web_user import BackupCode, WebRole, WebUser
+from bot.database.models.web_user_settings import (
     MODULES,
     WebUserModulePermission,
     WebUserSettings,
 )
-from database.session import db_session
+from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE
 from web.pages._shared import _render, _require_cog, _require_user, router
 from web.security import totp as _totp

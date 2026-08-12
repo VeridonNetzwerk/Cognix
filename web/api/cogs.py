@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from bot.cogs.registry import AVAILABLE_COGS, get_all_cog_info
-from database.models.server_config import ServerConfig
+from bot.database.models.server_config import ServerConfig
 from web.deps import SessionDep, require_admin
 from web.services.bot_ipc import get_ipc
 

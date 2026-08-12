@@ -5,8 +5,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 
-from database.models.moderation import ModerationAction, Warning_
-from database.models.user import DiscordUser
+from bot.database.models.moderation import ModerationAction, Warning_
+from bot.database.models.user import DiscordUser
 from web.deps import SessionDep, require_mod
 
 router = APIRouter(prefix="/users", tags=["users"], dependencies=[Depends(require_mod)])

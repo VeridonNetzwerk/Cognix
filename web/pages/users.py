@@ -8,18 +8,18 @@ from fastapi import Cookie, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 
-from config.constants import (
+from bot.config.constants import (
     AUDIT_USER_CREATED,
     AUDIT_USER_DELETED,
     AUDIT_USER_UPDATED,
 )
-from database.models.audit_log import AuditLog
-from database.models.web_user import WebRole, WebUser
-from database.models.web_user_settings import (
+from bot.database.models.audit_log import AuditLog
+from bot.database.models.web_user import WebRole, WebUser
+from bot.database.models.web_user_settings import (
     MODULES,
     WebUserModulePermission,
 )
-from database.session import db_session
+from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE
 from web.pages._shared import _render, _require_user, router
 from web.security.passwords import hash_password

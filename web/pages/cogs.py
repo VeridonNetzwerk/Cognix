@@ -10,11 +10,11 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 
 from bot.runtime import get_bot
-from database.models.cog_state import CogState
-from database.models.server import Server
-from database.models.server_cog_state import ServerCogState
-from database.models.web_user import WebRole
-from database.session import db_session
+from bot.database.models.cog_state import CogState
+from bot.database.models.server import Server
+from bot.database.models.server_cog_state import ServerCogState
+from bot.database.models.web_user import WebRole
+from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE
 from web.pages._shared import _render, _require_user, router
 

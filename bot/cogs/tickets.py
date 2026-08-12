@@ -35,11 +35,11 @@ from discord.ext import commands
 from sqlalchemy import select
 
 from bot.utils.embeds import err_embed, info_embed, ok_embed
-from config.logging import get_logger
-from database import db_session
-from database.models.server import Server
-from database.models.server_config import ServerConfig
-from database.models.ticket import Ticket, TicketMessage, TicketStatus
+from bot.config.logging import get_logger
+from bot.database import db_session
+from bot.database.models.server import Server
+from bot.database.models.server_config import ServerConfig
+from bot.database.models.ticket import Ticket, TicketMessage, TicketStatus
 
 log = get_logger("bot.cogs.tickets")
 

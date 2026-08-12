@@ -5,8 +5,8 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models.web_user import WebRole, WebUser
-from database.models.web_user_settings import MODULES, WebUserModulePermission
+from bot.database.models.web_user import WebRole, WebUser
+from bot.database.models.web_user_settings import MODULES, WebUserModulePermission
 
 # none < read < write
 _LEVEL_ORDER = {"none": 0, "read": 1, "write": 2}

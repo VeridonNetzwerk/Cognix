@@ -9,11 +9,11 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import desc, select
 
 from bot.runtime import get_bot
-from database.models.backup import Backup
-from database.models.role_permission import RolePermission
-from database.models.server import Server
-from database.models.web_user import WebRole
-from database.session import db_session
+from bot.database.models.backup import Backup
+from bot.database.models.role_permission import RolePermission
+from bot.database.models.server import Server
+from bot.database.models.web_user import WebRole
+from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE
 from web.pages._shared import _render, _require_cog, _require_user, router
 

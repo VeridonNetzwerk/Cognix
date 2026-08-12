@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import bcrypt
 
-from config.settings import get_settings
+from bot.config.settings import get_settings
 
 _BCRYPT_ROUNDS = 14  # Minimum 14 for modern hardware (GPU resistance)
 

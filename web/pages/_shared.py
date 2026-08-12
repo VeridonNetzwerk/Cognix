@@ -12,9 +12,9 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 
 from bot.runtime import get_bot, get_bot_info
-from database.models.system_config import SystemConfig
-from database.models.web_user import WebUser
-from database.session import db_session
+from bot.database.models.system_config import SystemConfig
+from bot.database.models.web_user import WebUser
+from bot.database.session import db_session
 from web.security.tokens import TokenError, decode_token
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"

@@ -11,8 +11,8 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import select
 
-from config.crypto import decrypt_secret, encrypt_secret
-from database.models.backup import Backup
+from bot.config.crypto import decrypt_secret, encrypt_secret
+from bot.database.models.backup import Backup
 from web.deps import CurrentUser, SessionDep, require_admin
 from web.services.bot_ipc import get_ipc
 

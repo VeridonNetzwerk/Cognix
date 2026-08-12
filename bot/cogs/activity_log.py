@@ -22,10 +22,10 @@ from typing import Any
 import discord
 from discord.ext import commands
 
-from config.logging import get_logger
-from database.models.discord_event import DiscordEvent, DiscordEventType
-from database.models.discord_message_cache import DiscordMessageCache
-from database.session import db_session
+from bot.config.logging import get_logger
+from bot.database.models.discord_event import DiscordEvent, DiscordEventType
+from bot.database.models.discord_message_cache import DiscordMessageCache
+from bot.database.session import db_session
 
 log = get_logger("bot.activity_log")
 
@@ -303,8 +303,8 @@ class ActivityLog(commands.Cog):
             return
         try:
             from sqlalchemy import select
-            from database.models.ticket import Ticket
-            from database.session import db_session
+            from bot.database.models.ticket import Ticket
+            from bot.database.session import db_session
 
             async with db_session() as s:
                 ticket = await s.scalar(

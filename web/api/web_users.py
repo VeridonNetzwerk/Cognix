@@ -13,13 +13,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 
-from config.constants import (
+from bot.config.constants import (
     AUDIT_USER_CREATED,
     AUDIT_USER_DELETED,
     AUDIT_USER_UPDATED,
 )
-from database.models.audit_log import AuditLog
-from database.models.web_user import WebRole, WebUser
+from bot.database.models.audit_log import AuditLog
+from bot.database.models.web_user import WebRole, WebUser
 from web.deps import SessionDep, require_admin
 from web.security.passwords import hash_password
 

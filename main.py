@@ -18,8 +18,8 @@ import uvicorn
 from alembic import command
 from alembic.config import Config as AlembicConfig
 
-from config.logging import configure_logging, get_logger
-from config.settings import get_settings
+from bot.config.logging import configure_logging, get_logger
+from bot.config.settings import get_settings
 
 
 ROOT = Path(__file__).resolve().parent
@@ -29,7 +29,7 @@ def _run_migrations_sync() -> None:
     settings = get_settings()
     settings.ensure_data_dirs()
     cfg = AlembicConfig(str(ROOT / "alembic.ini"))
-    cfg.set_main_option("script_location", str(ROOT / "database" / "migrations"))
+    cfg.set_main_option("script_location", str(ROOT / "bot" / "database" / "migrations"))
     # Do NOT pass sqlalchemy.url here — env.py reads it directly from settings
     # to bypass ConfigParser interpolation issues with percent-encoded passwords.
     command.upgrade(cfg, "head")

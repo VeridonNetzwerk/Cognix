@@ -9,7 +9,7 @@ from typing import Any
 
 import jwt
 
-from config.settings import get_settings
+from bot.config.settings import get_settings
 
 ALGO = "HS256"
 

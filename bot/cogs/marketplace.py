@@ -37,9 +37,9 @@ from discord import app_commands
 from discord.ext import commands
 from sqlalchemy import select as sa_select
 
-from config.logging import get_logger
-from database import db_session
-from database.models.cog_package import CogPackage
+from bot.config.logging import get_logger
+from bot.database import db_session
+from bot.database.models.cog_package import CogPackage
 
 log = get_logger("bot.cogs.marketplace")
 

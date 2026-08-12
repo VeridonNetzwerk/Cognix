@@ -32,9 +32,9 @@ from bot.services.audio_player import (
     yt_dlp_available,
 )
 from bot.utils.embeds import err_embed, info_embed, ok_embed
-from config.logging import get_logger
-from database.models.music_playlist import MusicPlaylist
-from database.session import db_session
+from bot.config.logging import get_logger
+from bot.database.models.music_playlist import MusicPlaylist
+from bot.database.session import db_session
 
 log = get_logger("bot.cogs.music")
 
