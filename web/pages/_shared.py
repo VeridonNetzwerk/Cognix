@@ -17,7 +17,7 @@ from database.models.web_user import WebUser
 from database.session import db_session
 from web.security.tokens import TokenError, decode_token
 
-TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
+TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 router = APIRouter(include_in_schema=False)

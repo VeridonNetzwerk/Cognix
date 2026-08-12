@@ -23,7 +23,7 @@ from database.models.web_user import WebRole
 from database.models.web_user_settings import WebUserSettings
 from database.session import db_session
 from web.deps import ACCESS_COOKIE
-from web.routes.views._shared import _render, _require_cog, _require_user, router
+from web.pages._shared import _render, _require_cog, _require_user, router
 
 
 def discord_obj_for(user_id: int) -> Any:
@@ -456,7 +456,7 @@ async def bot_lifecycle(action: str,
 async def user_settings_me(
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
 ):
-    from web.routes.views._shared import _current_user
+    from web.pages._shared import _current_user
     user = await _current_user(access_token)
     if user is None:
         return {"theme": "dark", "accent_color": "#60A5FA", "font_size": "medium"}

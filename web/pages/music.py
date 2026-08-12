@@ -13,7 +13,7 @@ from database.models.music_playlist import MusicPlaylist
 from database.models.server import Server
 from database.session import db_session
 from web.deps import ACCESS_COOKIE
-from web.routes.views._shared import _render, _require_cog, _require_user, router
+from web.pages._shared import _render, _require_cog, _require_user, router
 
 
 @router.get("/music", response_class=HTMLResponse)

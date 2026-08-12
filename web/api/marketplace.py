@@ -8,8 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select as sa_select
 
-from database.models.cog_package import CogPackage
 from bot.cogs.registry import BUILTIN_COGS, get_loaded_cogs
+from database.models.cog_package import CogPackage
 from web.deps import SessionDep, require_admin
 from web.services.bot_ipc import get_ipc
 
@@ -256,7 +256,7 @@ async def install_cog(req: InstallRequest, session: SessionDep) -> dict[str, Any
         cog_or_url = req.cog_or_url
 
         # Check if this is a built-in cog by name
-        from bot.cogs.registry import get_cog_info, load_cog, BUILTIN_COGS
+        from bot.cogs.registry import BUILTIN_COGS, get_cog_info, load_cog
         builtin_info = get_cog_info(cog_or_url)
         is_builtin_match = any(
             c["name"].lower() == cog_or_url.lower() or c["module"] == cog_or_url
@@ -357,7 +357,7 @@ async def uninstall_cog(req: UninstallRequest, session: SessionDep) -> dict[str,
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "bot not running")
 
         # Check if this is a built-in cog
-        from bot.cogs.registry import unload_cog, BUILTIN_COGS
+        from bot.cogs.registry import BUILTIN_COGS, unload_cog
         is_builtin_match = any(
             c["name"].lower() == req.cog_name.lower() or c["module"] == req.cog_name
             for c in BUILTIN_COGS

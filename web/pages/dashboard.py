@@ -15,7 +15,7 @@ from database.models.server_config import ServerConfig
 from database.models.ticket import Ticket, TicketStatus
 from database.session import db_session
 from web.deps import ACCESS_COOKIE
-from web.routes.views._shared import (
+from web.pages._shared import (
     _current_user,
     _render,
     _require_user,

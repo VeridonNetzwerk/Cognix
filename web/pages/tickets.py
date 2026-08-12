@@ -16,7 +16,7 @@ from database.models.ticket import Ticket, TicketStatus
 from database.models.ticket_panel import TicketPanel, TicketType
 from database.session import db_session
 from web.deps import ACCESS_COOKIE
-from web.routes.views._shared import _render, _require_cog, _require_user, router
+from web.pages._shared import _render, _require_cog, _require_user, router
 
 
 @router.get("/tickets", response_class=HTMLResponse)

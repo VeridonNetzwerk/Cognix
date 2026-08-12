@@ -24,7 +24,7 @@ from web.middleware.auth_refresh import AuthRefreshMiddleware
 from web.middleware.rate_limit import RateLimitMiddleware
 from web.middleware.request_id import RequestIDMiddleware
 from web.middleware.setup_gate import SetupGateMiddleware
-from web.routes import (
+from web.api import (
     auth,
     audit,
     backups,
@@ -40,11 +40,11 @@ from web.routes import (
     stats,
     tickets,
     users,
-    views,
     web_users,
     ws,
 )
-from web.routes.views import templates
+from web.pages import router as views_router
+from web.pages._shared import templates
 from web.services.bot_ipc import get_ipc
 
 log = get_logger("web.app")
@@ -140,7 +140,7 @@ def create_app() -> FastAPI:
         app.include_router(r, prefix=API_V1_PREFIX)
 
     # ---- HTML dashboard (Jinja2) — primary user-facing surface ----
-    app.include_router(views.router)
+    app.include_router(views_router)
 
     # ---- Error handlers ----
     @app.exception_handler(StarletteHTTPException)

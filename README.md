@@ -86,23 +86,37 @@ CogniX/
 ├── web/                    # Web dashboard + JSON API
 │   ├── app.py              #   FastAPI app factory
 │   ├── deps.py             #   Shared dependencies (auth, DB session)
-│   ├── routes/             #   API + HTML view routes
-│   │   ├── views/          #     Jinja2 HTML dashboard (primary UI)
-│   │   │   ├── _shared.py  #       Shared helpers, router, templates
-│   │   │   ├── auth.py     #       Login/logout/setup wizard
-│   │   │   ├── dashboard.py#       Dashboard, servers, server detail
-│   │   │   ├── cogs.py     #       Cogs management, marketplace
-│   │   │   ├── tickets.py  #       Tickets, types, panels
-│   │   │   ├── audit.py    #       Audit log, Discord log
-│   │   │   ├── users.py    #       Web user management
-│   │   │   ├── backups.py  #       Backups, server permissions
-│   │   │   ├── settings.py #       Settings, 2FA, bot profile
-│   │   │   ├── music.py    #       Music page + API
-│   │   │   ├── giveaways.py#       Giveaways management
-│   │   │   └── features.py #       Members, embeds, invites, misc API
+│   ├── api/                #   JSON API routes (/api/v1/*)
+│   │   ├── auth.py         #     Login/logout/setup API
 │   │   ├── marketplace.py  #     Marketplace API (install/uninstall)
-│   │   ├── auth.py         #     JSON auth API (login/logout/setup)
-│   │   └── ...             #     Feature-specific JSON API routes
+│   │   ├── cogs.py         #     Cog management API
+│   │   ├── servers.py      #     Server info API
+│   │   ├── tickets.py      #     Ticket API
+│   │   ├── backups.py      #     Backup API
+│   │   ├── moderation.py   #     Moderation API
+│   │   ├── music_panel.py  #     Music API
+│   │   ├── stats.py        #     Statistics API
+│   │   ├── audit.py        #     Audit log API
+│   │   ├── bot_control.py  #     Bot lifecycle API
+│   │   ├── embed_templates.py  # Embed template API
+│   │   ├── settings.py     #     System settings API
+│   │   ├── setup.py        #     First-run setup API
+│   │   ├── users.py        #     Discord user API
+│   │   ├── web_users.py    #     Web user management API
+│   │   └── ws.py           #     WebSocket endpoint
+│   ├── pages/              #   HTML pages (Jinja2 dashboard, primary UI)
+│   │   ├── _shared.py      #     Shared helpers, router, templates
+│   │   ├── auth.py         #     Login/logout/setup wizard pages
+│   │   ├── dashboard.py    #     Dashboard, servers, server detail
+│   │   ├── cogs.py         #     Cogs management, marketplace page
+│   │   ├── tickets.py      #     Tickets, types, panels pages
+│   │   ├── audit.py        #     Audit log, Discord log pages
+│   │   ├── users.py        #     Web user management pages
+│   │   ├── backups.py      #     Backups, server permissions pages
+│   │   ├── settings.py     #     Settings, 2FA, bot profile pages
+│   │   ├── music.py        #     Music page + API
+│   │   ├── giveaways.py    #     Giveaways management pages
+│   │   └── features.py     #     Members, embeds, invites, misc API
 │   ├── templates/          #   Jinja2 HTML templates
 │   ├── middleware/         #   Auth refresh, rate limit, setup gate
 │   ├── schemas/            #   Pydantic request/response schemas
@@ -118,9 +132,11 @@ CogniX/
 │   ├── constants.py        #   API prefix, audit actions
 │   ├── crypto.py           #   AES-256-GCM encryption
 │   └── logging.py          #   Structured logging
-├── tests/                  # Test suite + utility scripts
+├── scripts/                # CLI utility scripts
+│   ├── create_admin.py     #   Create admin account
+│   └── healthcheck.py      #   Health check
+├── tests/                  # Test suite
 │   ├── unit/               #   Unit tests (bot/, web/, database/, config/)
-│   ├── scripts/            #   CLI scripts (create_admin, healthcheck)
 │   └── conftest.py         #   Shared test fixtures
 ├── docs/                   # Documentation
 ├── docker-compose.yml      # Docker deployment

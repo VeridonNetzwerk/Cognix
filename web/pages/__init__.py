@@ -1,7 +1,7 @@
 """HTML view routes package — re-exports router and templates for app.py."""
 
 # Import all sub-modules to register their routes on the shared router
-from web.routes.views import (  # noqa: F401
+from web.pages import (  # noqa: F401
     audit,
     auth,
     backups,
@@ -14,6 +14,6 @@ from web.routes.views import (  # noqa: F401
     tickets,
     users,
 )
-from web.routes.views._shared import router, templates
+from web.pages._shared import router, templates
 
 __all__ = ["router", "templates"]

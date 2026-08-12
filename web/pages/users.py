@@ -21,7 +21,7 @@ from database.models.web_user_settings import (
 )
 from database.session import db_session
 from web.deps import ACCESS_COOKIE
-from web.routes.views._shared import _render, _require_user, router
+from web.pages._shared import _render, _require_user, router
 from web.security.passwords import hash_password
 
 

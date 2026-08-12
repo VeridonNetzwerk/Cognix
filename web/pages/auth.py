@@ -8,9 +8,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from config.constants import AUDIT_LOGOUT
 from database.models.audit_log import AuditLog
 from database.session import db_session
+from web.api.auth import _clear_cookies, _set_cookies
 from web.deps import ACCESS_COOKIE
-from web.routes.auth import _clear_cookies, _set_cookies
-from web.routes.views._shared import (
+from web.pages._shared import (
     _current_user,
     _render,
     _system_configured,

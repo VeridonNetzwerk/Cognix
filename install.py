@@ -137,7 +137,7 @@ def create_admin(python: str) -> None:
     answer = input("Create an admin account now? [Y/n] ").strip().lower()
     if answer and answer != "y":
         warn("Skipping admin creation — you can do this later with:")
-        warn(f"  {python} -m tests.scripts.create_admin <username> <email> <password>")
+        warn(f"  {python} -m scripts.create_admin <username> <email> <password>")
         return
 
     username = input("Admin username: ").strip()
@@ -150,7 +150,7 @@ def create_admin(python: str) -> None:
         error("Password must be at least 10 characters")
         return
 
-    cmd = [python, "-m", "tests.scripts.create_admin", username]
+    cmd = [python, "-m", "scripts.create_admin", username]
     if email:
         cmd.append(email)
     cmd.append(password)
@@ -177,8 +177,8 @@ def print_next_steps(python: str) -> None:
 
   {BOLD}Useful commands:{RESET}
      Start bot:     {python} main.py
-     Create admin:  {python} -m tests.scripts.create_admin <username> <email> <password>
-     Health check:  {python} -m tests.scripts.healthcheck
+     Create admin:  {python} -m scripts.create_admin <username> <email> <password>
+     Health check:  {python} -m scripts.healthcheck
 
   {BOLD}Documentation:{RESET} see docs/ folder
 """)
