@@ -190,6 +190,75 @@ def validate_github_url(url: str) -> bool:
     return len(parts) >= 2
 
 
+def _discover_cog_module(base_path: str, safe_name: str) -> str | None:
+    """Scan an installed package directory for a valid discord.py cog module.
+
+    A valid cog module is a .py file (or package __init__.py) that defines
+    an async ``setup(bot)`` function. Returns the dotted module path
+    suitable for ``bot.load_extension()``.
+    """
+    import ast
+
+    base = Path(base_path)
+
+    # Collect all .py files, prioritising common cog locations
+    candidates: list[Path] = []
+
+    # Priority 1: cogs/<name>.py
+    cog_file = base / "cogs" / f"{safe_name}.py"
+    if cog_file.exists():
+        candidates.append(cog_file)
+
+    # Priority 2: <name>.py at top level
+    top_file = base / f"{safe_name}.py"
+    if top_file.exists():
+        candidates.append(top_file)
+
+    # Priority 3: any .py with a setup() function
+    for py_file in sorted(base.rglob("*.py")):
+        if py_file.name == "__init__.py":
+            continue
+        if py_file in candidates:
+            continue
+        try:
+            tree = ast.parse(py_file.read_text(encoding="utf-8", errors="replace"))
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "setup":
+                    candidates.append(py_file)
+                    break
+        except Exception:  # noqa: BLE001
+            continue
+
+    # Also check __init__.py files in subdirectories
+    for init_file in sorted(base.rglob("__init__.py")):
+        try:
+            tree = ast.parse(init_file.read_text(encoding="utf-8", errors="replace"))
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "setup":
+                    if init_file not in candidates:
+                        candidates.append(init_file)
+                    break
+        except Exception:  # noqa: BLE001
+            continue
+
+    if not candidates:
+        return None
+
+    # Convert the first valid candidate to a dotted module path
+    chosen = candidates[0]
+    try:
+        rel = chosen.relative_to(base)
+        # Convert path parts to dotted module name
+        parts = list(rel.parts)
+        if parts[-1] == "__init__.py":
+            parts = parts[:-1]
+        else:
+            parts[-1] = parts[-1].removesuffix(".py")
+        return ".".join(parts) if parts else chosen.stem
+    except ValueError:
+        return chosen.stem
+
+
 async def install_cog_from_source(bot: commands.Bot, repo_url: str, cog_name: str) -> dict[str, Any]:
     """Clone or pip-install a cog from GitHub and make it available.
 
@@ -265,12 +334,18 @@ async def install_cog_from_source(bot: commands.Bot, repo_url: str, cog_name: st
     if module_path not in sys.path:
         sys.path.insert(0, module_path)
 
-    # Determine the extension module name
-    ext_module = f"bot.cogs.ext_{safe_name}"
+    # Discover the actual extension module inside the installed package.
+    # A discord.py cog must define an async setup(bot) function.
+    ext_module = _discover_cog_module(module_path, safe_name)
+    if ext_module is None:
+        return {"error": f"No valid cog module (with setup() function) found in '{cog_name}'"}
 
     # Try loading the extension
     try:
-        await bot.load_extension(ext_module)
+        if ext_module in bot.extensions:
+            await bot.reload_extension(ext_module)
+        else:
+            await bot.load_extension(ext_module)
         log.info("cog_loaded_after_install", cog=cog_name, ext=ext_module)
     except Exception as exc:  # noqa: BLE001
         log.warning("ext_load_failed_after_install", cog=cog_name, error=str(exc))
@@ -281,25 +356,41 @@ async def install_cog_from_source(bot: commands.Bot, repo_url: str, cog_name: st
 async def uninstall_cog(bot: commands.Bot, cog_name: str) -> dict[str, Any]:
     """Unload and remove a marketplace-installed cog."""
     safe_name = cog_name.lower().replace(" ", "_")
-    ext_module = f"bot.cogs.ext_{safe_name}"
 
-    # Try to unload if loaded as extension
+    # Look up the actual module name from DB or loaded extensions
+    ext_module = None
     try:
-        if ext_module in bot.extensions:
-            await bot.unload_extension(ext_module)
-            log.info("cog_unloaded", module=ext_module)
+        async with db_session() as s:
+            pkg = await s.scalar(sa_select(CogPackage).where(CogPackage.name == cog_name))
+            if pkg and pkg.module_name:
+                ext_module = pkg.module_name
     except Exception:  # noqa: BLE001
         pass
+
+    # Fallback: search loaded extensions for one matching the cog name
+    if ext_module is None:
+        for loaded_ext in list(bot.extensions):
+            if safe_name in loaded_ext.lower():
+                ext_module = loaded_ext
+                break
+
+    # Try to unload if loaded as extension
+    if ext_module and ext_module in bot.extensions:
+        try:
+            await bot.unload_extension(ext_module)
+            log.info("cog_unloaded", module=ext_module)
+        except Exception:  # noqa: BLE001
+            pass
 
     install_dir = _get_install_dir() / safe_name
     if install_dir.exists():
         shutil.rmtree(install_dir, ignore_errors=True)
         log.info("install_dir_removed", path=str(install_dir))
 
-    # Remove from sys.path
-    path_entry = str(install_dir)
-    if path_entry in sys.path:
-        sys.path.remove(path_entry)
+    # Remove from sys.path — check both the install dir and its subdirs
+    for path_entry in list(sys.path):
+        if path_entry.startswith(str(install_dir)):
+            sys.path.remove(path_entry)
 
     return {"ok": True, "cog": cog_name}
 
@@ -523,7 +614,7 @@ class MarketplaceCogCmd(commands.Cog):
         except Exception:  # noqa: BLE001
             pass
 
-        loaded_exts = [e for e in self.bot.extensions if e.startswith("bot.cogs.ext_")]
+        loaded_exts = list(self.bot.extensions)
 
         if not installed_pkgs and not loaded_exts:
             await interaction.followup.send(
@@ -538,10 +629,9 @@ class MarketplaceCogCmd(commands.Cog):
             lines.append(f"{status_icon} **{pkg.display_name}**{mod} — {pkg.description[:60]}")
 
         for ext in loaded_exts:
-            short = ext.replace("bot.cogs.ext_", "")
-            already_in_db = any(p.name == short or p.display_name.lower() == short.lower() for p in installed_pkgs)
+            already_in_db = any(p.module_name == ext for p in installed_pkgs)
             if not already_in_db:
-                lines.append(f"\U0001f7e1 **{short}** (loaded but not in marketplace registry)")
+                lines.append(f"\U0001f7e1 **{ext}** (loaded but not in marketplace registry)")
 
         await interaction.followup.send("\n".join(lines), ephemeral=True)
 

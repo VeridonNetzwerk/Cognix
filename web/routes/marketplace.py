@@ -216,6 +216,7 @@ async def install_cog(req: InstallRequest, session: SessionDep) -> dict[str, Any
             requires_admin=False,
             author="Unknown",
             installed=True,
+            module_name=result.get("module"),
         )
         await bot.tree.sync()
 

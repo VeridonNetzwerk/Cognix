@@ -406,6 +406,18 @@ async def cogs_reload(cog_name: str,
     return RedirectResponse("/cogs", status_code=303)
 
 
+# ------------------------------------------------------------- marketplace
+
+@router.get("/marketplace", response_class=HTMLResponse)
+async def marketplace_view(request: Request,
+                           access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
+    user = await _require_user(access_token)
+    if user.role != WebRole.ADMIN:
+        return _render(request, "error.html", user=user, status=403,
+                       title="Forbidden", detail="Admin only.")
+    return _render(request, "marketplace.html", user=user)
+
+
 # ------------------------------------------------------------- tickets, audit, users, embeds, music
 
 @router.get("/embeds", response_class=HTMLResponse)
