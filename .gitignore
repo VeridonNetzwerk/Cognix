@@ -38,3 +38,6 @@ frontend/.env*.local
 logs/
 
 Cognix.wiki/
+
+# Test install directory
+_test_install/
