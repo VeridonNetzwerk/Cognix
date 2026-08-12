@@ -37,3 +37,62 @@ docker compose up -d --build
 ```
 
 See [docs/](docs/) for installation, first-run, commands, API, security, and Pterodactyl guides.
+
+## Project Structure
+
+```
+CogniX/
+├── main.py                 # Entry point — starts bot + web server
+├── bot/                    # Discord bot core
+│   ├── client.py           #   Bot client (CognixBot)
+│   ├── runtime.py          #   Runtime helpers (get_bot, get_bot_info)
+│   ├── cogs/               #   Feature modules (lazy-loaded)
+│   │   ├── registry.py     #     Cog discovery, load/unload, BUILTIN_COGS
+│   │   ├── admin.py        #     /admin cog management commands
+│   │   ├── marketplace.py  #     /marketplace install/uninstall commands
+│   │   ├── moderation.py   #     Ban, kick, mute, warn, purge
+│   │   ├── tickets.py      #     Thread-based support tickets
+│   │   ├── music.py        #     Music playback (yt-dlp + FFmpeg)
+│   │   ├── backups.py      #     Server backup/restore
+│   │   ├── giveaways.py    #     Reaction-based giveaways
+│   │   ├── welcome.py      #     Join/leave/boost messages
+│   │   ├── invite_tracker.py  #  Invite tracking
+│   │   ├── activity_log.py #     Discord event logging
+│   │   ├── embeds.py       #     Custom embed templates
+│   │   ├── bot_profile.py  #     Bot profile management
+│   │   ├── stats.py        #     Message/command statistics
+│   │   └── utility.py      #     Ping, info, userinfo, etc.
+│   ├── ipc/                #   Redis IPC (optional, for multi-process)
+│   ├── services/           #   Audio player service
+│   └── utils/              #   Embed helpers, time parser
+├── web/                    # Web dashboard + JSON API
+│   ├── app.py              #   FastAPI app factory
+│   ├── deps.py             #   Shared dependencies (auth, DB session)
+│   ├── routes/             #   API + HTML view routes
+│   │   ├── views.py        #     Jinja2 HTML dashboard (primary UI)
+│   │   ├── marketplace.py  #     Marketplace API (install/uninstall)
+│   │   ├── auth.py         #     Login/logout/setup
+│   │   └── ...             #     Feature-specific API routes
+│   ├── templates/          #   Jinja2 HTML templates
+│   ├── middleware/         #   Auth refresh, rate limit, setup gate
+│   ├── schemas/            #   Pydantic request/response schemas
+│   ├── security/           #   Passwords, tokens, TOTP, OAuth
+│   └── services/           #   Auth service, bot IPC client
+├── database/               # Database layer
+│   ├── models/             #   SQLAlchemy models (20+ tables)
+│   ├── migrations/         #   Alembic migrations
+│   ├── session.py          #   Async session factory
+│   └── seed_embeds.py      #   Default embed template seeder
+├── config/                 # Configuration
+│   ├── settings.py         #   Env-based settings
+│   ├── constants.py        #   API prefix, audit actions
+│   ├── crypto.py           #   AES-256-GCM encryption
+│   └── logging.py          #   Structured logging
+├── tests/                  # Test suite
+├── scripts/                # Utility scripts (create_admin, healthcheck)
+├── docs/                   # Documentation
+├── docker-compose.yml      # Docker deployment
+├── Dockerfile              # Container image
+├── requirements.txt        # Python dependencies
+└── pyproject.toml          # Project config (ruff, pytest)
+```

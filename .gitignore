@@ -14,30 +14,19 @@ htmlcov/
 dist/
 build/
 
-# Data
+# Data (created at runtime)
 data/
+logs/
 *.db
 *.db-journal
 *.sqlite
 *.sqlite3
-
-# Frontend
-frontend/node_modules/
-frontend/.next/
-frontend/out/
-frontend/.env*.local
 
 # Editors
 .vscode/
 .idea/
 *.swp
 .DS_Store
-
-# Logs
-*.log
-logs/
-
-Cognix.wiki/
 
 # Test install directory
 _test_install/
@@ -48,5 +37,5 @@ test_marketplace.py
 install_test.py
 test_cog_repo/
 
-# Cog install directory
+# Cog install directory (marketplace)
 .cognix_cogs/
