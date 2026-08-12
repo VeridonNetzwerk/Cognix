@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+COG_INFO = {
+    "name": "Embeds",
+    "description": "Create, manage, and send custom embed templates",
+    "category": "Utility",
+    "requires_admin": True,
+}
+
 import discord
 from discord import app_commands
 from discord.ext import commands
 from sqlalchemy import select
 
-from bot.utils.embeds import ok_embed, error_embed
+from bot.utils.embeds import ok_embed, err_embed
 
 
 class Embeds(commands.Cog):
@@ -30,7 +37,7 @@ class Embeds(commands.Cog):
                 )
                 if row is None:
                     await interaction.response.send_message(
-                        embed=error_embed("Not found", f"No embed template named '{name}'."), ephemeral=True
+                        embed=err_embed("Not found", f"No embed template named '{name}'."), ephemeral=True
                     )
                     return
                 color = row.color if hasattr(row, "color") and row.color else 0x60A5FA
@@ -42,7 +49,7 @@ class Embeds(commands.Cog):
                 await interaction.response.send_message(embed=emb)
         except Exception:
             await interaction.response.send_message(
-                embed=error_embed("Error", "Could not send embed."), ephemeral=True
+                embed=err_embed("Error", "Could not send embed."), ephemeral=True
             )
 
 

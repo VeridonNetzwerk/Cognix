@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+COG_INFO = {
+    "name": "Utility",
+    "description": "Ping, info, userinfo, serverinfo, roll, flip utility commands",
+    "category": "Utility",
+    "requires_admin": False,
+}
+
 import random
 import time
 

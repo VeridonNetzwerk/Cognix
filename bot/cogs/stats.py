@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+COG_INFO = {
+    "name": "Stats",
+    "description": "Message and command statistics tracking",
+    "category": "Analytics",
+    "requires_admin": False,
+}
+
 from datetime import UTC, date, datetime
 
 import discord

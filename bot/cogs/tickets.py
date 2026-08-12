@@ -16,6 +16,13 @@ them via the in-thread panel or ``/ticket-close``.
 
 from __future__ import annotations
 
+COG_INFO = {
+    "name": "Tickets",
+    "description": "Thread-based support tickets with transcript export",
+    "category": "Support",
+    "requires_admin": True,
+}
+
 import asyncio
 import io
 import uuid

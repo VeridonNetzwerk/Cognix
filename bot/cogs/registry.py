@@ -30,92 +30,64 @@ log = get_logger("bot.cog_registry")
 
 CogInfo = dict[str, str | bool]  # {module: ..., name: ..., description: ..., category: ...}
 
-BUILTIN_COGS: list[CogInfo] = [
-    {
-        "module": "bot.cogs.moderation",
-        "name": "Moderation",
-        "description": "Ban, kick, mute, warn, purge commands for server moderation",
-        "category": "Moderation",
-        "requires_admin": True,
-    },
-    {
-        "module": "bot.cogs.utility",
-        "name": "Utility",
-        "description": "Ping, info, userinfo, serverinfo, roll, flip utility commands",
-        "category": "Utility",
-        "requires_admin": False,
-    },
-    {
-        "module": "bot.cogs.tickets",
-        "name": "Tickets",
-        "description": "Thread-based support tickets with transcript export",
-        "category": "Support",
-        "requires_admin": True,
-    },
-    {
-        "module": "bot.cogs.stats",
-        "name": "Stats",
-        "description": "Message and command statistics tracking",
-        "category": "Analytics",
-        "requires_admin": False,
-    },
-    {
-        "module": "bot.cogs.backups",
-        "name": "Backups",
-        "description": "Backup and restore server roles, channels, and permissions",
-        "category": "Administration",
-        "requires_admin": True,
-    },
-    {
-        "module": "bot.cogs.music",
-        "name": "Music",
-        "description": "Music playback with playlists (requires yt-dlp)",
-        "category": "Fun",
-        "requires_admin": True,
-    },
-    {
-        "module": "bot.cogs.activity_log",
-        "name": "Activity Log",
-        "description": "Logs all Discord events (messages, members, channels, etc.)",
-        "category": "Logging",
-        "requires_admin": False,
-    },
-    {
-        "module": "bot.cogs.giveaway",
-        "name": "Giveaways",
-        "description": "Time-limited giveaways with reaction-based entries",
-        "category": "Fun",
-        "requires_admin": True,
-    },
-    {
-        "module": "bot.cogs.welcome",
-        "name": "Welcome/Leave",
-        "description": "Custom embed messages on member join, leave, and boost",
-        "category": "Utility",
-        "requires_admin": False,
-    },
-    {
-        "module": "bot.cogs.invite_tracker",
-        "name": "Invite Tracker",
-        "description": "Track who invited whom with invite statistics",
-        "category": "Analytics",
-        "requires_admin": False,
-    },
-    {
-        "module": "bot.cogs.embeds",
-        "name": "Embeds",
-        "description": "Create, manage, and send custom embed templates",
-        "category": "Utility",
-        "requires_admin": True,
-    },
-    {
-        "module": "bot.cogs.bot_profile",
-        "name": "Bot Profile",
-        "description": "Manage bot display name, avatar, banner, and presence",
-        "category": "Administration",
-        "requires_admin": True,
-    },
+# Cog files that ship with the bot (excluding registry, marketplace, admin, __init__)
+_BUILTIN_COG_MODULES = [
+    "bot.cogs.moderation",
+    "bot.cogs.utility",
+    "bot.cogs.tickets",
+    "bot.cogs.stats",
+    "bot.cogs.backups",
+    "bot.cogs.music",
+    "bot.cogs.activity_log",
+    "bot.cogs.giveaway",
+    "bot.cogs.welcome",
+    "bot.cogs.invite_tracker",
+    "bot.cogs.embeds",
+    "bot.cogs.bot_profile",
 ]
+
+
+def _discover_builtin_cogs() -> list[CogInfo]:
+    """Discover built-in cogs by importing each module and reading its COG_INFO."""
+    import importlib
+
+    cogs: list[CogInfo] = []
+    for module_name in _BUILTIN_COG_MODULES:
+        try:
+            mod = importlib.import_module(module_name)
+            info = getattr(mod, "COG_INFO", None)
+            if info and isinstance(info, dict):
+                cogs.append({
+                    "module": module_name,
+                    "name": info.get("name", module_name.rsplit(".", 1)[-1].title()),
+                    "description": info.get("description", ""),
+                    "category": info.get("category", ""),
+                    "requires_admin": info.get("requires_admin", False),
+                })
+            else:
+                # Fallback: derive name from module path
+                short = module_name.rsplit(".", 1)[-1]
+                cogs.append({
+                    "module": module_name,
+                    "name": short.replace("_", " ").title(),
+                    "description": "",
+                    "category": "",
+                    "requires_admin": False,
+                })
+        except Exception as exc:  # noqa: BLE001
+            log.warning("cog_discover_failed", module=module_name, error=str(exc))
+            short = module_name.rsplit(".", 1)[-1]
+            cogs.append({
+                "module": module_name,
+                "name": short.replace("_", " ").title(),
+                "description": "",
+                "category": "",
+                "requires_admin": False,
+            })
+    return cogs
+
+
+BUILTIN_COGS: list[CogInfo] = _discover_builtin_cogs()
 
 # ---------------------------------------------------------------------------
 # Dynamic Available Cogs — built-in + marketplace packages merged together

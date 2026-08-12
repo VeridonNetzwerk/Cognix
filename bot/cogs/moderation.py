@@ -7,6 +7,13 @@ broadcast as events for the dashboard.
 
 from __future__ import annotations
 
+COG_INFO = {
+    "name": "Moderation",
+    "description": "Ban, kick, mute, warn, purge commands for server moderation",
+    "category": "Moderation",
+    "requires_admin": True,
+}
+
 from datetime import UTC, datetime, timedelta
 from typing import Any
 

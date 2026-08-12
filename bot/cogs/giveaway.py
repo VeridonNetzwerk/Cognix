@@ -7,6 +7,13 @@ Giveaways are persisted to the ``giveaways`` table and are checked every
 
 from __future__ import annotations
 
+COG_INFO = {
+    "name": "Giveaways",
+    "description": "Time-limited giveaways with reaction-based entries",
+    "category": "Fun",
+    "requires_admin": True,
+}
+
 import asyncio
 import random
 import re

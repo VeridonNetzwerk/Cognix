@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+COG_INFO = {
+    "name": "Bot Profile",
+    "description": "Manage bot display name, avatar, banner, and presence",
+    "category": "Administration",
+    "requires_admin": True,
+}
+
 import discord
 from discord import app_commands
 from discord.ext import commands
 from sqlalchemy import select
 
-from bot.utils.embeds import ok_embed, error_embed
+from bot.utils.embeds import ok_embed, err_embed
 
 
 class BotProfile(commands.Cog):
@@ -24,18 +31,18 @@ class BotProfile(commands.Cog):
                 prof = await s.get(BotProfile, 1)
                 if prof is None:
                     await interaction.response.send_message(
-                        embed=error_embed("No profile", "Bot profile has not been configured."), ephemeral=True
+                        embed=err_embed("No profile", "Bot profile has not been configured."), ephemeral=True
                     )
                     return
                 emb = discord.Embed(
-                    title=prof.display_name or self.bot.user.display_name if self.bot.user else "CogniX",
+                    title=prof.display_name or (self.bot.user.display_name if self.bot.user else "CogniX"),
                     description=prof.about_me or "",
                     color=0x60A5FA,
                 )
                 await interaction.response.send_message(embed=emb, ephemeral=True)
         except Exception:
             await interaction.response.send_message(
-                embed=error_embed("Error", "Could not fetch bot profile."), ephemeral=True
+                embed=err_embed("Error", "Could not fetch bot profile."), ephemeral=True
             )
 
 

@@ -10,6 +10,13 @@ Playlists are persisted via :class:`MusicPlaylist`.
 
 from __future__ import annotations
 
+COG_INFO = {
+    "name": "Music",
+    "description": "Music playback with playlists (requires yt-dlp)",
+    "category": "Fun",
+    "requires_admin": True,
+}
+
 import uuid
 from datetime import UTC, datetime
 

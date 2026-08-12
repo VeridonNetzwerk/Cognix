@@ -9,6 +9,13 @@ All persistence is best-effort and never raises into discord.py.
 
 from __future__ import annotations
 
+COG_INFO = {
+    "name": "Activity Log",
+    "description": "Logs all Discord events (messages, members, channels, etc.)",
+    "category": "Logging",
+    "requires_admin": False,
+}
+
 from datetime import UTC, datetime
 from typing import Any
 

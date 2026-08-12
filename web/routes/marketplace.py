@@ -138,9 +138,12 @@ async def list_available(session: SessionDep) -> dict[str, Any]:
             "is_builtin": True,
         })
 
-    # 2. Remote marketplace registry cogs
+    # 2. Remote marketplace registry cogs (skip built-in entries to avoid duplicates)
     raw_list = await _get_marketplace_registry()
+    builtin_names = {c.get("name", "") for c in BUILTIN_COGS}
     for c in raw_list:
+        if c.get("is_builtin", False) or c.get("name", "") in builtin_names:
+            continue
         cogs_out.append({
             "name": c.get("name", ""),
             "display_name": c.get("display_name", c.get("name", "")),

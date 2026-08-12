@@ -13,6 +13,13 @@ The embed payload is a simple JSON dict with these optional keys:
 
 from __future__ import annotations
 
+COG_INFO = {
+    "name": "Welcome/Leave",
+    "description": "Custom embed messages on member join, leave, and boost",
+    "category": "Utility",
+    "requires_admin": False,
+}
+
 from typing import Any
 
 import discord

@@ -19,6 +19,13 @@ and to leave room for a future implementation.
 
 from __future__ import annotations
 
+COG_INFO = {
+    "name": "Backups",
+    "description": "Backup and restore server roles, channels, and permissions",
+    "category": "Administration",
+    "requires_admin": True,
+}
+
 import json
 import uuid
 from typing import Any
