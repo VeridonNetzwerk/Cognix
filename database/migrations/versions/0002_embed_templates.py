@@ -16,7 +16,13 @@ branch_labels = None
 depends_on = None
 
 
+def _has_table(name: str) -> bool:
+    return sa.inspect(op.get_bind()).has_table(name)
+
+
 def upgrade() -> None:
+    if _has_table("embed_templates"):
+        return
     op.create_table(
         "embed_templates",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),

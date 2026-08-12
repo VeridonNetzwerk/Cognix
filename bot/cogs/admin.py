@@ -37,6 +37,19 @@ from database.models.server_config import ServerConfig
 log = get_logger("bot.cogs.admin")
 
 
+def is_owner() -> app_commands.Check:
+    """App-commands compatible owner check."""
+    async def predicate(interaction: discord.Interaction) -> bool:
+        if interaction.user is None:
+            return False
+        if await interaction.client.is_owner(interaction.user):
+            return True
+        if interaction.guild is not None and interaction.guild.owner_id == interaction.user.id:
+            return True
+        return False
+    return app_commands.check(predicate)
+
+
 class AdminCog(commands.Cog):
     """Admin cog for lazy load management."""
 
@@ -49,7 +62,7 @@ class AdminCog(commands.Cog):
     # ------------------------------------------------------------- list
 
     @cog_group.command(name="list", description="List all available cogs with load status")
-    @commands.is_owner()  # Only bot owner
+    @is_owner()  # Only bot owner
     async def list_cogs(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
         cog_infos = get_all_cog_info()
@@ -70,14 +83,14 @@ class AdminCog(commands.Cog):
 
     @cog_group.command(name="load", description="Load a cog dynamically (makes its commands available)")
     @app_commands.describe(cog="The cog to load (e.g. moderation, utility, tickets)")
-    @commands.is_owner()
+    @is_owner()
     async def load(self, interaction: discord.Interaction, cog: str) -> None:
         result = await load_cog(self.bot, cog)
         if result.get("ok"):
             # Persist the loaded state
             try:
                 from bot.cogs.registry import persist_loaded_cogs
-                persist_loaded_cogs(get_loaded_cogs())
+                await persist_loaded_cogs(get_loaded_cogs())
                 log.info("cog_persisted", cogs=get_loaded_cogs())
             except Exception as exc:  # noqa: BLE001
                 log.warning("cog_persist_failed", error=str(exc))
@@ -93,13 +106,13 @@ class AdminCog(commands.Cog):
 
     @cog_group.command(name="unload", description="Unload a cog (removes its commands)")
     @app_commands.describe(cog="The cog to unload")
-    @commands.is_owner()
+    @is_owner()
     async def unload(self, interaction: discord.Interaction, cog: str) -> None:
         result = await unload_cog(self.bot, cog)
         if result.get("ok"):
             try:
                 from bot.cogs.registry import persist_loaded_cogs
-                persist_loaded_cogs(get_loaded_cogs())
+                await persist_loaded_cogs(get_loaded_cogs())
             except Exception as exc:  # noqa: BLE001
                 log.warning("cog_persist_failed", error=str(exc))
             await interaction.response.send_message(
@@ -114,7 +127,7 @@ class AdminCog(commands.Cog):
 
     @cog_group.command(name="reload", description="Reload a cog (for development)")
     @app_commands.describe(cog="The cog to reload")
-    @commands.is_owner()
+    @is_owner()
     async def reload_cog_cmd(self, interaction: discord.Interaction, cog: str) -> None:
         result = await reload_cog(self.bot, cog)
         if result.get("ok"):

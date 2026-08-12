@@ -17,10 +17,10 @@ Design principle:
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
 from config.logging import get_logger
+from config.settings import get_settings
 
 log = get_logger("bot.cog_registry")
 
@@ -134,28 +134,30 @@ def get_all_cog_info() -> list[CogInfo]:
 
 
 def _get_installed_marketplace_cogs() -> list[Any]:
-    """Sync helper to get installed marketplace packages."""
+    """Sync helper to get installed marketplace packages.
+
+    Uses a synchronous SQLite connection to avoid deadlock when called
+    from within the event loop thread.
+    """
     try:
         from database.models.cog_package import CogPackage
-        from database.session import db_session
-        from sqlalchemy import select as sa_select
+        from sqlalchemy import create_engine, select as sa_select
+        from sqlalchemy.orm import Session
 
-        async def _load():
-            async with db_session() as s:
-                return list(await s.scalars(
+        settings = get_settings()
+        # Convert async URL to sync URL for this one-off query
+        sync_url = settings.database_url.replace("+aiosqlite", "").replace("+asyncpg", "+psycopg2").replace("+aiomysql", "+pymysql")
+        engine = create_engine(sync_url, echo=False)
+        try:
+            with Session(engine) as s:
+                return list(s.scalars(
                     sa_select(CogPackage).where(
                         CogPackage.installed.is_(True),
                         CogPackage.uninstall_requested.is_(False),
                     )
                 ))
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-        if loop is not None and loop.is_running():
-            fut = asyncio.run_coroutine_threadsafe(_load(), loop)
-            return fut.result(timeout=2.0)
-        return []
+        finally:
+            engine.dispose()
     except Exception:  # noqa: BLE001
         return []
 
@@ -302,56 +304,37 @@ async def reload_cog(bot: Any, cog_name: str) -> dict[str, Any]:
 _LOADED_COGS_KEY = "loaded_cogs_v2"
 
 
-def get_persisted_loaded_cogs() -> list[str]:
+async def get_persisted_loaded_cogs() -> list[str]:
     """Get the list of cogs that SHOULD be loaded (from DB)."""
     try:
         from database.session import db_session
         from database.models.system_config import SystemConfig
         from sqlalchemy import select as sa_select
 
-        async def _load():
-            async with db_session() as s:
-                cfg = await s.scalar(
-                    sa_select(SystemConfig).where(SystemConfig.id == 1)
-                )
-                if cfg and hasattr(cfg, "loaded_cogs_v2") and cfg.loaded_cogs_v2:
-                    return list(cfg.loaded_cogs_v2)
-            return []
-
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-        if loop is not None and loop.is_running():
-            fut = asyncio.run_coroutine_threadsafe(_load(), loop)
-            return fut.result(timeout=2.0)
+        async with db_session() as s:
+            cfg = await s.scalar(
+                sa_select(SystemConfig).where(SystemConfig.id == 1)
+            )
+            if cfg and hasattr(cfg, "loaded_cogs_v2") and cfg.loaded_cogs_v2:
+                return list(cfg.loaded_cogs_v2)
         return []
     except Exception:  # noqa: BLE001
         return []
 
 
-def persist_loaded_cogs(cog_names: list[str]) -> None:
+async def persist_loaded_cogs(cog_names: list[str]) -> None:
     """Save the list of loaded cogs to system_config for persistence across restarts."""
     try:
         from database.session import db_session
         from sqlalchemy import select as sa_select
 
-        async def _persist():
-            async with db_session() as s:
-                from database.models.system_config import SystemConfig
+        async with db_session() as s:
+            from database.models.system_config import SystemConfig
 
-                cfg = await s.scalar(sa_select(SystemConfig).where(SystemConfig.id == 1))
-                if cfg is not None:
-                    cfg.loaded_cogs_v2 = list(cog_names)
-                    await s.flush()
-
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-        if loop is not None and loop.is_running():
-            fut = asyncio.run_coroutine_threadsafe(_persist(), loop)
-            fut.result(timeout=2.0)
+            cfg = await s.scalar(sa_select(SystemConfig).where(SystemConfig.id == 1))
+            if cfg is not None:
+                cfg.loaded_cogs_v2 = list(cog_names)
+                await s.flush()
     except Exception as exc:  # noqa: BLE001
         log.warning("persist_loaded_cogs_failed", error=str(exc))
 
@@ -361,7 +344,7 @@ async def restore_loaded_cogs(bot: Any) -> int:
 
     Returns the number of cogs that were re-loaded.
     """
-    saved = get_persisted_loaded_cogs()
+    saved = await get_persisted_loaded_cogs()
     if not saved:
         return 0
 
@@ -374,6 +357,6 @@ async def restore_loaded_cogs(bot: Any) -> int:
             log.warning("restore_cog_failed", cog=name, error=result.get("error"))
 
     if count > 0:
-        persist_loaded_cogs(get_loaded_cogs())
+        await persist_loaded_cogs(get_loaded_cogs())
 
     return count

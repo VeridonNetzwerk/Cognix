@@ -113,7 +113,7 @@ async def is_cog_enabled_for_server(server_id: int, cog_name: str) -> bool:
     Returns True only when ALL of the following are true:
     1. The cog is loaded globally (bot has its extension loaded)
     2. ServerCogState exists and is enabled, OR no row exists (defaults to True)
-    3. SystemConfig.enabled_cobs for this server includes the cog name
+    3. SystemConfig.enabled_cogs for this server includes the cog name
 
     Defaults to ``True`` when no DB data exists. Falls back to ``True`` on any DB
     error so a misconfigured DB doesn't silently brick all commands.

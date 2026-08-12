@@ -164,6 +164,8 @@ async def setup_submit(request: Request,
             ))
     except SetupError as exc:
         return _render(request, "setup.html", error=str(exc))
+    except Exception as exc:  # noqa: BLE001
+        return _render(request, "setup.html", error=f"Setup failed: {exc}")
     return RedirectResponse("/login", status_code=303)
 
 
@@ -881,6 +883,7 @@ async def server_permissions_delete(server_id: int,
 # ===== Phase 2 routes appended below =====
 
 from datetime import datetime as _dt2
+from datetime import timedelta as _td2
 from datetime import timezone as _tz2
 from base64 import b64decode as _b64decode
 
@@ -1910,7 +1913,6 @@ async def members_timeout(server_id: str, member_id: str,
                            minutes: int = Form(default=10),
                            reason: str = Form(default=""),
                            access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
-    import discord as _d
     me = await _require_user(access_token)
     bot = get_bot()
     if bot is not None:
@@ -1919,7 +1921,7 @@ async def members_timeout(server_id: str, member_id: str,
             member = guild.get_member(int(member_id))
             if member is not None:
                 try:
-                    until = _dt2.now(tz=_tz2.utc) + __import__('datetime').timedelta(minutes=max(1, min(40320, minutes)))
+                    until = _dt2.now(tz=_tz2.utc) + _td2(minutes=max(1, min(40320, minutes)))
                     await member.edit(timed_out_until=until, reason=f"web by {me.username}: {reason}")
                 except Exception:
                     pass

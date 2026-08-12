@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -62,7 +63,7 @@ async def create_backup(req: CreateBackupRequest, session: SessionDep, user: Cur
     encoded = json.dumps(payload, separators=(",", ":"))
     backup = Backup(
         server_id=int(req.server_id),
-        name=req.name or f"backup-{int(__import__('time').time())}",
+        name=req.name or f"backup-{int(time.time())}",
         description=req.description,
         created_by=0,  # web-initiated
         payload_encrypted=encrypt_secret(encoded, aad=b"backup"),

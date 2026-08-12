@@ -16,9 +16,21 @@ branch_labels = None
 depends_on = None
 
 
+def _has_table(name: str) -> bool:
+    return sa.inspect(op.get_bind()).has_table(name)
+
+
+def _has_index(table: str, index: str) -> bool:
+    insp = sa.inspect(op.get_bind())
+    if not insp.has_table(table):
+        return False
+    return any(ix["name"] == index for ix in insp.get_indexes(table))
+
+
 def upgrade() -> None:
     # Discord activity log
-    op.create_table(
+    if not _has_table("discord_events"):
+        op.create_table(
         "discord_events",
         sa.Column("id", sa.Uuid(), primary_key=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
@@ -31,15 +43,18 @@ def upgrade() -> None:
         sa.Column("content", sa.Text(), nullable=False, server_default=""),
         sa.Column("extras", sa.JSON(), nullable=False),
     )
-    op.create_index(
-        "ix_discord_events_server_created", "discord_events", ["server_id", "created_at"]
-    )
-    op.create_index(
-        "ix_discord_events_type_created", "discord_events", ["event_type", "created_at"]
-    )
+    if not _has_index("discord_events", "ix_discord_events_server_created"):
+        op.create_index(
+            "ix_discord_events_server_created", "discord_events", ["server_id", "created_at"]
+        )
+    if not _has_index("discord_events", "ix_discord_events_type_created"):
+        op.create_index(
+            "ix_discord_events_type_created", "discord_events", ["event_type", "created_at"]
+        )
 
     # Cache full message content so deletes are recoverable for transcripts.
-    op.create_table(
+    if not _has_table("discord_message_cache"):
+        op.create_table(
         "discord_message_cache",
         sa.Column("message_id", sa.BigInteger(), primary_key=True),
         sa.Column("channel_id", sa.BigInteger(), nullable=False, index=True),
@@ -53,7 +68,8 @@ def upgrade() -> None:
     )
 
     # User-specific UI settings (theme, font size).
-    op.create_table(
+    if not _has_table("web_user_settings"):
+        op.create_table(
         "web_user_settings",
         sa.Column("user_id", sa.Uuid(), sa.ForeignKey("web_users.id", ondelete="CASCADE"), primary_key=True),
         sa.Column("theme", sa.String(length=32), nullable=False, server_default="dark"),
@@ -64,7 +80,8 @@ def upgrade() -> None:
     )
 
     # Granular per-user module permissions.
-    op.create_table(
+    if not _has_table("web_user_module_permissions"):
+        op.create_table(
         "web_user_module_permissions",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column(
@@ -80,7 +97,8 @@ def upgrade() -> None:
     )
 
     # Per-server cog activation override.
-    op.create_table(
+    if not _has_table("server_cog_state"):
+        op.create_table(
         "server_cog_state",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column(
@@ -97,7 +115,8 @@ def upgrade() -> None:
     )
 
     # Bot profile cache (cosmetic settings managed via dashboard).
-    op.create_table(
+    if not _has_table("bot_profile"):
+        op.create_table(
         "bot_profile",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("display_name", sa.String(length=64), nullable=False, server_default=""),
@@ -111,7 +130,8 @@ def upgrade() -> None:
     )
 
     # Music playlists (server-scoped).
-    op.create_table(
+    if not _has_table("music_playlists"):
+        op.create_table(
         "music_playlists",
         sa.Column("id", sa.Uuid(), primary_key=True),
         sa.Column("server_id", sa.BigInteger(), nullable=False, index=True),

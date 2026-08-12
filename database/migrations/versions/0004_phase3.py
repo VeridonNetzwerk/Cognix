@@ -16,8 +16,20 @@ branch_labels = None
 depends_on = None
 
 
+def _has_table(name: str) -> bool:
+    return sa.inspect(op.get_bind()).has_table(name)
+
+
+def _has_column(table: str, column: str) -> bool:
+    insp = sa.inspect(op.get_bind())
+    if not insp.has_table(table):
+        return False
+    return any(c["name"] == column for c in insp.get_columns(table))
+
+
 def upgrade() -> None:
-    op.create_table(
+    if not _has_table("giveaways"):
+        op.create_table(
         "giveaways",
         sa.Column("id", sa.Uuid(), primary_key=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
@@ -35,7 +47,8 @@ def upgrade() -> None:
         sa.Column("host_id", sa.BigInteger(), nullable=False),
     )
 
-    op.create_table(
+    if not _has_table("ticket_types"):
+        op.create_table(
         "ticket_types",
         sa.Column("id", sa.Uuid(), primary_key=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
@@ -49,7 +62,8 @@ def upgrade() -> None:
         sa.Column("welcome_embed", sa.JSON(), nullable=False),
     )
 
-    op.create_table(
+    if not _has_table("ticket_panels"):
+        op.create_table(
         "ticket_panels",
         sa.Column("id", sa.Uuid(), primary_key=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
@@ -62,7 +76,8 @@ def upgrade() -> None:
         sa.Column("buttons", sa.JSON(), nullable=False),
     )
 
-    op.create_table(
+    if not _has_table("server_event_configs"):
+        op.create_table(
         "server_event_configs",
         sa.Column("server_id", sa.BigInteger(), sa.ForeignKey("servers.id", ondelete="CASCADE"), primary_key=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
@@ -78,8 +93,9 @@ def upgrade() -> None:
         sa.Column("boost_embed", sa.JSON(), nullable=False),
     )
 
-    with op.batch_alter_table("tickets") as bop:
-        bop.add_column(sa.Column("ticket_type_id", sa.Uuid(), nullable=True))
+    if not _has_column("tickets", "ticket_type_id"):
+        with op.batch_alter_table("tickets") as bop:
+            bop.add_column(sa.Column("ticket_type_id", sa.Uuid(), nullable=True))
 
 
 def downgrade() -> None:

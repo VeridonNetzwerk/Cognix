@@ -23,3 +23,5 @@ async def initialize(req: SetupRequest, session: SessionDep) -> SetupResponse:
         return await perform_setup(session, req)
     except SetupError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, f"Setup failed: {exc}") from exc

@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from bot.runtime import get_bot_info
 from config.constants import API_V1_PREFIX
 from config.logging import configure_logging, get_logger
 from config.settings import get_settings
@@ -151,7 +152,7 @@ def create_app() -> FastAPI:
             return JSONResponse({"error": exc.detail}, status_code=exc.status_code)
         return templates.TemplateResponse(
             request, "error.html",
-            {"user": None, "status": exc.status_code,
+            {"user": None, "bot_info": get_bot_info(), "status": exc.status_code,
              "title": "Error" if exc.status_code != 404 else "Not found",
              "detail": str(exc.detail)},
             status_code=exc.status_code,
@@ -176,7 +177,7 @@ def create_app() -> FastAPI:
             )
         return templates.TemplateResponse(
             request, "error.html",
-            {"user": None, "status": 500, "title": "Internal error",
+            {"user": None, "bot_info": get_bot_info(), "status": 500, "title": "Internal error",
              "detail": str(exc) if settings.is_dev else
                        "Something broke. Check the bot console for the traceback."},
             status_code=500,

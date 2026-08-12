@@ -40,7 +40,7 @@ class SetupRequest(BaseModel):
     database_url: str | None = None  # Optional override; usually pre-set via .env
     admin_username: str = Field(min_length=3, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$")
     admin_email: EmailStr | None = None
-    admin_password: SecretStr
+    admin_password: SecretStr = Field(min_length=10)
     enable_2fa: bool = False
     google_oauth_client_id: str | None = None
     google_oauth_client_secret: SecretStr | None = None

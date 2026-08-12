@@ -44,6 +44,19 @@ from database.models.cog_package import CogPackage
 
 log = get_logger("bot.cogs.marketplace")
 
+
+def is_owner() -> app_commands.Check:
+    """App-commands compatible owner check."""
+    async def predicate(interaction: discord.Interaction) -> bool:
+        if interaction.user is None:
+            return False
+        if await interaction.client.is_owner(interaction.user):
+            return True
+        if interaction.guild is not None and interaction.guild.owner_id == interaction.user.id:
+            return True
+        return False
+    return app_commands.check(predicate)
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -536,7 +549,7 @@ class MarketplaceCogCmd(commands.Cog):
     @app_commands.describe(
         cog_or_url="The cog name from the marketplace, or a direct GitHub repository URL"
     )
-    @commands.is_owner()  # Only bot owner can install
+    @is_owner()  # Only bot owner can install
     async def install_cog(self, interaction: discord.Interaction, cog_or_url: str) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
 
@@ -631,7 +644,7 @@ class MarketplaceCogCmd(commands.Cog):
 
     @marketplace_group.command(name="uninstall", description="Uninstall a marketplace cog")
     @app_commands.describe(cog="The name of the installed cog to uninstall")
-    @commands.is_owner()  # Only bot owner can uninstall
+    @is_owner()  # Only bot owner can uninstall
     async def uninstall_cog_cmd(self, interaction: discord.Interaction, cog: str) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
 

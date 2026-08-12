@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import base64
 import secrets
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.crypto import encrypt_secret
+from config.logging import get_logger
 from config.settings import get_settings
 from database.models.system_config import SystemConfig
 from database.models.web_user import BackupCode, WebRole, WebUser
@@ -21,6 +23,8 @@ from web.security.totp import (
     provisioning_uri,
     qr_data_url,
 )
+
+log = get_logger("web.services.setup")
 
 
 class SetupError(RuntimeError):
@@ -56,6 +60,13 @@ async def perform_setup(session: AsyncSession, req: SetupRequest) -> SetupRespon
     pw = req.admin_password.get_secret_value()
     if len(pw) < 10:
         raise SetupError("Admin password must be at least 10 characters")
+
+    # Ensure MASTER_KEY exists before encrypting secrets
+    settings = get_settings()
+    if not settings.master_key:
+        generated = base64.b64encode(secrets.token_bytes(32)).decode("ascii")
+        settings.master_key = generated
+        log.info("master_key_auto_generated")
 
     # Persist bot config
     cfg.bot_token_encrypted = encrypt_secret(bot_token, aad=b"bot_token")
