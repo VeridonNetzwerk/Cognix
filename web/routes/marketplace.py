@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import select as sa_select
 
 from database.models.cog_package import CogPackage
+from bot.cogs.registry import BUILTIN_COGS, get_loaded_cogs
 from web.deps import SessionDep, require_admin
 from web.services.bot_ipc import get_ipc
 
@@ -90,10 +91,24 @@ async def _get_marketplace_registry() -> list[dict[str, Any]]:
 
 @router.get("/available")
 async def list_available(session: SessionDep) -> dict[str, Any]:
-    """List all available cogs from the marketplace registry."""
-    raw_list = await _get_marketplace_registry()
+    """List all available cogs — built-in + marketplace registry."""
+    # Get loaded extensions from bot runtime
+    loaded_modules: set[str] = set()
+    try:
+        loaded_modules = set(get_loaded_cogs())
+    except Exception:
+        pass
 
-    # Get installed packages from DB
+    # Also check bot.extensions directly
+    try:
+        from bot.runtime import get_bot as _get_bot
+        bot = _get_bot()
+        if bot is not None:
+            loaded_modules |= set(bot.extensions.keys())
+    except Exception:
+        pass
+
+    # Get installed marketplace packages from DB
     installed_names: set[str] = set()
     try:
         pkgs = await session.scalars(
@@ -103,28 +118,85 @@ async def list_available(session: SessionDep) -> dict[str, Any]:
     except Exception:  # noqa: BLE001
         pass
 
-    return {
-        "cogs": [
-            {
-                "name": c.get("name", ""),
-                "display_name": c.get("display_name", c.get("name", "")),
-                "description": c.get("description", ""),
-                "github_repo": c.get("github_repo", ""),
-                "version": c.get("version"),
-                "dependencies": c.get("dependencies", []),
-                "category": c.get("category", "General"),
-                "requires_admin": c.get("requires_admin", False),
-                "author": c.get("author"),
-                "installed": c.get("name", "") in installed_names,
-            }
-            for c in raw_list
-        ]
-    }
+    cogs_out: list[dict[str, Any]] = []
+
+    # 1. Built-in cogs
+    for c in BUILTIN_COGS:
+        module = c.get("module", "")
+        name = c.get("name", "")
+        cogs_out.append({
+            "name": name,
+            "display_name": name,
+            "description": c.get("description", ""),
+            "github_repo": "",
+            "version": "built-in",
+            "dependencies": [],
+            "category": c.get("category", "Built-in"),
+            "requires_admin": c.get("requires_admin", False),
+            "author": "CogniX",
+            "installed": module in loaded_modules,
+            "is_builtin": True,
+        })
+
+    # 2. Remote marketplace registry cogs
+    raw_list = await _get_marketplace_registry()
+    for c in raw_list:
+        cogs_out.append({
+            "name": c.get("name", ""),
+            "display_name": c.get("display_name", c.get("name", "")),
+            "description": c.get("description", ""),
+            "github_repo": c.get("github_repo", ""),
+            "version": c.get("version"),
+            "dependencies": c.get("dependencies", []),
+            "category": c.get("category", "Marketplace"),
+            "requires_admin": c.get("requires_admin", False),
+            "author": c.get("author"),
+            "installed": c.get("name", "") in installed_names,
+            "is_builtin": False,
+        })
+
+    return {"cogs": cogs_out}
 
 
 @router.get("/installed")
 async def list_installed(session: SessionDep) -> dict[str, Any]:
-    """List all installed marketplace packages."""
+    """List all installed/loaded cogs — built-in + marketplace."""
+    installed: list[dict[str, Any]] = []
+
+    # 1. Built-in cogs that are loaded
+    loaded_modules: set[str] = set()
+    try:
+        loaded_modules = set(get_loaded_cogs())
+    except Exception:
+        pass
+    try:
+        from bot.runtime import get_bot as _get_bot
+        bot = _get_bot()
+        if bot is not None:
+            loaded_modules |= set(bot.extensions.keys())
+    except Exception:
+        pass
+
+    for c in BUILTIN_COGS:
+        module = c.get("module", "")
+        if module in loaded_modules:
+            installed.append({
+                "id": None,
+                "name": c.get("name", ""),
+                "display_name": c.get("name", ""),
+                "description": c.get("description", ""),
+                "github_repo": "",
+                "version": "built-in",
+                "dependencies": [],
+                "category": c.get("category", "Built-in"),
+                "requires_admin": c.get("requires_admin", False),
+                "author": "CogniX",
+                "module_name": module,
+                "installed_at": None,
+                "is_builtin": True,
+            })
+
+    # 2. Marketplace-installed cogs from DB
     try:
         pkgs = await session.scalars(
             sa_select(CogPackage).where(
@@ -132,8 +204,8 @@ async def list_installed(session: SessionDep) -> dict[str, Any]:
                 CogPackage.uninstall_requested.is_(False),
             )
         )
-        installed = [
-            {
+        for p in pkgs:
+            installed.append({
                 "id": p.id,
                 "name": p.name,
                 "display_name": p.display_name,
@@ -146,9 +218,8 @@ async def list_installed(session: SessionDep) -> dict[str, Any]:
                 "author": p.author,
                 "module_name": p.module_name,
                 "installed_at": p.last_installed_at.isoformat() if p.last_installed_at else None,
-            }
-            for p in pkgs
-        ]
+                "is_builtin": False,
+            })
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, str(exc)) from exc
 
@@ -174,26 +245,41 @@ async def install_cog(req: InstallRequest, session: SessionDep) -> dict[str, Any
     # Fallback: direct bot call (same process, no Redis needed)
     try:
         from bot.runtime import get_bot as _get_bot
-        from bot.cogs.marketplace import install_cog_from_source, save_package_metadata
-        from pathlib import Path
 
         bot = _get_bot()
         if bot is None:
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "bot not running")
 
         cog_or_url = req.cog_or_url
+
+        # Check if this is a built-in cog by name
+        from bot.cogs.registry import get_cog_info, load_cog, BUILTIN_COGS
+        builtin_info = get_cog_info(cog_or_url)
+        is_builtin_match = any(
+            c["name"].lower() == cog_or_url.lower() or c["module"] == cog_or_url
+            for c in BUILTIN_COGS
+        )
+
+        if is_builtin_match and builtin_info:
+            # Built-in cog: just load the extension
+            result = await load_cog(bot, builtin_info["module"])
+            if not result.get("ok"):
+                raise HTTPException(400, result.get("error", "failed to load cog"))
+            return {"ok": True, "cog": builtin_info["name"]}
+
+        # Marketplace cog: git clone or pip install
+        from bot.cogs.marketplace import install_cog_from_source, save_package_metadata
+
         is_url = cog_or_url.startswith("http") or cog_or_url.startswith("file:")
         repo_url = cog_or_url
         cog_name = cog_or_url
 
         if is_url:
-            # Derive cog name from URL path
             from urllib.parse import urlparse
             parsed = urlparse(cog_or_url)
             path_parts = [p for p in parsed.path.split("/") if p]
             if path_parts:
                 cog_name = path_parts[-1].replace(".git", "")
-            # Convert file:// URLs to local paths for git clone
             if cog_or_url.startswith("file://"):
                 repo_url = parsed.path
         else:
@@ -262,11 +348,27 @@ async def uninstall_cog(req: UninstallRequest, session: SessionDep) -> dict[str,
     # Fallback: direct bot call (same process, no Redis needed)
     try:
         from bot.runtime import get_bot as _get_bot
-        from bot.cogs.marketplace import uninstall_cog as _uninstall_cog
 
         bot = _get_bot()
         if bot is None:
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "bot not running")
+
+        # Check if this is a built-in cog
+        from bot.cogs.registry import get_cog_info, unload_cog, BUILTIN_COGS
+        is_builtin_match = any(
+            c["name"].lower() == req.cog_name.lower() or c["module"] == req.cog_name
+            for c in BUILTIN_COGS
+        )
+
+        if is_builtin_match:
+            # Built-in cog: just unload the extension
+            result = await unload_cog(bot, req.cog_name)
+            if not result.get("ok"):
+                raise HTTPException(400, result.get("error", "failed to unload cog"))
+            return {"ok": True, "cog": req.cog_name}
+
+        # Marketplace cog: uninstall + delete files
+        from bot.cogs.marketplace import uninstall_cog as _uninstall_cog
 
         result = await _uninstall_cog(bot, req.cog_name)
         if not result.get("ok"):

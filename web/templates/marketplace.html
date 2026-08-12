@@ -73,6 +73,10 @@
                     style="background: color-mix(in oklch, var(--color-success) 20%, transparent); color: var(--color-success);">
                 Installed
               </span>
+              <span x-show="cog.is_builtin" class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full"
+                    style="background: color-mix(in oklch, var(--color-primary) 20%, transparent); color: var(--color-primary);">
+                Built-in
+              </span>
               <span x-show="cog.requires_admin" class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full"
                     style="background: color-mix(in oklch, var(--color-warning) 20%, transparent); color: var(--color-warning);">
                 Admin
@@ -94,13 +98,13 @@
         <div class="shrink-0">
           <button x-show="!cog.installed" @click="install(cog)"
                   class="btn btn-primary" :disabled="installing === cog.name">
-            <i class="ph" :class="installing === cog.name ? 'ph-spinner animate-spin' : 'ph-download-simple'"></i>
-            <span x-text="installing === cog.name ? 'Installing...' : 'Install'"></span>
+            <i class="ph" :class="installing === cog.name ? 'ph-spinner animate-spin' : (cog.is_builtin ? 'ph-power' : 'ph-download-simple')"></i>
+            <span x-text="installing === cog.name ? (cog.is_builtin ? 'Loading...' : 'Installing...') : (cog.is_builtin ? 'Load' : 'Install')"></span>
           </button>
           <button x-show="cog.installed" @click="uninstall(cog)"
                   class="btn btn-destructive" :disabled="installing === cog.name">
-            <i class="ph" :class="installing === cog.name ? 'ph-spinner animate-spin' : 'ph-trash'"></i>
-            <span x-text="installing === cog.name ? 'Removing...' : 'Uninstall'"></span>
+            <i class="ph" :class="installing === cog.name ? 'ph-spinner animate-spin' : (cog.is_builtin ? 'ph-power-off' : 'ph-trash')"></i>
+            <span x-text="installing === cog.name ? (cog.is_builtin ? 'Unloading...' : 'Removing...') : (cog.is_builtin ? 'Unload' : 'Uninstall')"></span>
           </button>
         </div>
       </div>
@@ -127,6 +131,10 @@
                     style="background: color-mix(in oklch, var(--color-success) 20%, transparent); color: var(--color-success);">
                 Installed
               </span>
+              <span x-show="cog.is_builtin" class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full"
+                    style="background: color-mix(in oklch, var(--color-primary) 20%, transparent); color: var(--color-primary);">
+                Built-in
+              </span>
               <span x-show="cog.category" class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full"
                     style="background: var(--color-secondary); color: var(--color-muted-foreground);"
                     x-text="cog.category"></span>
@@ -144,15 +152,15 @@
         </div>
         <div class="shrink-0">
           <button @click="uninstall(cog)" class="btn btn-destructive" :disabled="installing === cog.name">
-            <i class="ph" :class="installing === cog.name ? 'ph-spinner animate-spin' : 'ph-trash'"></i>
-            <span x-text="installing === cog.name ? 'Removing...' : 'Uninstall'"></span>
+            <i class="ph" :class="installing === cog.name ? 'ph-spinner animate-spin' : (cog.is_builtin ? 'ph-power-off' : 'ph-trash')"></i>
+            <span x-text="installing === cog.name ? (cog.is_builtin ? 'Unloading...' : 'Removing...') : (cog.is_builtin ? 'Unload' : 'Uninstall')"></span>
           </button>
         </div>
       </div>
     </template>
     <div x-show="!loading && installedCogs.length === 0" class="text-center py-16" style="color: var(--color-muted-foreground);">
       <i class="ph ph-package text-4xl block mb-3 opacity-40"></i>
-      <p class="text-sm">No marketplace cogs installed yet. Browse the Available tab to install some.</p>
+      <p class="text-sm">No cogs loaded yet. Browse the Available tab to load some.</p>
     </div>
   </div>
 
