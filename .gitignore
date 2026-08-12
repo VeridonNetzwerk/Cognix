@@ -41,3 +41,12 @@ Cognix.wiki/
 
 # Test install directory
 _test_install/
+
+# Temporary test scripts
+test_login.py
+test_marketplace.py
+install_test.py
+test_cog_repo/
+
+# Cog install directory
+.cognix_cogs/
