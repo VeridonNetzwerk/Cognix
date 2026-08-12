@@ -126,7 +126,6 @@ async def _main() -> int:
         env=settings.app_env,
         db=settings.db_kind,
         redis_enabled=settings.redis_enabled,
-        frontend_enabled=settings.serve_frontend,
     )
     try:
         await _run_migrations()

@@ -57,10 +57,6 @@ class Settings(BaseSettings):
     google_oauth_client_secret: str = ""
     google_oauth_redirect_uri: str = ""
 
-    # ---- Frontend ----
-    frontend_dir: str = "frontend/.next/standalone"
-    serve_frontend: bool = True
-
     # ---- Logging ----
     log_level: str = "INFO"
     log_json: bool = False

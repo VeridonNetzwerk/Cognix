@@ -1,6 +1,6 @@
 """Block all routes until first-run setup is complete.
 
-Allow-list: setup endpoints, health checks, and static frontend assets.
+Allow-list: setup endpoints, health checks, and HTML pages.
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ class SetupGateMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
         path = request.url.path
-        # Frontend pages (HTML) are allowed; the SPA itself routes to /setup.
+        # HTML pages are allowed; the dashboard routes to /setup.
         if path == "/" or path.startswith(ALLOWED_PREFIXES):
             return await call_next(request)
 
