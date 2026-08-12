@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Bot profile · {{ bot_info.name }}{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Bot profile</h1>
+<div class="grid lg:grid-cols-2 gap-6"
+     x-data="{
+       display_name: '{{ profile.display_name|e }}',
+       about_me: `{{ profile.about_me|e }}`,
+       avatar_data: '{{ profile.avatar_data|e }}',
+       banner_data: '{{ profile.banner_data|e }}',
+       activity_type: '{{ profile.activity_type }}',
+       activity_text: '{{ profile.activity_text|e }}',
+       status: '{{ profile.status }}',
+       avatarFallback: '{{ bot_info.avatar_url }}',
+       loadFile(ev, key, max){
+         const f = ev.target.files[0]; if(!f) return;
+         if(f.size > max){ alert('File too large'); return; }
+         const r = new FileReader();
+         r.onload = () => { this[key] = r.result; };
+         r.readAsDataURL(f);
+       }
+     }">
+  <form method="post" action="/bot-profile" class="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
+    <input type="hidden" name="avatar_data" :value="avatar_data">
+    <input type="hidden" name="banner_data" :value="banner_data">
+    <label class="block">
+      <span class="text-xs text-slate-400">Display name</span>
+      <input name="display_name" maxlength="32" x-model="display_name"
+             class="w-full mt-1 bg-slate-800 border border-slate-700 rounded px-3 py-2">
+    </label>
+    <label class="block">
+      <span class="text-xs text-slate-400">About me / bio (stored locally)</span>
+      <textarea name="about_me" rows="3" maxlength="512" x-model="about_me"
+                class="w-full mt-1 bg-slate-800 border border-slate-700 rounded px-3 py-2"></textarea>
+    </label>
+    <label class="block">
+      <span class="text-xs text-slate-400">Avatar (PNG/JPG, &lt;1 MB)</span>
+      <input type="file" accept="image/*"
+             @change="loadFile($event,'avatar_data',1_000_000)"
+             class="block mt-1 text-xs">
+    </label>
+    <label class="block">
+      <span class="text-xs text-slate-400">Banner (&lt;2 MB)</span>
+      <input type="file" accept="image/*"
+             @change="loadFile($event,'banner_data',2_000_000)"
+             class="block mt-1 text-xs">
+    </label>
+    <div class="grid grid-cols-3 gap-3">
+      <label class="block">
+        <span class="text-xs text-slate-400">Activity</span>
+        <select name="activity_type" x-model="activity_type" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded px-2 py-2">
+          {% for t in ["playing","listening","watching","competing","streaming"] %}
+          <option value="{{ t }}">{{ t }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="block col-span-2">
+        <span class="text-xs text-slate-400">Activity text</span>
+        <input name="activity_text" maxlength="128" x-model="activity_text"
+               class="w-full mt-1 bg-slate-800 border border-slate-700 rounded px-3 py-2">
+      </label>
+      <label class="block col-span-3">
+        <span class="text-xs text-slate-400">Status</span>
+        <select name="status" x-model="status" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded px-2 py-2">
+          {% for s in ["online","idle","dnd","invisible"] %}
+          <option value="{{ s }}">{{ s }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+    <button class="px-4 py-2 bg-brand-600 hover:bg-brand-500 rounded text-sm">Save profile</button>
+  </form>
+
+  <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+    <div class="h-32 bg-gradient-to-br from-slate-700 to-slate-800"
+         :style="banner_data ? `background-image:url(${banner_data});background-size:cover;background-position:center` : ''"></div>
+    <div class="p-5 -mt-10">
+      <img :src="avatar_data || avatarFallback" alt="" class="w-20 h-20 rounded-full border-4 border-slate-900 bg-slate-800 object-cover">
+      <div class="mt-3">
+        <div class="text-lg font-semibold" x-text="display_name || '{{ bot_info.name }}'"></div>
+        <div class="text-xs text-slate-400 mt-1">
+          <span :class="{
+            'text-emerald-400': status==='online',
+            'text-amber-400':   status==='idle',
+            'text-rose-400':    status==='dnd',
+            'text-slate-500':   status==='invisible'
+          }" x-text="status"></span>
+          <span class="text-slate-500">·</span>
+          <span x-text="activity_type + ' ' + activity_text"></span>
+        </div>
+        <div class="mt-3 text-sm text-slate-300 whitespace-pre-line" x-text="about_me"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

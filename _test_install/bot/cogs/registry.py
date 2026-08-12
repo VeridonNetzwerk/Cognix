@@ -231,9 +231,6 @@ async def load_cog(bot: Any, cog_name: str) -> dict[str, Any]:
     try:
         await bot.load_extension(module_name)
         _update_loaded_state(module_name, True)
-        # Invalidate cog state cache so the gate picks up the change
-        from bot.runtime import invalidate_cog_state_cache
-        invalidate_cog_state_cache(cog_name=info["name"].lower())
         await bot.tree.sync()
         log.info("cog_loaded", cog=info["name"], module=module_name)
         return {"ok": True, "cog": info["name"], "loaded_by": "dynamic"}
@@ -259,9 +256,6 @@ async def unload_cog(bot: Any, cog_name: str) -> dict[str, Any]:
     try:
         await bot.unload_extension(module_name)
         _update_loaded_state(module_name, False)
-        # Invalidate cog state cache so the gate rejects commands immediately
-        from bot.runtime import invalidate_cog_state_cache
-        invalidate_cog_state_cache(cog_name=info["name"].lower())
         await bot.tree.sync()
         log.info("cog_unloaded", cog=info["name"], module=module_name)
         return {"ok": True, "cog": info["name"]}

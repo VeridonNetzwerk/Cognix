@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Ticket #{{ ticket.number }} · {{ bot_info.name }}{% endblock %}
+{% block content %}
+<a href="/tickets" class="text-xs text-slate-400 hover:text-slate-200">&larr; Back to tickets</a>
+<h1 class="text-2xl font-semibold my-3">
+  Ticket {{ ticket.title or ticket.id }}
+  <span class="text-xs px-2 py-0.5 rounded ml-2
+    {% if ticket.status.value in ('CLOSED','ARCHIVED','closed','archived') %}bg-slate-800 text-slate-400{% else %}bg-emerald-900/40 text-emerald-300{% endif %}">
+    {{ ticket.status.value }}
+  </span>
+</h1>
+<div class="text-xs text-slate-500 mb-6">
+  Opener: {{ ticket.opener_id }} · Created {{ ticket.created_at.strftime('%Y-%m-%d %H:%M') }}
+  {% if ticket.closed_at %}· Closed {{ ticket.closed_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}
+</div>
+
+<div class="bg-slate-900 border border-slate-800 rounded-xl divide-y divide-slate-800 max-w-4xl">
+  {% for m in messages %}
+  <div class="p-4 {% if m.deleted_at %}opacity-70{% endif %}">
+    <div class="flex items-baseline gap-2 text-xs text-slate-400">
+      <span class="font-medium text-slate-200">{{ m.author_name or m.author_id }}</span>
+      <span>{{ m.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+      {% if m.deleted_at %}<span class="text-rose-400">[deleted {{ m.deleted_at.strftime('%H:%M') }}]</span>{% endif %}
+    </div>
+    <div class="mt-1 whitespace-pre-line {% if m.deleted_at %}text-rose-300 line-through{% else %}text-slate-100{% endif %}">{{ m.content }}</div>
+    {% if m.attachments %}
+      <div class="mt-2 flex flex-wrap gap-2 text-xs">
+        {% for a in m.attachments %}
+          <a href="{{ a.url if a.url is defined else a }}" target="_blank" rel="noopener"
+             class="px-2 py-1 bg-slate-800 rounded text-brand-500 hover:underline">{{ a.filename if a.filename is defined else a }}</a>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="p-6 text-center text-slate-500">No cached messages for this ticket.</div>
+  {% endfor %}
+</div>
+{% endblock %}

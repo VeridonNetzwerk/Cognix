@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Enable 2FA · {{ bot_info.name }}{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Enable Two-Factor Authentication</h1>
+<div class="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-xl">
+  <p class="text-sm text-slate-300 mb-4">Scan the QR code with your authenticator app, then enter the 6-digit code below to confirm.</p>
+  <img src="{{ qr_url }}" alt="QR code" class="mb-4 bg-white p-2 rounded">
+  <p class="text-xs text-slate-400 mb-4">Or enter this secret manually: <code class="text-slate-200">{{ secret }}</code></p>
+  <form method="post" action="/settings/2fa/verify" class="flex gap-2">
+    <input type="text" name="code" required minlength="6" maxlength="10"
+           class="flex-1 bg-slate-800 border border-slate-700 rounded px-3 py-2"
+           placeholder="6-digit code" autocomplete="one-time-code" autofocus>
+    <button class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded text-sm">Confirm</button>
+  </form>
+  <a href="/settings" class="block mt-4 text-xs text-slate-500 hover:text-slate-300">Cancel</a>
+</div>
+{% endblock %}

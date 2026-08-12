@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Audit · {{ bot_info.name }}{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Audit log</h1>
+
+<form method="get" action="/audit" class="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-6 grid grid-cols-1 md:grid-cols-5 gap-3">
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">Action contains</label>
+    <input name="action" value="{{ filters.action }}" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+  </div>
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">Actor (web user UUID)</label>
+    <input name="actor_id" value="{{ filters.actor_id }}" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+  </div>
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">From</label>
+    <input type="datetime-local" name="date_from" value="{{ filters.date_from }}" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+  </div>
+  <div>
+    <label class="block text-xs uppercase text-slate-400 mb-1">To</label>
+    <input type="datetime-local" name="date_to" value="{{ filters.date_to }}" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+  </div>
+  <div class="flex items-end gap-2">
+    <button class="px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded">Apply</button>
+    <a href="/audit" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded">Reset</a>
+  </div>
+</form>
+
+<div class="bg-slate-900 border border-slate-800 rounded-xl divide-y divide-slate-800">
+  {% for ev in events %}
+  <div class="p-3 text-sm flex justify-between gap-3">
+    <div class="min-w-0">
+      <div class="font-medium truncate">{{ ev.action }}</div>
+      <div class="text-xs text-slate-400 truncate">
+        actor={{ ev.actor_id or '—' }} · target={{ ev.target or '—' }} · ip={{ ev.ip_address or '—' }}
+      </div>
+      {% if ev.notes %}<div class="text-xs text-slate-500 mt-1">{{ ev.notes }}</div>{% endif %}
+    </div>
+    <div class="text-xs text-slate-500 whitespace-nowrap">{{ ev.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+  </div>
+  {% else %}
+  <div class="p-6 text-slate-400">No matching audit events.</div>
+  {% endfor %}
+</div>
+{% endblock %}

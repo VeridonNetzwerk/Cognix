@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Cogs · {{ bot_info.name }}{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Cogs</h1>
+<h2 class="text-lg font-medium mb-3 text-slate-300">Global state</h2>
+<div class="bg-slate-900 border border-slate-800 rounded-xl divide-y divide-slate-800 mb-8">
+  {% for c in cogs %}
+  <div class="p-4 flex items-center justify-between gap-3">
+    <div>
+      <div class="font-medium flex items-center gap-2">
+        {{ c.name }}
+        {% if c.loaded %}<span class="text-[10px] uppercase tracking-wider text-emerald-400">loaded</span>{% endif %}
+      </div>
+      <div class="text-xs text-slate-400">{{ c.description or 'No description' }}</div>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="px-2 py-0.5 rounded text-xs {% if c.enabled %}bg-emerald-900/40 text-emerald-300{% else %}bg-slate-800 text-slate-400{% endif %}">
+        {{ 'Enabled' if c.enabled else 'Disabled' }}
+      </span>
+      <form method="post" action="/cogs/{{ c.name }}/toggle">
+        <button class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 rounded">{{ 'Disable' if c.enabled else 'Enable' }}</button>
+      </form>
+      <form method="post" action="/cogs/{{ c.name }}/reload">
+        <button class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 rounded">Reload</button>
+      </form>
+    </div>
+  </div>
+  {% else %}
+  <div class="p-6 text-center text-slate-500">No cogs registered.</div>
+  {% endfor %}
+</div>
+
+<h2 class="text-lg font-medium mb-3 text-slate-300">Per-server overrides</h2>
+<p class="text-xs text-slate-500 mb-3">Toggling here disables the cog's slash commands for that server only. Defaults to enabled.</p>
+<div class="overflow-x-auto bg-slate-900 border border-slate-800 rounded-xl">
+  <table class="min-w-full text-sm">
+    <thead class="bg-slate-800/50 text-xs uppercase text-slate-400">
+      <tr>
+        <th class="px-3 py-2 text-left">Server</th>
+        {% for n in cog_names %}<th class="px-3 py-2 text-center">{{ n }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-800">
+      {% for sv in servers %}
+      <tr>
+        <td class="px-3 py-2 truncate max-w-[200px]">{{ sv.name }}</td>
+        {% for n in cog_names %}
+        {% set state = per_server.get(sv.id, {}).get(n, true) %}
+        <td class="px-3 py-2 text-center">
+          <form method="post" action="/cogs/server/{{ sv.id }}/{{ n }}/toggle">
+            <button class="px-2 py-1 rounded text-xs {% if state %}bg-emerald-900/40 text-emerald-300{% else %}bg-rose-900/40 text-rose-300{% endif %}">
+              {{ 'on' if state else 'off' }}
+            </button>
+          </form>
+        </td>
+        {% endfor %}
+      </tr>
+      {% else %}
+      <tr><td colspan="{{ cog_names|length + 1 }}" class="px-3 py-6 text-center text-slate-500">No servers known yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

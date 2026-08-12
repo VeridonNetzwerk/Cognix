@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Embed Templates · CogniX{% endblock %}
+{% block content %}
+<div x-data="embedEditor()" x-init="load()">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-semibold">Embed Templates</h1>
+    <button class="bg-brand-600 hover:bg-brand-700 rounded-md px-3 py-1.5 text-sm" @click="newTemplate()">+ New</button>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- list -->
+    <aside class="bg-slate-900 border border-slate-800 rounded-xl p-3 max-h-[70vh] overflow-y-auto scroll-thin">
+      <template x-for="t in templates" :key="t.id ?? ('new-' + t.key)">
+        <button class="w-full text-left px-3 py-2 rounded hover:bg-slate-800"
+                :class="selected && selected.key === t.key && selected.server_id === t.server_id ? 'bg-slate-800 text-brand-500' : ''"
+                @click="select(t)">
+          <div class="font-medium" x-text="t.key"></div>
+          <div class="text-xs text-slate-400" x-text="t.server_id ? ('server ' + t.server_id) : 'global'"></div>
+        </button>
+      </template>
+    </aside>
+
+    <!-- editor -->
+    <section class="lg:col-span-2 grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <form @submit.prevent="save()" class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3" x-show="selected">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs uppercase text-slate-400 mb-1">Key</label>
+            <input x-model="selected.key" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+          </div>
+          <div>
+            <label class="block text-xs uppercase text-slate-400 mb-1">Server ID (blank = global)</label>
+            <input x-model="selected.server_id" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs uppercase text-slate-400 mb-1">Title</label>
+          <input x-model="selected.title" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-xs uppercase text-slate-400 mb-1">Description</label>
+          <textarea x-model="selected.description" rows="4" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2"></textarea>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs uppercase text-slate-400 mb-1">Color</label>
+            <input type="color" :value="'#' + selected.color.toString(16).padStart(6,'0')"
+                   @input="selected.color = parseInt($event.target.value.slice(1), 16)"
+                   class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 h-10" />
+          </div>
+          <div>
+            <label class="block text-xs uppercase text-slate-400 mb-1">Thumbnail URL</label>
+            <input x-model="selected.thumbnail_url" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs uppercase text-slate-400 mb-1">Footer text</label>
+          <input x-model="selected.footer_text" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+        </div>
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-xs uppercase text-slate-400">Fields</label>
+            <button type="button" @click="addField()" class="text-xs text-brand-500">+ Add field</button>
+          </div>
+          <div class="space-y-2">
+            <template x-for="(f, i) in selected.fields" :key="i">
+              <div class="bg-slate-800/60 border border-slate-700 rounded p-2 grid grid-cols-12 gap-2">
+                <input x-model="f.name" placeholder="Name" class="col-span-4 bg-slate-800 border border-slate-700 rounded px-2 py-1" />
+                <input x-model="f.value" placeholder="Value" class="col-span-6 bg-slate-800 border border-slate-700 rounded px-2 py-1" />
+                <label class="col-span-1 flex items-center gap-1 text-xs"><input type="checkbox" x-model="f.inline" /> in</label>
+                <button type="button" class="col-span-1 text-rose-400" @click="selected.fields.splice(i, 1)">×</button>
+              </div>
+            </template>
+          </div>
+        </div>
+        <div class="flex justify-between pt-2">
+          <button type="button" class="text-rose-400 text-sm" x-show="selected.id" @click="del()">Delete</button>
+          <button class="bg-brand-600 hover:bg-brand-700 rounded-md px-4 py-2 text-sm font-medium">Save</button>
+        </div>
+      </form>
+
+      <!-- live preview -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5" x-show="selected">
+        <div class="text-xs uppercase text-slate-400 mb-3">Live preview</div>
+        <div class="rounded-md overflow-hidden border-l-4 bg-[#2b2d31] p-4" :style="`border-color:#${selected ? selected.color.toString(16).padStart(6,'0') : '60a5fa'}`">
+          <div class="flex gap-3">
+            <div class="flex-1 min-w-0">
+              <div class="font-semibold text-white" x-text="selected.title"></div>
+              <div class="text-sm text-slate-300 whitespace-pre-line mt-1" x-text="selected.description"></div>
+              <div class="grid grid-cols-3 gap-x-3 gap-y-2 mt-3">
+                <template x-for="(f, i) in selected.fields" :key="i">
+                  <div :class="f.inline ? '' : 'col-span-3'">
+                    <div class="text-xs font-semibold text-white" x-text="f.name"></div>
+                    <div class="text-xs text-slate-300" x-text="f.value"></div>
+                  </div>
+                </template>
+              </div>
+              <div class="text-xs text-slate-400 mt-3" x-show="selected.footer_text" x-text="selected.footer_text"></div>
+            </div>
+            <img x-show="selected.thumbnail_url" :src="selected.thumbnail_url" class="w-16 h-16 rounded object-cover" />
+          </div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-2 text-slate-400" x-show="!selected">Select a template on the left or create a new one.</div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function embedEditor() {
+  return {
+    templates: [], selected: null,
+    async load() {
+      const r = await fetch('/api/v1/embeds', { credentials: 'include' });
+      this.templates = await r.json();
+    },
+    select(t) { this.selected = JSON.parse(JSON.stringify(t)); },
+    newTemplate() {
+      this.selected = { id: null, key: 'new_template', server_id: null, enabled: true,
+        title: '', description: '', color: 0x60a5fa,
+        footer_text: '', footer_icon_url: '', thumbnail_url: '', image_url: '',
+        author_name: '', author_icon_url: '', author_url: '',
+        fields: [], extras: {} };
+    },
+    addField() { this.selected.fields.push({ name: '', value: '', inline: true }); },
+    async save() {
+      const body = JSON.stringify(this.selected);
+      const opts = { method: this.selected.id ? 'PATCH' : 'POST',
+                     headers: { 'Content-Type': 'application/json' },
+                     credentials: 'include', body };
+      const url = this.selected.id ? `/api/v1/embeds/${this.selected.id}` : '/api/v1/embeds';
+      const r = await fetch(url, opts);
+      if (!r.ok) { alert('Save failed: ' + r.status); return; }
+      await this.load();
+    },
+    async del() {
+      if (!confirm('Delete this template?')) return;
+      await fetch(`/api/v1/embeds/${this.selected.id}`, { method: 'DELETE', credentials: 'include' });
+      this.selected = null;
+      await this.load();
+    },
+  };
+}
+</script>
+{% endblock %}

@@ -45,8 +45,8 @@ class CogniXBot(commands.Bot):
 
     # ---- lifecycle ----
     async def setup_hook(self) -> None:
-        # Per-server cog gate: rejects app-commands for cogs that are either
-        # not loaded globally OR disabled on the invoking guild.
+        # Per-server cog gate: silently rejects app-commands for cogs disabled
+        # on the invoking guild via ServerCogState.
         async def _cog_gate(interaction: discord.Interaction) -> bool:
             cmd = interaction.command
             if cmd is None or interaction.guild is None:
@@ -55,36 +55,6 @@ class CogniXBot(commands.Bot):
             cog_name = getattr(cog, "qualified_name", None) or getattr(cog, "__cog_name__", None)
             if not cog_name:
                 return True
-
-            # Check 1: Is the cog actually loaded? Discord caches global
-            # slash commands for up to 1h, so unloaded cogs' commands may
-            # still be visible to users. Reject the interaction server-side.
-            cog_module = getattr(cog, "__module__", None)
-            if cog_module and cog_module not in self.extensions:
-                try:
-                    await interaction.response.send_message(
-                        "This module is not loaded. Ask an admin to load it via the dashboard.",
-                        ephemeral=True,
-                    )
-                except Exception:  # noqa: BLE001
-                    pass
-                return False
-
-            # Also check via cog name → module mapping from registry
-            from bot.cogs.registry import is_cog_loaded, get_cog_info
-
-            info = get_cog_info(cog_name)
-            if info and info["module"] not in self.extensions:
-                try:
-                    await interaction.response.send_message(
-                        "This module is not loaded. Ask an admin to load it via the dashboard.",
-                        ephemeral=True,
-                    )
-                except Exception:  # noqa: BLE001
-                    pass
-                return False
-
-            # Check 2: Per-server enable/disable
             from bot.runtime import is_cog_enabled_for_server
 
             short = cog_name.lower()
