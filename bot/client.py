@@ -104,10 +104,11 @@ class CogniXBot(commands.Bot):
         # web interface, or IPC. Use `registry.restore_loaded_cogs(bot)` to
         # restore previously-persisted load state after the bot is ready.
 
-        # Slash command sync (empty tree = no commands visible)
+        # Slash command sync — use per-guild sync for instant propagation
         try:
-            synced = await self.tree.sync()
-            log.info("slash_synced", count=len(synced))
+            from bot.cogs.registry import _sync_commands_to_guilds
+            await _sync_commands_to_guilds(self)
+            log.info("slash_synced", count=len(self.tree.get_commands()))
         except Exception as exc:  # noqa: BLE001
             log.warning("slash_sync_failed", error=str(exc))
 
@@ -264,9 +265,10 @@ class CogniXBot(commands.Bot):
             return {"error": "name required"}
         result = await self._cog_action(name, "load")
         if result.get("ok"):
-            # IMPORTANT: Sync slash command tree so new commands appear
+            # Sync per-guild so new commands appear instantly
             try:
-                await self.tree.sync()
+                from bot.cogs.registry import _sync_commands_to_guilds
+                await _sync_commands_to_guilds(self)
             except Exception:  # noqa: BLE001
                 pass
         return result
@@ -277,9 +279,10 @@ class CogniXBot(commands.Bot):
             return {"error": "name required"}
         result = await self._cog_action(name, "unload")
         if result.get("ok"):
-            # Sync slash command tree so removed commands disappear
+            # Sync per-guild so removed commands disappear instantly
             try:
-                await self.tree.sync()
+                from bot.cogs.registry import _sync_commands_to_guilds
+                await _sync_commands_to_guilds(self)
             except Exception:  # noqa: BLE001
                 pass
         return result
@@ -291,7 +294,8 @@ class CogniXBot(commands.Bot):
         result = await self._cog_action(name, "reload")
         if result.get("ok"):
             try:
-                await self.tree.sync()
+                from bot.cogs.registry import _sync_commands_to_guilds
+                await _sync_commands_to_guilds(self)
             except Exception:  # noqa: BLE001
                 pass
         return result

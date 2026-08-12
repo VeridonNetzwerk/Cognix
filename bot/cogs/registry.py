@@ -214,6 +214,28 @@ def _update_loaded_state(module_name: str, loaded: bool) -> None:
 # ---------------------------------------------------------------------------
 
 
+async def _sync_commands_to_guilds(bot: Any) -> None:
+    """Sync slash commands to every guild the bot is in.
+
+    Guild commands propagate instantly (unlike global commands which Discord
+    caches for up to 1h). We sync globally first (to remove stale global
+    commands) then copy the tree to each guild for instant propagation.
+    """
+    try:
+        # Sync globally — this removes any global commands that are no longer
+        # in the tree (e.g. from an unloaded cog). Discord caches these for
+        # up to 1h, but at least new clients won't see them.
+        await bot.tree.sync()
+        # Sync to each guild for instant propagation
+        for guild in bot.guilds:
+            try:
+                await bot.tree.sync(guild=guild)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("guild_sync_failed", guild=guild.id, error=str(exc))
+    except Exception as exc:  # noqa: BLE001
+        log.warning("command_sync_failed", error=str(exc))
+
+
 async def load_cog(bot: Any, cog_name: str) -> dict[str, Any]:
     """Load a single cog by name or module path.
 
@@ -234,7 +256,7 @@ async def load_cog(bot: Any, cog_name: str) -> dict[str, Any]:
         # Invalidate cog state cache so the gate picks up the change
         from bot.runtime import invalidate_cog_state_cache
         invalidate_cog_state_cache(cog_name=info["name"].lower())
-        await bot.tree.sync()
+        await _sync_commands_to_guilds(bot)
         log.info("cog_loaded", cog=info["name"], module=module_name)
         return {"ok": True, "cog": info["name"], "loaded_by": "dynamic"}
     except Exception as exc:  # noqa: BLE001
@@ -262,7 +284,7 @@ async def unload_cog(bot: Any, cog_name: str) -> dict[str, Any]:
         # Invalidate cog state cache so the gate rejects commands immediately
         from bot.runtime import invalidate_cog_state_cache
         invalidate_cog_state_cache(cog_name=info["name"].lower())
-        await bot.tree.sync()
+        await _sync_commands_to_guilds(bot)
         log.info("cog_unloaded", cog=info["name"], module=module_name)
         return {"ok": True, "cog": info["name"]}
     except Exception as exc:  # noqa: BLE001
@@ -288,7 +310,7 @@ async def reload_cog(bot: Any, cog_name: str) -> dict[str, Any]:
     try:
         await bot.reload_extension(module_name)
         _update_loaded_state(module_name, True)
-        await bot.tree.sync()
+        await _sync_commands_to_guilds(bot)
         log.info("cog_reloaded", cog=info["name"], module=module_name)
         return {"ok": True, "cog": info["name"]}
     except Exception as exc:  # noqa: BLE001
@@ -297,7 +319,7 @@ async def reload_cog(bot: Any, cog_name: str) -> dict[str, Any]:
         try:
             await bot.load_extension(module_name)
             _update_loaded_state(module_name, True)
-            await bot.tree.sync()
+            await _sync_commands_to_guilds(bot)
         except Exception:  # noqa: BLE001
             pass
         return {"error": f"Failed to reload cog '{cog_name}': {exc}"}
