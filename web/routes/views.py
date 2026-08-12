@@ -280,44 +280,53 @@ async def server_detail(request: Request, server_id: int,
 async def cogs_view(request: Request,
                     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
+
+    # Only show cogs that are actually loaded in the bot
+    from bot.cogs.registry import get_all_cog_info, get_loaded_cogs
+
+    loaded_modules = set(get_loaded_cogs())
+    bot = get_bot()
+    if bot is not None:
+        loaded_modules |= set(bot.extensions.keys())
+
+    # Build cog info from registry for loaded cogs only
+    all_cog_info = get_all_cog_info()
+    loaded_cog_infos = [
+        info for info in all_cog_info
+        if info["module"] in loaded_modules
+    ]
+
+    # Also include any loaded extensions not in registry (e.g. marketplace cogs)
+    registry_modules = {info["module"] for info in all_cog_info}
+    for ext in loaded_modules:
+        if ext not in registry_modules:
+            short = ext.rsplit(".", 1)[-1]
+            loaded_cog_infos.append({
+                "module": ext,
+                "name": short.replace("_", " ").title(),
+                "description": "",
+                "category": "",
+                "requires_admin": False,
+            })
+
+    # Get per-server enable/disable state from DB
     async with db_session() as s:
         rows = (await s.scalars(
             select(CogState).where(CogState.server_id.is_(None)).order_by(CogState.cog_name)
         )).all()
     state_by_name = {r.cog_name: r.enabled for r in rows}
 
-    # Merge with the bot's actually-loaded extensions so the page is never blank.
-    bot = get_bot()
-    loaded: list[str] = []
-    if bot is not None:
-        for ext in bot.extensions.keys():
-            short = ext.rsplit(".", 1)[-1]
-            loaded.append(short)
-    for name in loaded:
-        state_by_name.setdefault(name, True)
-
-    descriptions = {
-        "moderation": "Bans, kicks, timeouts, warnings, automod logging.",
-        "tickets": "Private support threads with claim / transcript / close.",
-        "music": "Wavelink-based music player with /music-panel.",
-        "embeds": "Embed designer + broadcasting via /embed.",
-        "stats": "Member, message and voice stat collection.",
-        "utility": "/userinfo, /serverinfo, /ping, /help.",
-        "backups": "/backup create|list|load|delete with encrypted DB storage.",
-        "auto_punish": "Severity-based escalation rules.",
-        "scheduler": "Recurring jobs and reminders.",
-        "voice_features": "Auto voice channels and voice rewards.",
-        "logging_audit": "Mirror of audit-log changes into Discord.",
-    }
     cogs = sorted(
         (
             {
-                "name": name,
-                "enabled": state_by_name[name],
-                "loaded": name in loaded,
-                "description": descriptions.get(name, ""),
+                "name": info["name"],
+                "module": info["module"],
+                "enabled": state_by_name.get(info["name"].lower(), True),
+                "loaded": True,
+                "description": info.get("description", ""),
+                "category": info.get("category", ""),
             }
-            for name in state_by_name
+            for info in loaded_cog_infos
         ),
         key=lambda c: c["name"],
     )

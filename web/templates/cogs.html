@@ -3,13 +3,14 @@
 {% block content %}
 <h1 class="text-2xl font-semibold mb-6">Cogs</h1>
 <h2 class="text-lg font-medium mb-3 text-slate-300">Global state</h2>
+{% if cogs %}
 <div class="bg-slate-900 border border-slate-800 rounded-xl divide-y divide-slate-800 mb-8">
   {% for c in cogs %}
   <div class="p-4 flex items-center justify-between gap-3">
     <div>
       <div class="font-medium flex items-center gap-2">
         {{ c.name }}
-        {% if c.loaded %}<span class="text-[10px] uppercase tracking-wider text-emerald-400">loaded</span>{% endif %}
+        <span class="text-[10px] uppercase tracking-wider text-emerald-400">loaded</span>
       </div>
       <div class="text-xs text-slate-400">{{ c.description or 'No description' }}</div>
     </div>
@@ -25,10 +26,14 @@
       </form>
     </div>
   </div>
-  {% else %}
-  <div class="p-6 text-center text-slate-500">No cogs registered.</div>
   {% endfor %}
 </div>
+{% else %}
+<div class="bg-slate-900 border border-slate-800 rounded-xl mb-8 p-6 text-center text-slate-500">
+  <p class="mb-2">No cogs loaded.</p>
+  <a href="/marketplace" class="text-indigo-400 hover:text-indigo-300 text-sm">Go to Marketplace to load cogs &rarr;</a>
+</div>
+{% endif %}
 
 <h2 class="text-lg font-medium mb-3 text-slate-300">Per-server overrides</h2>
 <p class="text-xs text-slate-500 mb-3">Toggling here disables the cog's slash commands for that server only. Defaults to enabled.</p>
