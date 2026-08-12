@@ -80,6 +80,13 @@ def _render(request: Request, template: str, **ctx: Any) -> HTMLResponse:
     ctx.setdefault("user", None)
     ctx.setdefault("bot_info", get_bot_info())
     ctx.setdefault("user_settings", None)
+    # Pass loaded cog modules so base.html can show/hide nav links
+    from bot.cogs.registry import get_loaded_cogs
+    loaded = set(get_loaded_cogs())
+    bot = get_bot()
+    if bot is not None:
+        loaded |= set(bot.extensions.keys())
+    ctx.setdefault("loaded_cogs", loaded)
     return templates.TemplateResponse(request, template, ctx)
 
 

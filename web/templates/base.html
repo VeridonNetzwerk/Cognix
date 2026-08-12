@@ -328,28 +328,30 @@
         <!-- Nav -->
         <nav class="flex-1 px-3 py-4 overflow-y-auto scroll-thin space-y-1">
           {% set items = [
-            ('/', 'Dashboard', 'ph-chart-bar'),
-            ('/servers', 'Servers', 'ph-hard-drives'),
-            ('/cogs', 'Cogs', 'ph-package'),
-            ('/marketplace', 'Marketplace', 'ph-storefront'),
-            ('/embeds', 'Embeds', 'ph-image'),
-            ('/music', 'Music', 'ph-music-notes'),
-            ('/tickets', 'Tickets', 'ph-ticket'),
-            ('/backups', 'Backups', 'ph-database'),
-            ('/giveaways', 'Giveaways', 'ph-gift'),
-            ('/welcome', 'Welcome / Boost', 'ph-handshake'),
-            ('/members', 'Members', 'ph-users'),
-            ('/invites', 'Invites', 'ph-envelope-simple'),
-            ('/log', 'Log', 'ph-list-bullets'),
-            ('/users', 'Web Users', 'ph-globe'),
-            ('/bot-profile', 'Bot Profile', 'ph-user-circle'),
+            ('/', 'Dashboard', 'ph-chart-bar', None),
+            ('/servers', 'Servers', 'ph-hard-drives', None),
+            ('/cogs', 'Cogs', 'ph-package', None),
+            ('/marketplace', 'Marketplace', 'ph-storefront', None),
+            ('/embeds', 'Embeds', 'ph-image', None),
+            ('/music', 'Music', 'ph-music-notes', 'bot.cogs.music'),
+            ('/tickets', 'Tickets', 'ph-ticket', 'bot.cogs.tickets'),
+            ('/backups', 'Backups', 'ph-database', 'bot.cogs.backups'),
+            ('/giveaways', 'Giveaways', 'ph-gift', 'bot.cogs.giveaway'),
+            ('/welcome', 'Welcome / Boost', 'ph-handshake', 'bot.cogs.welcome'),
+            ('/members', 'Members', 'ph-users', None),
+            ('/invites', 'Invites', 'ph-envelope-simple', 'bot.cogs.invite_tracker'),
+            ('/log', 'Log', 'ph-list-bullets', None),
+            ('/users', 'Web Users', 'ph-globe', None),
+            ('/bot-profile', 'Bot Profile', 'ph-user-circle', None),
           ] %}
-          {% for href, label, icon in items %}
+          {% for href, label, icon, cog_module in items %}
+            {% if cog_module is none or cog_module in loaded_cogs %}
             {% set is_active = (request.url.path == href) or (href != '/' and request.url.path.startswith(href)) %}
             <a href="{{ href }}" class="nav-link {% if is_active %}active{% endif %}">
               <i class="{% if is_active %}ph-fill{% else %}ph{% endif %} {{ icon }}"></i>
               <span class="truncate">{{ label }}</span>
             </a>
+            {% endif %}
           {% endfor %}
         </nav>
 
