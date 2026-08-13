@@ -1,4 +1,4 @@
-"""Cog control routes — enhanced with global load state and per-server enable/disable."""
+"""Cog control routes — global load state and per-server enable/disable."""
 
 from __future__ import annotations
 
@@ -8,8 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
 
-from bot.cogs.registry import get_all_cog_info, get_loaded_cogs
+from bot.cogs.registry import get_all_cog_info, load_cog, unload_cog, reload_cog
 from bot.database.models.server.server_config import ServerConfig
+from bot.runtime import get_bot
 from web.deps import SessionDep, require_admin
 from web.services.bot_ipc import get_ipc
 
@@ -32,34 +33,11 @@ class ServerCogEnableRequest(BaseModel):
 
 @router.get("/")
 async def list_cogs(session: SessionDep) -> dict:
-    """Return all loaded cogs with their global load status and per-server enable status."""
-    # Get global load state from runtime
-    ipc = get_ipc()
-    try:
-        live = await ipc.call("cog.list", {}, timeout=2.0)
-        live_cogs = set(live.get("payload", {}).get("loaded", []))
-    except Exception:  # noqa: BLE001
-        live_cogs = set()
+    """Return all loaded cogs with their global load status."""
+    from bot.pages._shared import _get_loaded_cogs_set, _build_loaded_cog_list
 
-    # Also check loaded cogs from registry
-    live_cogs |= set(get_loaded_cogs())
-
-    # Get available cogs from registry (only those actually loaded)
-    all_cogs = get_all_cog_info()
-    loaded_cogs = [info for info in all_cogs if info["module"] in live_cogs]
-
-    # Also include loaded extensions not in registry (e.g. externally installed)
-    registry_modules = {info["module"] for info in all_cogs}
-    for ext in live_cogs:
-        if ext not in registry_modules:
-            short = ext.rsplit(".", 1)[-1]
-            loaded_cogs.append({
-                "module": ext,
-                "name": short.replace("_", " ").title(),
-                "description": "",
-                "category": "",
-                "requires_admin": False,
-            })
+    live_cogs = _get_loaded_cogs_set()
+    loaded_cogs = _build_loaded_cog_list(live_cogs)
 
     return {
         "cogs": [
@@ -85,17 +63,10 @@ async def list_cogs(session: SessionDep) -> dict:
 @router.post("/{cog_name}")
 async def cog_action(cog_name: str, req: CogActionRequest) -> dict:
     """Load/unload/reload a cog globally (affects all servers)."""
-    # Try in-process first (when bot runs in same process as web server)
-    from bot.runtime import get_bot
     bot = get_bot()
     if bot is not None:
-        from bot.cogs.registry import load_cog, unload_cog, reload_cog
-        if req.action == "load":
-            result = await load_cog(bot, cog_name)
-        elif req.action == "unload":
-            result = await unload_cog(bot, cog_name)
-        else:
-            result = await reload_cog(bot, cog_name)
+        actions = {"load": load_cog, "unload": unload_cog, "reload": reload_cog}
+        result = await actions[req.action](bot, cog_name)
         if not result.get("ok"):
             raise HTTPException(status.HTTP_400_BAD_REQUEST, result.get("error", "failed"))
         return {"ok": True}

@@ -27,35 +27,43 @@ log = get_logger("bot.cog_registry")
 # Cog Discovery — scan the top-level cogs/ directory for cog modules
 # ---------------------------------------------------------------------------
 
-CogInfo = dict[str, str | bool]  # {module: ..., name: ..., description: ..., category: ...}
+CogInfo = dict[str, str | bool]
 
 _COGS_DIR = Path(__file__).resolve().parent.parent.parent / "cogs"
+
+
+def _make_cog_info(module: str, *, name: str = "", description: str = "", category: str = "", requires_admin: bool = False) -> CogInfo:
+    """Build a CogInfo dict, deriving name from module if not provided."""
+    if not name:
+        short = module.rsplit(".", 1)[-1]
+        name = short.replace("_", " ").title()
+    return {
+        "module": module,
+        "name": name,
+        "description": description,
+        "category": category,
+        "requires_admin": requires_admin,
+    }
 
 
 def _discover_cogs() -> list[CogInfo]:
     """Discover all cog modules in the top-level cogs/ directory.
 
-    Scans for .py files (excluding __init__.py, registry.py, _*.py) in cogs/
+    Scans for .py files (excluding __init__.py, _*.py) in cogs/
     and its subdirectories. Each module may define a COG_INFO dict with
     metadata (name, description, category, requires_admin).
     """
     import importlib
 
+    if not _COGS_DIR.exists():
+        return []
+
     cogs: list[CogInfo] = []
 
-    if not _COGS_DIR.exists():
-        return cogs
-
-    # Find all .py files that could be cogs
     for py_file in sorted(_COGS_DIR.rglob("*.py")):
-        if py_file.name == "__init__.py":
-            continue
-        if py_file.name.startswith("_"):
-            continue
-        if py_file.name == "registry.py":
+        if py_file.name == "__init__.py" or py_file.name.startswith("_"):
             continue
 
-        # Convert file path to dotted module path relative to project root
         try:
             rel = py_file.relative_to(_COGS_DIR.parent)
             module_parts = list(rel.parts)
@@ -68,33 +76,18 @@ def _discover_cogs() -> list[CogInfo]:
             mod = importlib.import_module(module_name)
             info = getattr(mod, "COG_INFO", None)
             if info and isinstance(info, dict):
-                cogs.append({
-                    "module": module_name,
-                    "name": info.get("name", module_name.rsplit(".", 1)[-1].title()),
-                    "description": info.get("description", ""),
-                    "category": info.get("category", ""),
-                    "requires_admin": info.get("requires_admin", False),
-                })
+                cogs.append(_make_cog_info(
+                    module_name,
+                    name=info.get("name", ""),
+                    description=info.get("description", ""),
+                    category=info.get("category", ""),
+                    requires_admin=info.get("requires_admin", False),
+                ))
             else:
-                # Fallback: derive name from module path
-                short = module_name.rsplit(".", 1)[-1]
-                cogs.append({
-                    "module": module_name,
-                    "name": short.replace("_", " ").title(),
-                    "description": "",
-                    "category": "",
-                    "requires_admin": False,
-                })
+                cogs.append(_make_cog_info(module_name))
         except Exception as exc:  # noqa: BLE001
             log.warning("cog_discover_failed", module=module_name, error=str(exc))
-            short = module_name.rsplit(".", 1)[-1]
-            cogs.append({
-                "module": module_name,
-                "name": short.replace("_", " ").title(),
-                "description": "",
-                "category": "",
-                "requires_admin": False,
-            })
+            cogs.append(_make_cog_info(module_name))
 
     return cogs
 
@@ -138,11 +131,10 @@ def is_cog_loaded(module_name: str) -> bool:
     """Check if a specific cog module is currently loaded."""
     if module_name.startswith("cogs.") or module_name.startswith("bot."):
         return module_name in _loaded_cogs
-    # Search by short name via cog info
     info = get_cog_info(module_name)
     if info:
         return info["module"] in _loaded_cogs
-    return module_name in _loaded_cogs
+    return False
 
 
 def get_cog_info(name: str) -> CogInfo | None:
@@ -196,16 +188,33 @@ async def _sync_commands_to_guilds(bot: Any) -> None:
         log.warning("command_sync_failed", error=str(exc))
 
 
+def _resolve_cog(cog_name: str) -> tuple[CogInfo | None, str]:
+    """Resolve a cog name or module path to (info, module_name)."""
+    if cog_name.startswith("cogs.") or cog_name.startswith("bot."):
+        return get_cog_info(cog_name), cog_name
+    info = get_cog_info(cog_name)
+    if info is None:
+        return None, cog_name
+    return info, info["module"]
+
+
+def _invalidate_cache(cog_name: str) -> None:
+    """Invalidate cog state cache after load/unload."""
+    try:
+        from bot.runtime import invalidate_cog_state_cache
+        invalidate_cog_state_cache(cog_name=cog_name.lower())
+    except Exception:  # noqa: BLE001
+        pass
+
+
 async def load_cog(bot: Any, cog_name: str) -> dict[str, Any]:
     """Load a single cog by name or module path.
 
     Returns: {"ok": True} or {"error": "..."}
     """
-    info = get_cog_info(cog_name)
+    info, module_name = _resolve_cog(cog_name)
     if info is None:
         return {"error": f"Unknown cog: {cog_name}"}
-
-    module_name = info["module"]
 
     if module_name in _loaded_cogs:
         return {"error": f"Cog already loaded: {info['name']}"}
@@ -213,9 +222,7 @@ async def load_cog(bot: Any, cog_name: str) -> dict[str, Any]:
     try:
         await bot.load_extension(module_name)
         _update_loaded_state(module_name, True)
-        # Invalidate cog state cache so the gate picks up the change
-        from bot.runtime import invalidate_cog_state_cache
-        invalidate_cog_state_cache(cog_name=info["name"].lower())
+        _invalidate_cache(info["name"])
         await _sync_commands_to_guilds(bot)
         log.info("cog_loaded", cog=info["name"], module=module_name)
         return {"ok": True, "cog": info["name"], "loaded_by": "dynamic"}
@@ -229,11 +236,9 @@ async def unload_cog(bot: Any, cog_name: str) -> dict[str, Any]:
 
     Returns: {"ok": True} or {"error": "..."}
     """
-    info = get_cog_info(cog_name)
+    info, module_name = _resolve_cog(cog_name)
     if info is None:
         return {"error": f"Unknown cog: {cog_name}"}
-
-    module_name = info["module"]
 
     if module_name not in _loaded_cogs:
         return {"error": f"Cog not loaded: {info['name']}"}
@@ -241,9 +246,7 @@ async def unload_cog(bot: Any, cog_name: str) -> dict[str, Any]:
     try:
         await bot.unload_extension(module_name)
         _update_loaded_state(module_name, False)
-        # Invalidate cog state cache so the gate rejects commands immediately
-        from bot.runtime import invalidate_cog_state_cache
-        invalidate_cog_state_cache(cog_name=info["name"].lower())
+        _invalidate_cache(info["name"])
         await _sync_commands_to_guilds(bot)
         log.info("cog_unloaded", cog=info["name"], module=module_name)
         return {"ok": True, "cog": info["name"]}
@@ -257,11 +260,9 @@ async def reload_cog(bot: Any, cog_name: str) -> dict[str, Any]:
 
     Returns: {"ok": True} or {"error": "..."}
     """
-    info = get_cog_info(cog_name)
+    info, module_name = _resolve_cog(cog_name)
     if info is None:
         return {"error": f"Unknown cog: {cog_name}"}
-
-    module_name = info["module"]
 
     unload_result = await unload_cog(bot, cog_name)
     if not unload_result.get("ok"):
@@ -275,22 +276,12 @@ async def reload_cog(bot: Any, cog_name: str) -> dict[str, Any]:
         return {"ok": True, "cog": info["name"]}
     except Exception as exc:  # noqa: BLE001
         log.error("cog_reload_failed", cog=cog_name, error=str(exc))
-        # Try to reload it back in case reload_extension failed
-        try:
-            await bot.load_extension(module_name)
-            _update_loaded_state(module_name, True)
-            await _sync_commands_to_guilds(bot)
-        except Exception:  # noqa: BLE001
-            pass
         return {"error": f"Failed to reload cog '{cog_name}': {exc}"}
 
 
 # ---------------------------------------------------------------------------
 # Persistence helpers — save/load which cogs should be loaded after restart
 # ---------------------------------------------------------------------------
-
-_LOADED_COGS_KEY = "loaded_cogs_v2"
-
 
 async def get_persisted_loaded_cogs() -> list[str]:
     """Get the list of cogs that SHOULD be loaded (from DB)."""

@@ -51,16 +51,12 @@ def _render(request: Request, template: str, **ctx: Any) -> HTMLResponse:
     ctx.setdefault("user", None)
     ctx.setdefault("bot_info", get_bot_info())
     ctx.setdefault("user_settings", None)
-    from bot.cogs.registry import get_loaded_cogs
-    loaded = set(get_loaded_cogs())
-    bot = get_bot()
-    if bot is not None:
-        loaded |= set(bot.extensions.keys())
-    ctx.setdefault("loaded_cogs", loaded)
+    ctx.setdefault("loaded_cogs", _get_loaded_cogs_set())
     return templates.TemplateResponse(request, template, ctx)
 
 
-def _get_loaded_cogs() -> set[str]:
+def _get_loaded_cogs_set() -> set[str]:
+    """Return the set of all loaded cog module names (registry + bot.extensions)."""
     from bot.cogs.registry import get_loaded_cogs
     loaded = set(get_loaded_cogs())
     bot = get_bot()
@@ -69,8 +65,26 @@ def _get_loaded_cogs() -> set[str]:
     return loaded
 
 
+def _build_loaded_cog_list(live_cogs: set[str]) -> list[dict[str, Any]]:
+    """Build a list of cog info dicts for all loaded cogs.
+
+    Includes registry-known cogs and any extra loaded extensions.
+    """
+    from bot.cogs.registry import get_all_cog_info, _make_cog_info
+
+    all_cogs = get_all_cog_info()
+    loaded = [info for info in all_cogs if info["module"] in live_cogs]
+
+    registry_modules = {info["module"] for info in all_cogs}
+    for ext in live_cogs:
+        if ext not in registry_modules:
+            loaded.append(_make_cog_info(ext))
+
+    return loaded
+
+
 def _require_cog(cog_module: str) -> None:
-    loaded = _get_loaded_cogs()
+    loaded = _get_loaded_cogs_set()
     if cog_module == "__any__":
         if not loaded:
             raise HTTPException(404, "No cogs loaded. Install and load a cog first.")

@@ -15,7 +15,7 @@ from bot.database.models.server.server import Server
 from bot.database.models.server.server_cog_state import ServerCogState
 from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE
-from bot.pages._shared import _render, _require_user, router
+from bot.pages._shared import _build_loaded_cog_list, _get_loaded_cogs_set, _render, _require_user, router
 
 
 @router.get("/cogs", response_class=HTMLResponse)
@@ -23,30 +23,7 @@ async def cogs_view(request: Request,
                     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
 
-    from bot.cogs.registry import get_all_cog_info, get_loaded_cogs
-
-    loaded_modules = set(get_loaded_cogs())
-    bot = get_bot()
-    if bot is not None:
-        loaded_modules |= set(bot.extensions.keys())
-
-    all_cog_info = get_all_cog_info()
-    loaded_cog_infos = [
-        info for info in all_cog_info
-        if info["module"] in loaded_modules
-    ]
-
-    registry_modules = {info["module"] for info in all_cog_info}
-    for ext in loaded_modules:
-        if ext not in registry_modules:
-            short = ext.rsplit(".", 1)[-1]
-            loaded_cog_infos.append({
-                "module": ext,
-                "name": short.replace("_", " ").title(),
-                "description": "",
-                "category": "",
-                "requires_admin": False,
-            })
+    loaded_cog_infos = _build_loaded_cog_list(_get_loaded_cogs_set())
 
     async with db_session() as s:
         rows = (await s.scalars(
@@ -140,18 +117,17 @@ async def cogs_reload(cog_name: str,
                       access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     await _require_user(access_token)
     # Try in-process first
-    from bot.runtime import get_bot
     bot = get_bot()
     if bot is not None:
         from bot.cogs.registry import reload_cog
         try:
             await reload_cog(bot, cog_name)
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
     else:
         from web.services.bot_ipc import get_ipc
         try:
             await get_ipc().call("cog.reload", {"name": cog_name}, timeout=5.0)
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
     return RedirectResponse("/cogs", status_code=303)

@@ -6,6 +6,7 @@ import time
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from bot.client import _build_activity
 from bot.runtime import (
     get_bot,
     get_bot_info,
@@ -82,22 +83,9 @@ async def bot_stop() -> dict:
 @router.post("/presence")
 async def presence(payload: dict) -> dict:
     # Try in-process first
-    from bot.runtime import get_bot
     bot = get_bot()
     if bot is not None:
-        import discord
-        type_map = {
-            "playing": discord.ActivityType.playing,
-            "watching": discord.ActivityType.watching,
-            "listening": discord.ActivityType.listening,
-            "streaming": discord.ActivityType.streaming,
-            "competing": discord.ActivityType.competing,
-        }
-        activity = discord.Activity(
-            type=type_map.get(payload.get("type", "playing"), discord.ActivityType.playing),
-            name=payload.get("text", ""),
-        )
-        await bot.change_presence(activity=activity)
+        await bot.change_presence(activity=_build_activity(payload))
         return {"ok": True}
 
     # Fall back to IPC

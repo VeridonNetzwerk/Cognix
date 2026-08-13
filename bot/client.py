@@ -18,6 +18,37 @@ from bot.ipc import IpcConsumer
 log = get_logger("bot.client")
 
 
+_ACTIVITY_TYPE_MAP = {
+    "playing": discord.ActivityType.playing,
+    "watching": discord.ActivityType.watching,
+    "listening": discord.ActivityType.listening,
+    "streaming": discord.ActivityType.streaming,
+    "competing": discord.ActivityType.competing,
+}
+
+
+def _build_activity(payload: dict[str, Any]) -> discord.Activity:
+    """Build a discord.Activity from a presence payload dict."""
+    return discord.Activity(
+        type=_ACTIVITY_TYPE_MAP.get(payload.get("type", "playing"), discord.ActivityType.playing),
+        name=payload.get("text", ""),
+    )
+
+
+async def _fetch_token() -> str | None:
+    """Fetch bot token from env or DB."""
+    token = get_settings().discord_bot_token
+    if token:
+        return token
+    from sqlalchemy import select
+    from bot.database import db_session
+    from bot.database.models.system.system_config import SystemConfig
+
+    async with db_session() as s:
+        cfg = await s.scalar(select(SystemConfig).where(SystemConfig.id == 1))
+        if cfg and cfg.bot_token_encrypted:
+            return decrypt_secret(cfg.bot_token_encrypted, aad=b"bot_token")
+    return None
 
 
 class CogniXBot(commands.Bot):
@@ -60,21 +91,10 @@ class CogniXBot(commands.Bot):
             # slash commands for up to 1h, so unloaded cogs' commands may
             # still be visible to users. Reject the interaction server-side.
             cog_module = getattr(cog, "__module__", None)
-            if cog_module and cog_module not in self.extensions:
-                try:
-                    await interaction.response.send_message(
-                        "This module is not loaded. Ask an admin to load it via the dashboard.",
-                        ephemeral=True,
-                    )
-                except Exception:  # noqa: BLE001
-                    pass
-                return False
-
-            # Also check via cog name → module mapping from registry
             from bot.cogs.registry import get_cog_info
 
             info = get_cog_info(cog_name)
-            if info and info["module"] not in self.extensions:
+            if (cog_module and cog_module not in self.extensions) or (info and info["module"] not in self.extensions):
                 try:
                     await interaction.response.send_message(
                         "This module is not loaded. Ask an admin to load it via the dashboard.",
@@ -87,8 +107,7 @@ class CogniXBot(commands.Bot):
             # Check 2: Per-server enable/disable
             from bot.runtime import is_cog_enabled_for_server
 
-            short = cog_name.lower()
-            ok = await is_cog_enabled_for_server(interaction.guild.id, short)
+            ok = await is_cog_enabled_for_server(interaction.guild.id, cog_name.lower())
             if not ok:
                 try:
                     await interaction.response.send_message(
@@ -221,119 +240,43 @@ class CogniXBot(commands.Bot):
         await self.close()
 
     async def _ipc_presence(self, payload: dict[str, Any]) -> dict[str, Any]:
-        text = payload.get("text", "")
-        type_ = payload.get("type", "playing")
-        type_map = {
-            "playing": discord.ActivityType.playing,
-            "watching": discord.ActivityType.watching,
-            "listening": discord.ActivityType.listening,
-            "competing": discord.ActivityType.competing,
-        }
-        activity = discord.Activity(
-            type=type_map.get(type_, discord.ActivityType.playing),
-            name=text,
-        )
-        await self.change_presence(activity=activity)
+        await self.change_presence(activity=_build_activity(payload))
         return {"ok": True}
 
     async def _ipc_cog_list(self, _: dict[str, Any]) -> dict[str, Any]:
         return {"loaded": list(self.extensions.keys())}
 
-    async def _cog_action(self, name: str, action: str) -> dict[str, Any]:
-        from bot.cogs.registry import _update_loaded_state, get_cog_info
-        if name.startswith("cogs.") or name.startswith("bot."):
-            ext = name
-        else:
-            info = get_cog_info(name)
-            ext = info["module"] if info else f"cogs.{name}"
-        try:
-            if action == "load":
-                await self.load_extension(ext)
-                _update_loaded_state(ext, True)
-            elif action == "unload":
-                await self.unload_extension(ext)
-                _update_loaded_state(ext, False)
-            elif action == "reload":
-                await self.reload_extension(ext)
-                _update_loaded_state(ext, True)
-            else:
-                return {"error": "unknown action"}
-        except Exception as exc:  # noqa: BLE001
-            raise RuntimeError(str(exc)) from exc
-        return {"ok": True}
-
     async def _ipc_cog_load(self, p: dict[str, Any]) -> dict[str, Any]:
         name = p.get("name")
         if not name:
             return {"error": "name required"}
-        result = await self._cog_action(name, "load")
-        if result.get("ok"):
-            # Sync per-guild so new commands appear instantly
-            try:
-                from bot.cogs.registry import _sync_commands_to_guilds
-                await _sync_commands_to_guilds(self)
-            except Exception:  # noqa: BLE001
-                pass
-        return result
+        from bot.cogs.registry import load_cog
+        return await load_cog(self, name)
 
     async def _ipc_cog_unload(self, p: dict[str, Any]) -> dict[str, Any]:
         name = p.get("name")
         if not name:
             return {"error": "name required"}
-        result = await self._cog_action(name, "unload")
-        if result.get("ok"):
-            # Sync per-guild so removed commands disappear instantly
-            try:
-                from bot.cogs.registry import _sync_commands_to_guilds
-                await _sync_commands_to_guilds(self)
-            except Exception:  # noqa: BLE001
-                pass
-        return result
+        from bot.cogs.registry import unload_cog
+        return await unload_cog(self, name)
 
     async def _ipc_cog_reload(self, p: dict[str, Any]) -> dict[str, Any]:
         name = p.get("name")
         if not name:
             return {"error": "name required"}
-        result = await self._cog_action(name, "reload")
-        if result.get("ok"):
-            try:
-                from bot.cogs.registry import _sync_commands_to_guilds
-                await _sync_commands_to_guilds(self)
-            except Exception:  # noqa: BLE001
-                pass
-        return result
+        from bot.cogs.registry import reload_cog
+        return await reload_cog(self, name)
 
 
 async def run_bot() -> None:
     """Resolve token (DB-encrypted or env) and run the bot."""
-    settings = get_settings()
-    token = settings.discord_bot_token
-    if not token:
-        # Fetch from DB
-        from sqlalchemy import select
-        from bot.database import db_session
-        from bot.database.models.system.system_config import SystemConfig
-
-        async with db_session() as s:
-            cfg = await s.scalar(select(SystemConfig).where(SystemConfig.id == 1))
-            if cfg and cfg.bot_token_encrypted:
-                token = decrypt_secret(cfg.bot_token_encrypted, aad=b"bot_token")
+    token = await _fetch_token()
 
     # Idle loop: API may finish setup; we let main.py restart us
     while not token:
         log.warning("bot_no_token_idle")
         await asyncio.sleep(30)
-        # Re-check both env and DB in case bot_token was set at runtime
-        token = get_settings().discord_bot_token
-        if not token:
-            from sqlalchemy import select as sa_select
-            from bot.database import db_session as _db
-            from bot.database.models.system.system_config import SystemConfig as _Cfg
-
-            async with _db() as s:
-                cfg = await s.scalar(sa_select(_Cfg).where(_Cfg.id == 1))
-                if cfg and cfg.bot_token_encrypted:
-                    token = decrypt_secret(cfg.bot_token_encrypted, aad=b"bot_token")
+        token = await _fetch_token()
 
     from bot.runtime import clear_bot, set_bot
 

@@ -36,6 +36,13 @@ from bot.database.models.server.server_config import ServerConfig
 
 log = get_logger("bot.cogs.admin")
 
+COG_INFO = {
+    "name": "Admin",
+    "description": "Cog management commands (load, unload, reload, enable, disable)",
+    "category": "Administration",
+    "requires_admin": True,
+}
+
 
 def is_owner() -> app_commands.Check:
     """App-commands compatible owner check."""

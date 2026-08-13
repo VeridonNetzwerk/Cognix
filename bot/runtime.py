@@ -128,7 +128,6 @@ async def is_cog_enabled_for_server(server_id: int, cog_name: str) -> bool:
     from bot.cogs.registry import get_cog_info, get_loaded_cogs
 
     loaded = set(get_loaded_cogs())
-    # Also include bot.extensions directly
     if _BOT is not None:
         loaded |= set(_BOT.extensions.keys())
 
@@ -137,12 +136,9 @@ async def is_cog_enabled_for_server(server_id: int, cog_name: str) -> bool:
         if info["module"] not in loaded:
             _COG_STATE_CACHE[key] = (False, now)
             return False
-    else:
-        # Unknown cog — check by module name directly
-        full = cog_name if cog_name.startswith("cogs.") or cog_name.startswith("bot.") else f"cogs.{cog_name}"
-        if full not in loaded:
-            _COG_STATE_CACHE[key] = (False, now)
-            return False
+    elif cog_name not in loaded:
+        _COG_STATE_CACHE[key] = (False, now)
+        return False
 
     try:
         from sqlalchemy import select  # local import to avoid cycle at boot
