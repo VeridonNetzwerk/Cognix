@@ -139,7 +139,7 @@ async def is_cog_enabled_for_server(server_id: int, cog_name: str) -> bool:
             return False
     else:
         # Unknown cog — check by module name directly
-        full = cog_name if cog_name.startswith("bot.") else f"bot.cogs.{cog_name}"
+        full = cog_name if cog_name.startswith("cogs.") or cog_name.startswith("bot.") else f"cogs.{cog_name}"
         if full not in loaded:
             _COG_STATE_CACHE[key] = (False, now)
             return False

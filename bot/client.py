@@ -196,11 +196,6 @@ class CogniXBot(commands.Bot):
         self.ipc.register("cog.unload", self._ipc_cog_unload)
         self.ipc.register("cog.reload", self._ipc_cog_reload)
 
-        # Marketplace IPC handlers (forward to loaded marketplace cog)
-        self.ipc.register("marketplace.install", self._ipc_marketplace_install)
-        self.ipc.register("marketplace.uninstall", self._ipc_marketplace_uninstall)
-        self.ipc.register("marketplace.list", self._ipc_marketplace_list)
-
         # Cogs register their own IPC handlers in their setup() if needed
         # via self.ipc.register inside the cog. (See moderation cog.)
 
@@ -246,11 +241,11 @@ class CogniXBot(commands.Bot):
 
     async def _cog_action(self, name: str, action: str) -> dict[str, Any]:
         from bot.cogs.registry import get_cog_info
-        if name.startswith("bot."):
+        if name.startswith("cogs.") or name.startswith("bot."):
             ext = name
         else:
             info = get_cog_info(name)
-            ext = info["module"] if info else f"bot.cogs.{name}"
+            ext = info["module"] if info else f"cogs.{name}"
         try:
             if action == "load":
                 await self.load_extension(ext)
@@ -304,108 +299,6 @@ class CogniXBot(commands.Bot):
             except Exception:  # noqa: BLE001
                 pass
         return result
-
-    # -----------------------------------------------------------------------
-    # Marketplace IPC handlers — forward to the loaded marketplace cog
-    # -----------------------------------------------------------------------
-
-    async def _ipc_marketplace_install(self, p: dict[str, Any]) -> dict[str, Any]:
-        """Handle marketplace install requests from the web layer."""
-        try:
-            from bot.cogs.admin.marketplace import install_cog_from_source, save_package_metadata
-
-            cog_or_url = p.get("cog_or_url", "")
-            if not cog_or_url:
-                return {"status": "error", "error": "cog_or_url required"}
-
-            is_url = cog_or_url.startswith("http")
-            if is_url:
-                repo_url = cog_or_url
-                cog_name = cog_or_url
-            else:
-                import httpx
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    resp = await client.get(
-                        "https://raw.githubusercontent.com/VeridonNetzwerk/cognix-marketplace/main/registry.json"
-                    )
-                    resp.raise_for_status()
-                    reg_data = resp.json()
-                found = None
-                if isinstance(reg_data, list):
-                    for c in reg_data:
-                        if c.get("name", "").lower() == cog_or_url.lower():
-                            found = c
-                            break
-                elif isinstance(reg_data, dict) and "cogs" in reg_data:
-                    for c in reg_data["cogs"]:
-                        if c.get("name", "").lower() == cog_or_url.lower():
-                            found = c
-                            break
-                if found is None:
-                    return {"status": "error", "error": f"Unknown marketplace cog: {cog_or_url}"}
-                repo_url = found.get("github_repo", "")
-                cog_name = found.get("name", cog_or_url)
-
-            result = await install_cog_from_source(self, repo_url, cog_name)
-            if result.get("ok"):
-                await save_package_metadata(
-                    cog_name=cog_name,
-                    display_name=cog_name,
-                    description=f"Installed from {repo_url}",
-                    github_repo=repo_url,
-                    version=None,
-                    dependencies=[],
-                    category="Custom",
-                    requires_admin=False,
-                    author="Unknown",
-                    installed=True,
-                )
-                try:
-                    await self.tree.sync()
-                except Exception:  # noqa: BLE001
-                    pass
-                return {"status": "ok", "payload": {"cog": cog_name}}
-            return {"status": "error", "error": result.get("error", "unknown error")}
-        except Exception as exc:  # noqa: BLE001
-            return {"status": "error", "error": str(exc)}
-
-    async def _ipc_marketplace_uninstall(self, p: dict[str, Any]) -> dict[str, Any]:
-        """Handle marketplace uninstall requests from the web layer."""
-        try:
-            cog_name = p.get("cog_name", "")
-            if not cog_name:
-                return {"status": "error", "error": "cog_name required"}
-
-            from bot.cogs.admin.marketplace import uninstall_cog
-
-            result = await uninstall_cog(self, cog_name)
-            if result.get("ok"):
-                try:
-                    await self.tree.sync()
-                except Exception:  # noqa: BLE001
-                    pass
-                return {"status": "ok", "payload": {"cog": cog_name}}
-            return {"status": "error", "error": result.get("error", "unknown error")}
-        except Exception as exc:  # noqa: BLE001
-            return {"status": "error", "error": str(exc)}
-
-    async def _ipc_marketplace_list(self, _: dict[str, Any]) -> dict[str, Any]:
-        """Return the curated marketplace registry."""
-        try:
-            import httpx
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(
-                    "https://raw.githubusercontent.com/VeridonNetzwerk/cognix-marketplace/main/registry.json"
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                if isinstance(data, list):
-                    return {"status": "ok", "payload": {"cogs": data}}
-                if isinstance(data, dict) and "cogs" in data:
-                    return {"status": "ok", "payload": {"cogs": data["cogs"]}}
-        except Exception as exc:  # noqa: BLE001
-            return {"status": "error", "error": str(exc)}
-        return {"status": "error", "error": "invalid registry format"}
 
 
 async def run_bot() -> None:

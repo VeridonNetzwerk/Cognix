@@ -29,13 +29,12 @@ logs/
 .DS_Store
 
 # Test install directory
-_test_install/
+bot_test/
 
 # Temporary test scripts
 test_login.py
-test_marketplace.py
 install_test.py
 test_cog_repo/
 
-# Cog install directory (marketplace)
+# Cog install directory (external cogs)
 .cognix_cogs/

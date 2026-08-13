@@ -110,7 +110,6 @@ def create_app() -> FastAPI:
         auth_api.setup_router,
         bot_api.bot_control_router,
         bot_api.cogs_router,
-        bot_api.marketplace_router,
         servers_api.servers_router,
         servers_api.stats_router,
         users_api.users_router,

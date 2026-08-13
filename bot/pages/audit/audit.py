@@ -72,7 +72,7 @@ async def discord_log_view(request: Request,
                            date_to: str | None = None,
                            access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     me = await _require_user(access_token)
-    _require_cog("bot.cogs.logging.activity_log")
+    _require_cog("cogs.logging.activity_log")
     if me.role == WebRole.VIEWER:
         return _render(request, "error.html", user=me, status=403,
                        title="Forbidden", detail="Moderator+ only.")
@@ -123,7 +123,7 @@ async def log_view(request: Request, tab: str = "web",
                    access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     from typing import Any
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.logging.activity_log")
+    _require_cog("cogs.logging.activity_log")
     if tab not in ("web", "discord"):
         tab = "web"
     web_rows: list[Any] = []

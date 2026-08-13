@@ -62,26 +62,22 @@ CogniX/
 ├── install.py              # Installer — creates venv, installs deps, generates secrets
 ├── main.py                 # Entry point — starts bot + web server
 ├── alembic.ini             # Alembic config (migrations)
+├── cogs/                    # Feature modules (lazy-loaded, separate from core)
+│   ├── admin/              #   /admin cog management commands
+│   ├── moderation/         #   Ban, kick, mute, warn, purge
+│   ├── tickets/            #   Thread-based support tickets
+│   ├── music/              #   Music playback (yt-dlp + FFmpeg)
+│   ├── backups/            #   Server backup/restore
+│   ├── giveaways/          #   Reaction-based giveaways
+│   ├── welcome/            #   Join/leave/boost messages, invite tracking
+│   ├── logging/            #   Discord event logging, stats
+│   └── utility/            #   Ping, info, embeds, bot profile
 ├── bot/                    # Discord bot core + all backend logic
 │   ├── client.py           #   Bot client (CognixBot)
 │   ├── runtime.py          #   Runtime helpers (get_bot, get_bot_info)
 │   ├── ipc.py              #   Redis IPC consumer (optional, multi-process)
-│   ├── cogs/               #   Feature modules (lazy-loaded)
-│   │   ├── registry.py     #     Cog discovery, load/unload, BUILTIN_COGS
-│   │   ├── admin.py        #     /admin cog management commands
-│   │   ├── marketplace.py  #     /marketplace install/uninstall commands
-│   │   ├── moderation.py   #     Ban, kick, mute, warn, purge
-│   │   ├── tickets.py      #     Thread-based support tickets
-│   │   ├── music.py        #     Music playback (yt-dlp + FFmpeg)
-│   │   ├── backups.py      #     Server backup/restore
-│   │   ├── giveaways.py    #     Reaction-based giveaways
-│   │   ├── welcome.py      #     Join/leave/boost messages
-│   │   ├── invite_tracker.py  #  Invite tracking
-│   │   ├── activity_log.py #     Discord event logging
-│   │   ├── embeds.py       #     Custom embed templates
-│   │   ├── bot_profile.py  #     Bot profile management
-│   │   ├── stats.py        #     Message/command statistics
-│   │   └── utility.py      #     Ping, info, userinfo, etc.
+│   ├── cogs/               #   Core cog infrastructure
+│   │   └── registry.py     #     Cog discovery, load/unload, persistence
 │   ├── config/             #   Configuration
 │   │   ├── settings.py     #     Env-based settings
 │   │   ├── constants.py    #     API prefix, audit actions
@@ -105,7 +101,6 @@ CogniX/
 │   ├── deps.py             #   Shared dependencies (auth, DB session)
 │   ├── api/                #   JSON API routes (/api/v1/*)
 │   │   ├── auth.py         #     Login/logout/setup API
-│   │   ├── marketplace.py  #     Marketplace API (install/uninstall)
 │   │   ├── cogs.py         #     Cog management API
 │   │   ├── servers.py      #     Server info API
 │   │   ├── tickets.py      #     Ticket API
@@ -125,7 +120,7 @@ CogniX/
 │   │   ├── _shared.py      #     Shared helpers, router, templates
 │   │   ├── auth.py         #     Login/logout/setup wizard pages
 │   │   ├── dashboard.py    #     Dashboard, servers, server detail
-│   │   ├── cogs.py         #     Cogs management, marketplace page
+│   │   ├── cogs.py         #     Cogs management page
 │   │   ├── tickets.py      #     Tickets, types, panels pages
 │   │   ├── audit.py        #     Audit log, Discord log pages
 │   │   ├── users.py        #     Web user management pages

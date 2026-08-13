@@ -22,7 +22,7 @@ from bot.pages._shared import _render, _require_cog, _require_user, router
 async def backups_view(request: Request,
                        access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.backups.backups")
+    _require_cog("cogs.backups.backups")
     async with db_session() as s:
         rows = (
             await s.scalars(select(Backup).order_by(desc(Backup.created_at)).limit(200))
@@ -38,7 +38,7 @@ async def backups_create(server_id: int = Form(...),
                          name: str = Form(default=""),
                          message_limit: int = Form(default=0),
                          access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
-    _require_cog("bot.cogs.backups.backups")
+    _require_cog("cogs.backups.backups")
     me = await _require_user(access_token)
     bot = get_bot()
     if bot is None:
@@ -61,7 +61,7 @@ async def backups_load(backup_id: str,
                        target_server_id: int = Form(...),
                        access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     await _require_user(access_token)
-    _require_cog("bot.cogs.backups.backups")
+    _require_cog("cogs.backups.backups")
     bot = get_bot()
     if bot is None:
         raise HTTPException(503, "bot offline")
@@ -79,7 +79,7 @@ async def backups_load(backup_id: str,
 async def backups_delete(backup_id: str,
                          access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     await _require_user(access_token)
-    _require_cog("bot.cogs.backups.backups")
+    _require_cog("cogs.backups.backups")
     async with db_session() as s:
         b = await s.get(Backup, uuid.UUID(backup_id))
         if b is not None:

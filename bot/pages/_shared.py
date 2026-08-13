@@ -73,7 +73,7 @@ def _require_cog(cog_module: str) -> None:
     loaded = _get_loaded_cogs()
     if cog_module == "__any__":
         if not loaded:
-            raise HTTPException(404, "No cogs loaded. Load a cog from the marketplace first.")
+            raise HTTPException(404, "No cogs loaded. Install and load a cog first.")
     elif cog_module not in loaded:
         raise HTTPException(404, f"This feature requires the '{cog_module.split('.')[-1].title()}' cog to be loaded.")
 

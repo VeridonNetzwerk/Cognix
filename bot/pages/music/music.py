@@ -20,7 +20,7 @@ from bot.pages._shared import _render, _require_cog, _require_user, router
 async def music_view(request: Request,
                      access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.music.music")
+    _require_cog("cogs.music.music")
     async with db_session() as s:
         servers = (await s.scalars(select(Server).order_by(Server.name))).all()
     servers_json = json.dumps(

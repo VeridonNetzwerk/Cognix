@@ -204,7 +204,7 @@ async def bot_profile_view(
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
 ) -> HTMLResponse:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.utility.bot_profile")
+    _require_cog("cogs.utility.bot_profile")
     async with db_session() as s:
         if not await has_permission(s, user, "bot_profile", level="read"):
             raise HTTPException(403, "forbidden")
@@ -229,7 +229,7 @@ async def bot_profile_save(
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
 ) -> Response:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.utility.bot_profile")
+    _require_cog("cogs.utility.bot_profile")
     async with db_session() as s:
         if not await has_permission(s, user, "bot_profile", level="write"):
             raise HTTPException(403, "forbidden")

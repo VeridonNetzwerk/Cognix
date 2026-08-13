@@ -23,7 +23,6 @@ from discord.ext import commands
 from sqlalchemy import select
 
 from bot.cogs.registry import (
-    AVAILABLE_COGS,
     get_all_cog_info,
     get_cog_info,
     get_loaded_cogs,
@@ -156,7 +155,7 @@ class AdminCog(commands.Cog):
 
         if not cog_info:
             await interaction.followup.send(
-                f"❌ Unknown cog '{cog}'. Available: {', '.join(c['name'] for c in AVAILABLE_COGS)}", ephemeral=True
+                f"❌ Unknown cog '{cog}'. Available: {', '.join(c['name'] for c in get_all_cog_info())}", ephemeral=True
             )
             return
 
@@ -196,14 +195,14 @@ class AdminCog(commands.Cog):
         await interaction.response.defer(ephemeral=True, thinking=True)
 
         cog_info = None
-        for c in AVAILABLE_COGS:
-            if c["name"].lower() == cog.lower() or c["module"] == f"bot.cogs.{cog}":
+        for c in get_all_cog_info():
+            if c["name"].lower() == cog.lower() or c["module"] == f"cogs.{cog}":
                 cog_info = c
                 break
 
         if not cog_info:
             await interaction.followup.send(
-                f"❌ Unknown cog '{cog}'. Available: {', '.join(c['name'] for c in AVAILABLE_COGS)}", ephemeral=True
+                f"❌ Unknown cog '{cog}'. Available: {', '.join(c['name'] for c in get_all_cog_info())}", ephemeral=True
             )
             return
 

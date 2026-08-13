@@ -1,58 +1,69 @@
 """Cog Registry — central registry of all available cogs and their load state.
 
 This module provides:
-1. A static list of built-in cogs with metadata (name, description, category)
-2. Dynamic discovery of marketplace-installed cogs from the database
-3. Runtime tracking of which cogs are currently loaded
-4. Helper functions to load/unload/reload cogs with automatic slash-command tree sync
-5. Persistence of loaded state to the database so it survives restarts
+1. Dynamic discovery of cogs from the top-level cogs/ directory
+2. Runtime tracking of which cogs are currently loaded
+3. Helper functions to load/unload/reload cogs with automatic slash-command tree sync
+4. Persistence of loaded state to the database so it survives restarts
 
 Design principle:
 - Extensions in discord.py are bot-wide (not per-guild). When a cog is loaded,
   its commands become available on ALL servers.
 - Per-server enable/disable is handled separately via ServerConfig.enabled_cogs.
 - This registry tracks which cogs are *loaded* globally.
-- Built-in cogs are defined statically; marketplace-cogs are discovered dynamically.
+- Cogs live in the top-level cogs/ directory and are discovered dynamically.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from bot.config.logging import get_logger
-from bot.config.settings import get_settings
 
 log = get_logger("bot.cog_registry")
 
 # ---------------------------------------------------------------------------
-# Built-in Cogs Registry — defines cogs bundled with the bot source
+# Cog Discovery — scan the top-level cogs/ directory for cog modules
 # ---------------------------------------------------------------------------
 
 CogInfo = dict[str, str | bool]  # {module: ..., name: ..., description: ..., category: ...}
 
-# Cog files that ship with the bot (excluding registry, marketplace, admin, __init__)
-_BUILTIN_COG_MODULES = [
-    "bot.cogs.moderation.moderation",
-    "bot.cogs.utility.utility",
-    "bot.cogs.tickets.tickets",
-    "bot.cogs.logging.stats",
-    "bot.cogs.backups.backups",
-    "bot.cogs.music.music",
-    "bot.cogs.logging.activity_log",
-    "bot.cogs.giveaways.giveaway",
-    "bot.cogs.welcome.welcome",
-    "bot.cogs.welcome.invite_tracker",
-    "bot.cogs.utility.embeds",
-    "bot.cogs.utility.bot_profile",
-]
+_COGS_DIR = Path(__file__).resolve().parent.parent.parent / "cogs"
 
 
-def _discover_builtin_cogs() -> list[CogInfo]:
-    """Discover built-in cogs by importing each module and reading its COG_INFO."""
+def _discover_cogs() -> list[CogInfo]:
+    """Discover all cog modules in the top-level cogs/ directory.
+
+    Scans for .py files (excluding __init__.py, registry.py, _*.py) in cogs/
+    and its subdirectories. Each module may define a COG_INFO dict with
+    metadata (name, description, category, requires_admin).
+    """
     import importlib
 
     cogs: list[CogInfo] = []
-    for module_name in _BUILTIN_COG_MODULES:
+
+    if not _COGS_DIR.exists():
+        return cogs
+
+    # Find all .py files that could be cogs
+    for py_file in sorted(_COGS_DIR.rglob("*.py")):
+        if py_file.name == "__init__.py":
+            continue
+        if py_file.name.startswith("_"):
+            continue
+        if py_file.name == "registry.py":
+            continue
+
+        # Convert file path to dotted module path relative to project root
+        try:
+            rel = py_file.relative_to(_COGS_DIR.parent)
+            module_parts = list(rel.parts)
+            module_parts[-1] = module_parts[-1].removesuffix(".py")
+            module_name = ".".join(module_parts)
+        except ValueError:
+            continue
+
         try:
             mod = importlib.import_module(module_name)
             info = getattr(mod, "COG_INFO", None)
@@ -84,72 +95,35 @@ def _discover_builtin_cogs() -> list[CogInfo]:
                 "category": "",
                 "requires_admin": False,
             })
+
     return cogs
 
 
-BUILTIN_COGS: list[CogInfo] = _discover_builtin_cogs()
+def _discover_cogs_cached() -> list[CogInfo]:
+    """Discover cogs with caching to avoid repeated filesystem scans."""
+    global _cogs_cache
+    if _cogs_cache is not None:
+        return _cogs_cache
+    _cogs_cache = _discover_cogs()
+    return _cogs_cache
 
-# ---------------------------------------------------------------------------
-# Dynamic Available Cogs — built-in + marketplace packages merged together
-# ---------------------------------------------------------------------------
+
+_cogs_cache: list[CogInfo] | None = None
+
+
+def refresh_cogs_cache() -> None:
+    """Force a re-scan of the cogs directory. Call after installing/removing cogs."""
+    global _cogs_cache
+    _cogs_cache = None
 
 
 def get_all_cog_info() -> list[CogInfo]:
-    """Return metadata for all available cogs (built-in + marketplace)."""
-    result = [dict(c) for c in BUILTIN_COGS]
-
-    # Merge installed marketplace packages that haven't been uninstalled
-    try:
-        sync_result = _get_installed_marketplace_cogs()
-    except Exception:  # noqa: BLE001
-        return result
-
-    for pkg in sync_result:
-        module_name = pkg.module_name or f"bot.cogs.ext_{pkg.name.lower().replace(' ', '_')}"
-        already = any(c["module"] == module_name for c in result)
-        if not already:
-            result.append({
-                "module": module_name,
-                "name": pkg.display_name or pkg.name,
-                "description": pkg.description or f"Installed marketplace cog",
-                "category": pkg.category or "Marketplace",
-                "requires_admin": pkg.requires_admin,
-            })
-
-    return result
+    """Return metadata for all available cogs."""
+    return [dict(c) for c in _discover_cogs_cached()]
 
 
-def _get_installed_marketplace_cogs() -> list[Any]:
-    """Sync helper to get installed marketplace packages.
-
-    Uses a synchronous SQLite connection to avoid deadlock when called
-    from within the event loop thread.
-    """
-    try:
-        from bot.database.models.cogs.cog_package import CogPackage
-        from sqlalchemy import create_engine, select as sa_select
-        from sqlalchemy.orm import Session
-
-        settings = get_settings()
-        # Convert async URL to sync URL for this one-off query
-        sync_url = settings.database_url.replace("+aiosqlite", "").replace("+asyncpg", "+psycopg2").replace("+aiomysql", "+pymysql")
-        engine = create_engine(sync_url, echo=False)
-        try:
-            with Session(engine) as s:
-                return list(s.scalars(
-                    sa_select(CogPackage).where(
-                        CogPackage.installed.is_(True),
-                        CogPackage.uninstall_requested.is_(False),
-                    )
-                ))
-        finally:
-            engine.dispose()
-    except Exception:  # noqa: BLE001
-        return []
-
-
-# Alias for backwards compatibility with existing imports
-AVAILABLE_COGS = BUILTIN_COGS  # type: ignore[name-defined]
+# Alias for backwards compatibility
+AVAILABLE_COGS = _discover_cogs_cached()  # type: ignore[name-defined]
 
 
 # ---------------------------------------------------------------------------
@@ -166,7 +140,7 @@ def get_loaded_cogs() -> list[str]:
 
 def is_cog_loaded(module_name: str) -> bool:
     """Check if a specific cog module is currently loaded."""
-    if module_name.startswith("bot."):
+    if module_name.startswith("cogs.") or module_name.startswith("bot."):
         return module_name in _loaded_cogs
     # Search by short name via cog info
     info = get_cog_info(module_name)
@@ -200,7 +174,7 @@ def _update_loaded_state(module_name: str, loaded: bool) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Load/Unload helpers — used by IPC, admin commands, and marketplace
+# Load/Unload helpers — used by IPC, admin commands, and web API
 # ---------------------------------------------------------------------------
 
 

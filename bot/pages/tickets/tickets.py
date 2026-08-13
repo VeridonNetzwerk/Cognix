@@ -24,7 +24,7 @@ async def tickets_view(request: Request,
                        status_filter: str | None = None,
                        access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.tickets.tickets")
+    _require_cog("cogs.tickets.tickets")
     async with db_session() as s:
         q = select(Ticket).order_by(desc(Ticket.created_at)).limit(200)
         if status_filter in ("open", "closed", "archived"):
@@ -45,7 +45,7 @@ async def tickets_view(request: Request,
 async def tickets_close(ticket_id: str,
                         access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     await _require_user(access_token)
-    _require_cog("bot.cogs.tickets.tickets")
+    _require_cog("cogs.tickets.tickets")
     from web.services.bot_ipc import get_ipc
     try:
         await get_ipc().call("ticket.close", {"ticket_id": ticket_id}, timeout=5.0)
@@ -64,7 +64,7 @@ async def tickets_save(server_id: int = Form(...),
                        ticket_support_role_ids: str = Form(default=""),
                        access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     await _require_user(access_token)
-    _require_cog("bot.cogs.tickets.tickets")
+    _require_cog("cogs.tickets.tickets")
     role_ids = [int(x.strip()) for x in ticket_support_role_ids.split(",") if x.strip().isdigit()]
     async with db_session() as s:
         cfg = await s.get(ServerConfig, server_id)
@@ -80,7 +80,7 @@ async def tickets_save(server_id: int = Form(...),
 async def tickets_archive(request: Request,
                           access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.tickets.tickets")
+    _require_cog("cogs.tickets.tickets")
     async with db_session() as s:
         tickets = (await s.scalars(
             select(Ticket)
@@ -104,7 +104,7 @@ async def tickets_archive(request: Request,
 async def tickets_settings(request: Request,
                             access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.tickets.tickets")
+    _require_cog("cogs.tickets.tickets")
     async with db_session() as s:
         servers = (await s.scalars(select(Server).order_by(Server.name))).all()
         configs = (await s.scalars(select(ServerConfig))).all()
@@ -125,7 +125,7 @@ async def ticket_view(
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
 ) -> HTMLResponse:
     user = await _require_user(access_token)
-    _require_cog("bot.cogs.tickets.tickets")
+    _require_cog("cogs.tickets.tickets")
     async with db_session() as s:
         ticket = await s.get(Ticket, uuid.UUID(ticket_id))
         if ticket is None:

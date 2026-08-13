@@ -15,7 +15,6 @@ class TestRouteImports:
         from web.api import bot
         assert bot is not None
         assert hasattr(bot, "cogs_router")
-        assert hasattr(bot, "marketplace_router")
 
     def test_can_import_auth_api(self):
         from web.api import auth

@@ -173,7 +173,8 @@ def print_next_steps(python: str) -> None:
   3. Open {YELLOW}http://localhost:8080{RESET} in your browser
      The first-run setup wizard will guide you through the rest.
 
-  4. Install cogs from the dashboard Marketplace tab.
+  4. Install cogs separately — copy them from the cogs/ directory or
+     download them as needed.
 
   {BOLD}Useful commands:{RESET}
      Start bot:     {python} main.py

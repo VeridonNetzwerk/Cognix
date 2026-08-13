@@ -1,4 +1,4 @@
-"""Cogs management and marketplace routes."""
+"""Cogs management routes."""
 
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ from bot.runtime import get_bot
 from bot.database.models.cogs.cog_state import CogState
 from bot.database.models.server.server import Server
 from bot.database.models.server.server_cog_state import ServerCogState
-from bot.database.models.auth.web_user import WebRole
 from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE
 from bot.pages._shared import _render, _require_user, router
@@ -146,13 +145,3 @@ async def cogs_reload(cog_name: str,
     except Exception:
         pass
     return RedirectResponse("/cogs", status_code=303)
-
-
-@router.get("/marketplace", response_class=HTMLResponse)
-async def marketplace_view(request: Request,
-                           access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
-    user = await _require_user(access_token)
-    if user.role != WebRole.ADMIN:
-        return _render(request, "error.html", user=user, status=403,
-                       title="Forbidden", detail="Admin only.")
-    return _render(request, "cogs/marketplace.html", user=user)

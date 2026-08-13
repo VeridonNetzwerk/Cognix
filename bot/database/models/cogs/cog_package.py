@@ -39,7 +39,7 @@ class CogPackage(Base, TimestampMixin):
     # Installation state
     installed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     install_dir: Mapped[str | None] = mapped_column(String(512), default=None, nullable=True)  # Path where the cog was cloned/installed
-    module_name: Mapped[str | None] = mapped_column(String(256), default=None, nullable=True)  # e.g. "bot.cogs.ext_moderation"
+    module_name: Mapped[str | None] = mapped_column(String(256), default=None, nullable=True)  # e.g. "cogs.ext_moderation"
 
     # Tracking
     last_installed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None, nullable=True)
