@@ -194,11 +194,7 @@ class AdminCog(commands.Cog):
     async def disable_cog(self, interaction: discord.Interaction, server_id: int, cog: str) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
 
-        cog_info = None
-        for c in get_all_cog_info():
-            if c["name"].lower() == cog.lower() or c["module"] == f"cogs.{cog}":
-                cog_info = c
-                break
+        cog_info = get_cog_info(cog)
 
         if not cog_info:
             await interaction.followup.send(

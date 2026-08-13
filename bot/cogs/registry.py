@@ -122,10 +122,6 @@ def get_all_cog_info() -> list[CogInfo]:
     return [dict(c) for c in _discover_cogs_cached()]
 
 
-# Alias for backwards compatibility
-AVAILABLE_COGS = _discover_cogs_cached()  # type: ignore[name-defined]
-
-
 # ---------------------------------------------------------------------------
 # Runtime state — which cogs are currently loaded
 # ---------------------------------------------------------------------------

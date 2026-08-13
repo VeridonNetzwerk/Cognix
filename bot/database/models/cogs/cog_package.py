@@ -1,4 +1,4 @@
-"""Cognitive marketplace package registry — stores information about installed and available cogs."""
+"""Cog package registry — stores metadata about installed cog packages."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from bot.database.base import Base, TimestampMixin
 
 
 class CogPackage(Base, TimestampMixin):
-    """Represents a cog package from the marketplace."""
+    """Represents an installed cog package."""
 
     __tablename__ = "cog_packages"
 

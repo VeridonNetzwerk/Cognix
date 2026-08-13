@@ -1,4 +1,4 @@
-"""add cog_packages table for marketplace
+"""add cog_packages table for cog package metadata
 
 Revision ID: 0009_cog_packages
 Revises: 0008_role_permissions
