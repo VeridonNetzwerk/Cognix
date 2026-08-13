@@ -240,7 +240,7 @@ class CogniXBot(commands.Bot):
         return {"loaded": list(self.extensions.keys())}
 
     async def _cog_action(self, name: str, action: str) -> dict[str, Any]:
-        from bot.cogs.registry import get_cog_info
+        from bot.cogs.registry import _update_loaded_state, get_cog_info
         if name.startswith("cogs.") or name.startswith("bot."):
             ext = name
         else:
@@ -249,10 +249,13 @@ class CogniXBot(commands.Bot):
         try:
             if action == "load":
                 await self.load_extension(ext)
+                _update_loaded_state(ext, True)
             elif action == "unload":
                 await self.unload_extension(ext)
+                _update_loaded_state(ext, False)
             elif action == "reload":
                 await self.reload_extension(ext)
+                _update_loaded_state(ext, True)
             else:
                 return {"error": "unknown action"}
         except Exception as exc:  # noqa: BLE001

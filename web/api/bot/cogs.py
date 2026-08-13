@@ -85,6 +85,22 @@ async def list_cogs(session: SessionDep) -> dict:
 @router.post("/{cog_name}")
 async def cog_action(cog_name: str, req: CogActionRequest) -> dict:
     """Load/unload/reload a cog globally (affects all servers)."""
+    # Try in-process first (when bot runs in same process as web server)
+    from bot.runtime import get_bot
+    bot = get_bot()
+    if bot is not None:
+        from bot.cogs.registry import load_cog, unload_cog, reload_cog
+        if req.action == "load":
+            result = await load_cog(bot, cog_name)
+        elif req.action == "unload":
+            result = await unload_cog(bot, cog_name)
+        else:
+            result = await reload_cog(bot, cog_name)
+        if not result.get("ok"):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, result.get("error", "failed"))
+        return {"ok": True}
+
+    # Fall back to IPC (Redis mode)
     ipc = get_ipc()
     try:
         result = await ipc.call(f"cog.{req.action}", {"name": cog_name}, timeout=5.0)

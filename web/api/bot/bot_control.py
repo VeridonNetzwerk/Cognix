@@ -81,6 +81,26 @@ async def bot_stop() -> dict:
 
 @router.post("/presence")
 async def presence(payload: dict) -> dict:
+    # Try in-process first
+    from bot.runtime import get_bot
+    bot = get_bot()
+    if bot is not None:
+        import discord
+        type_map = {
+            "playing": discord.ActivityType.playing,
+            "watching": discord.ActivityType.watching,
+            "listening": discord.ActivityType.listening,
+            "streaming": discord.ActivityType.streaming,
+            "competing": discord.ActivityType.competing,
+        }
+        activity = discord.Activity(
+            type=type_map.get(payload.get("type", "playing"), discord.ActivityType.playing),
+            name=payload.get("text", ""),
+        )
+        await bot.change_presence(activity=activity)
+        return {"ok": True}
+
+    # Fall back to IPC
     ipc = get_ipc()
     await ipc.call("presence", payload, timeout=3.0)
     return {"ok": True}

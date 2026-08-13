@@ -139,9 +139,19 @@ async def cogs_toggle(cog_name: str,
 async def cogs_reload(cog_name: str,
                       access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     await _require_user(access_token)
-    from web.services.bot_ipc import get_ipc
-    try:
-        await get_ipc().call("cog.reload", {"name": cog_name}, timeout=5.0)
-    except Exception:
-        pass
+    # Try in-process first
+    from bot.runtime import get_bot
+    bot = get_bot()
+    if bot is not None:
+        from bot.cogs.registry import reload_cog
+        try:
+            await reload_cog(bot, cog_name)
+        except Exception:
+            pass
+    else:
+        from web.services.bot_ipc import get_ipc
+        try:
+            await get_ipc().call("cog.reload", {"name": cog_name}, timeout=5.0)
+        except Exception:
+            pass
     return RedirectResponse("/cogs", status_code=303)

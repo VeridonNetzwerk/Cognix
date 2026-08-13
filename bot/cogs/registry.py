@@ -272,7 +272,7 @@ async def reload_cog(bot: Any, cog_name: str) -> dict[str, Any]:
         return {"error": f"Unload failed: {unload_result.get('error', '')}"}
 
     try:
-        await bot.reload_extension(module_name)
+        await bot.load_extension(module_name)
         _update_loaded_state(module_name, True)
         await _sync_commands_to_guilds(bot)
         log.info("cog_reloaded", cog=info["name"], module=module_name)
