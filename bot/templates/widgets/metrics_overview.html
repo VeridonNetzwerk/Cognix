@@ -1,0 +1,19 @@
+{# Core widget: Metrics overview cards #}
+<div class="grid grid-cols-2 gap-4">
+  <div class="text-center p-3 rounded-lg" style="background: color-mix(in oklch, var(--color-primary) 10%, transparent);">
+    <p class="text-xs uppercase tracking-wider mb-1" style="color: var(--color-muted-foreground);">Servers</p>
+    <p class="font-mono font-bold text-2xl">{{ metrics.servers }}</p>
+  </div>
+  <div class="text-center p-3 rounded-lg" style="background: color-mix(in oklch, var(--color-accent) 10%, transparent);">
+    <p class="text-xs uppercase tracking-wider mb-1" style="color: var(--color-muted-foreground);">Users</p>
+    <p class="font-mono font-bold text-2xl">{{ metrics.users }}</p>
+  </div>
+  <div class="text-center p-3 rounded-lg" style="background: color-mix(in oklch, var(--color-success) 10%, transparent);">
+    <p class="text-xs uppercase tracking-wider mb-1" style="color: var(--color-muted-foreground);">Cogs</p>
+    <p class="font-mono font-bold text-2xl">{{ metrics.cogs_loaded }}</p>
+  </div>
+  <div class="text-center p-3 rounded-lg" style="background: color-mix(in oklch, var(--color-warning) 10%, transparent);">
+    <p class="text-xs uppercase tracking-wider mb-1" style="color: var(--color-muted-foreground);">Tickets</p>
+    <p class="font-mono font-bold text-2xl">{{ metrics.open_tickets }}</p>
+  </div>
+</div>

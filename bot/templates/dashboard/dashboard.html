@@ -2,107 +2,218 @@
 {% block title %}Dashboard · CogniX{% endblock %}
 {% block header %}Dashboard{% endblock %}
 {% block content %}
-{# === Metric cards (4-up) === #}
-{% set cards = [
-  ('Servers',      metrics.servers,      'ph-hard-drives', 'primary'),
-  ('Total Users',  metrics.users,        'ph-users',       'accent'),
-  ('Cogs Loaded',  metrics.cogs_loaded,  'ph-package',     'success'),
-  ('Open Tickets', metrics.open_tickets, 'ph-ticket',      'warning'),
-] %}
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-  {% for label, value, icon, color in cards %}
-  {% set color_var = '--color-' + color %}
-  <div class="gradient-border p-6 animate-count-up" style="animation-delay: {{ loop.index0 * 100 }}ms;">
-    <div class="flex items-start justify-between">
-      <div class="flex-1 min-w-0">
-        <p class="text-xs font-medium uppercase tracking-wider mb-3" style="color: var(--color-muted-foreground);">{{ label }}</p>
-        <div class="font-mono font-bold text-4xl tabular-nums">{{ value }}</div>
+<div x-data="dashboardWidgets()" x-init="init()">
+  {# === Widget grid === #}
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6"
+       id="widget-grid">
+
+    {% for w in active_widgets %}
+    <div class="gradient-border p-5 flex flex-col gap-3 widget-card"
+         data-widget-id="{{ w.id }}"
+         draggable="true"
+         @dragstart="dragStart($event, '{{ w.id }}')"
+         @dragover.prevent="dragOver($event, '{{ w.id }}')"
+         @drop="drop($event, '{{ w.id }}')"
+         @dragend="dragEnd()"
+         :class="{ 'opacity-50': dragging === '{{ w.id }}', 'border-primary': dragOverId === '{{ w.id }}' }">
+
+      {# Widget header #}
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 min-w-0">
+          <i class="ph-fill {{ w.icon }} text-lg shrink-0" style="color: var(--color-primary);"></i>
+          <h3 class="text-sm font-semibold truncate">{{ w.title }}</h3>
+          {% if w.cog and w.cog != '__core__' %}
+          <span class="text-[10px] px-1.5 py-0.5 rounded shrink-0"
+                style="background: color-mix(in oklch, var(--color-primary) 15%, transparent); color: var(--color-primary);">
+            {{ w.cog.split('.')[-1] }}
+          </span>
+          {% endif %}
+        </div>
+        <div class="flex items-center gap-1 shrink-0">
+          <i class="ph ph-dots-six-vertical text-slate-600 cursor-grab" title="Drag to reorder"></i>
+          <button @click="removeWidget('{{ w.id }}')"
+                  class="text-slate-500 hover:text-rose-400 transition" title="Remove widget">
+            <i class="ph ph-x-circle"></i>
+          </button>
+        </div>
       </div>
-      <div class="p-3 rounded-lg shrink-0"
-           style="background: linear-gradient(135deg, color-mix(in oklch, var({{ color_var }}) 20%, transparent), color-mix(in oklch, var({{ color_var }}) 5%, transparent)); color: var({{ color_var }});">
-        <i class="ph-fill {{ icon }}" style="font-size: 1.5rem;"></i>
+
+      <div class="border-t" style="border-color: var(--color-border);"></div>
+
+      {# Widget content — include the partial template #}
+      <div class="flex-1">
+        {% set w_data = widget_data.get(w.id, {}) %}
+        {% include w.template %}
       </div>
+    </div>
+    {% endfor %}
+
+    {# Empty state #}
+    {% if not active_widgets %}
+    <div class="col-span-full gradient-border p-12 text-center">
+      <i class="ph ph-squares-four text-4xl mb-3" style="color: var(--color-muted-foreground);"></i>
+      <p class="text-lg font-medium mb-1">No widgets on your dashboard</p>
+      <p class="text-sm mb-4" style="color: var(--color-muted-foreground);">Add widgets to customize your home screen.</p>
+      <button @click="showAddMenu = true" class="btn btn-primary">
+        <i class="ph ph-plus"></i> Add widgets
+      </button>
+    </div>
+    {% endif %}
+  </div>
+
+  {# === Add widget button + menu === #}
+  <div class="flex items-center gap-3 mb-6">
+    <button @click="showAddMenu = !showAddMenu"
+            class="btn btn-secondary">
+      <i class="ph ph-plus-circle"></i> Add widget
+    </button>
+    <span class="text-xs" style="color: var(--color-muted-foreground);" x-show="saving" x-cloak>Saving...</span>
+    <span class="text-xs text-emerald-400" x-show="saved" x-cloak>Saved!</span>
+  </div>
+
+  <div x-show="showAddMenu" x-cloak
+       class="gradient-border p-4 mb-6"
+       @click.outside="showAddMenu = false">
+    <h4 class="text-sm font-semibold mb-3">Available widgets</h4>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {% for w in available_to_add %}
+      <div class="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors hover:bg-slate-800/50"
+           style="background: color-mix(in oklch, var(--color-secondary) 20%, transparent);"
+           @click="addWidget('{{ w.id }}')">
+        <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+             style="background: color-mix(in oklch, var(--color-primary) 15%, transparent);">
+          <i class="ph-fill {{ w.icon }}" style="color: var(--color-primary);"></i>
+        </div>
+        <div class="min-w-0">
+          <p class="text-sm font-medium truncate">{{ w.title }}</p>
+          {% if w.cog and w.cog != '__core__' %}
+          <p class="text-xs" style="color: var(--color-muted-foreground);">{{ w.cog.split('.')[-1] }}</p>
+          {% endif %}
+        </div>
+        <i class="ph ph-plus ml-auto shrink-0 text-slate-500"></i>
+      </div>
+      {% else %}
+      <p class="col-span-full text-sm text-center py-4" style="color: var(--color-muted-foreground);">
+        All available widgets are already on your dashboard.
+      </p>
+      {% endfor %}
     </div>
   </div>
-  {% endfor %}
+
+  {# === Bot lifecycle controls (always visible) === #}
+  {% if can_servers_write %}
+  <div class="gradient-border p-4" x-data="{ busy: false, msg: '' }">
+    <div class="flex gap-2">
+      <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/lifecycle/start',{method:'POST'}).then(r=>r.json()).then(j=>{msg='start: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
+              class="btn btn-success flex-1 justify-center disabled:opacity-50">
+        <i class="ph-fill ph-play"></i> Start
+      </button>
+      <button :disabled="busy" @click="if(!confirm('Stop the bot?'))return; busy=true; fetch('/api/v1/bot/lifecycle/stop',{method:'POST'}).then(r=>r.json()).then(j=>{msg='stop: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
+              class="btn btn-destructive flex-1 justify-center disabled:opacity-50">
+        <i class="ph-fill ph-stop"></i> Stop
+      </button>
+      <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/lifecycle/restart',{method:'POST'}).then(r=>r.json()).then(j=>{msg='restart: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
+              class="btn btn-warning flex-1 justify-center disabled:opacity-50">
+        <i class="ph ph-arrow-clockwise"></i> Restart
+      </button>
+    </div>
+    <p x-text="msg" class="text-xs mt-2" style="color: var(--color-muted-foreground);"></p>
+  </div>
+  {% endif %}
 </div>
 
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-  {# === Bot status === #}
-  <section class="gradient-border p-6">
-    <div class="space-y-4">
-      <div class="flex items-center justify-between">
-        <h3 class="text-lg font-semibold">Bot status</h3>
-        <span class="status-pill {% if not metrics.bot_online %}offline{% endif %}">
-          <span class="status-dot {% if not metrics.bot_online %}offline{% endif %} {% if metrics.bot_online %}animate-pulse-glow{% endif %}"></span>
-          {{ 'online' if metrics.bot_online else 'offline' }}
-        </span>
-      </div>
-      <div class="border-t" style="border-color: var(--color-border);"></div>
-      <div class="grid grid-cols-3 gap-4">
-        <div>
-          <p class="text-xs uppercase tracking-wider mb-1" style="color: var(--color-muted-foreground);">Uptime</p>
-          <p class="font-mono font-medium text-sm">{{ metrics.uptime }}</p>
-        </div>
-        <div>
-          <p class="text-xs uppercase tracking-wider mb-1" style="color: var(--color-muted-foreground);">Latency</p>
-          <p class="font-mono font-medium text-sm"
-             style="color: {% if metrics.latency_ms < 100 %}var(--color-success){% elif metrics.latency_ms < 300 %}var(--color-warning){% else %}var(--color-destructive){% endif %};">
-            {{ metrics.latency_ms }} ms
-          </p>
-        </div>
-        <div>
-          <p class="text-xs uppercase tracking-wider mb-1" style="color: var(--color-muted-foreground);">Version</p>
-          <p class="font-mono font-medium text-sm">{{ metrics.version }}</p>
-        </div>
-      </div>
-      {% if can_servers_write %}
-      <div class="border-t pt-4" style="border-color: var(--color-border);" x-data="{ busy: false, msg: '' }">
-        <div class="flex gap-2">
-          <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/lifecycle/start',{method:'POST'}).then(r=>r.json()).then(j=>{msg='start: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
-                  class="btn btn-success flex-1 justify-center disabled:opacity-50">
-            <i class="ph-fill ph-play"></i> Start
-          </button>
-          <button :disabled="busy" @click="if(!confirm('Stop the bot?'))return; busy=true; fetch('/api/v1/bot/lifecycle/stop',{method:'POST'}).then(r=>r.json()).then(j=>{msg='stop: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
-                  class="btn btn-destructive flex-1 justify-center disabled:opacity-50">
-            <i class="ph-fill ph-stop"></i> Stop
-          </button>
-          <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/lifecycle/restart',{method:'POST'}).then(r=>r.json()).then(j=>{msg='restart: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
-                  class="btn btn-warning flex-1 justify-center disabled:opacity-50">
-            <i class="ph ph-arrow-clockwise"></i> Restart
-          </button>
-        </div>
-        <p x-text="msg" class="text-xs mt-2" style="color: var(--color-muted-foreground);"></p>
-      </div>
-      {% endif %}
-    </div>
-  </section>
+<script>
+function dashboardWidgets() {
+  return {
+    showAddMenu: false,
+    dragging: null,
+    dragOverId: null,
+    saving: false,
+    saved: false,
 
-  {# === Recent audit events === #}
-  <section class="gradient-border p-6">
-    <div class="space-y-4">
-      <h3 class="text-lg font-semibold">Recent audit events</h3>
-      <div class="space-y-2 max-h-72 overflow-y-auto pr-2 scroll-thin">
-        {% for ev in recent_audit %}
-        <div class="flex items-center justify-between p-3 rounded-lg gap-3 transition-colors"
-             style="background: color-mix(in oklch, var(--color-secondary) 30%, transparent);"
-             onmouseover="this.style.background='color-mix(in oklch, var(--color-secondary) 50%, transparent)'"
-             onmouseout="this.style.background='color-mix(in oklch, var(--color-secondary) 30%, transparent)'">
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium truncate">{{ ev.action }}</p>
-          </div>
-          <span class="font-mono text-xs px-2 py-1 rounded-md shrink-0"
-                style="border: 1px solid var(--color-border); color: var(--color-muted-foreground);">
-            {{ ev.created_at.strftime('%Y-%m-%d %H:%M') }}
-          </span>
-        </div>
-        {% else %}
-        <div class="flex items-center justify-center h-48 text-sm" style="color: var(--color-muted-foreground);">
-          No recent audit events
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-  </section>
-</div>
+    init() {
+      // Enable drag-and-drop reordering
+      const grid = document.getElementById('widget-grid');
+      if (!grid) return;
+    },
+
+    dragStart(e, id) {
+      this.dragging = id;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', id);
+    },
+
+    dragOver(e, id) {
+      e.dataTransfer.dropEffect = 'move';
+      this.dragOverId = id;
+    },
+
+    drop(e, targetId) {
+      e.preventDefault();
+      const sourceId = e.dataTransfer.getData('text/plain');
+      if (sourceId && sourceId !== targetId) {
+        this.reorderWidget(sourceId, targetId);
+      }
+      this.dragging = null;
+      this.dragOverId = null;
+    },
+
+    dragEnd() {
+      this.dragging = null;
+      this.dragOverId = null;
+    },
+
+    async reorderWidget(sourceId, targetId) {
+      this.saving = true;
+      try {
+        const resp = await fetch('/api/v1/dashboard/widgets/reorder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source_id: sourceId, target_id: targetId }),
+        });
+        if (resp.ok) {
+          this.saved = true;
+          setTimeout(() => this.saved = false, 2000);
+          // Reload to reflect new order
+          window.location.reload();
+        }
+      } finally {
+        this.saving = false;
+      }
+    },
+
+    async addWidget(widgetId) {
+      this.saving = true;
+      try {
+        const resp = await fetch('/api/v1/dashboard/widgets/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ widget_id: widgetId }),
+        });
+        if (resp.ok) {
+          window.location.reload();
+        }
+      } finally {
+        this.saving = false;
+      }
+    },
+
+    async removeWidget(widgetId) {
+      this.saving = true;
+      try {
+        const resp = await fetch('/api/v1/dashboard/widgets/remove', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ widget_id: widgetId }),
+        });
+        if (resp.ok) {
+          window.location.reload();
+        }
+      } finally {
+        this.saving = false;
+      }
+    },
+  };
+}
+</script>
 {% endblock %}

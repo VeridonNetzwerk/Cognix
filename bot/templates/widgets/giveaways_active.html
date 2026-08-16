@@ -1,0 +1,22 @@
+{# Giveaways widget: active giveaways #}
+<div class="space-y-2 max-h-64 overflow-y-auto pr-2 scroll-thin">
+  {% for g in widget_data.giveaways_active %}
+  <div class="p-3 rounded-lg"
+       style="background: color-mix(in oklch, var(--color-secondary) 30%, transparent);">
+    <div class="flex items-center justify-between gap-2 mb-1">
+      <span class="text-sm font-medium truncate">{{ g.prize }}</span>
+      <span class="text-xs px-1.5 py-0.5 rounded shrink-0"
+            style="background: color-mix(in oklch, var(--color-success) 20%, transparent); color: var(--color-success);">
+        {{ g.entries }} entries
+      </span>
+    </div>
+    <p class="text-xs" style="color: var(--color-muted-foreground);">
+      Ends: {{ g.ends_at.strftime('%Y-%m-%d %H:%M') }}
+    </p>
+  </div>
+  {% else %}
+  <div class="flex items-center justify-center h-32 text-sm" style="color: var(--color-muted-foreground);">
+    No active giveaways
+  </div>
+  {% endfor %}
+</div>

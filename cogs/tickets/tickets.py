@@ -23,6 +23,16 @@ COG_INFO = {
     "requires_admin": True,
 }
 
+WIDGETS = [
+    {
+        "id": "tickets_open",
+        "title": "Open Tickets",
+        "template": "widgets/tickets_open.html",
+        "size": "small",
+        "icon": "ph-ticket",
+    },
+]
+
 import asyncio
 import io
 import uuid

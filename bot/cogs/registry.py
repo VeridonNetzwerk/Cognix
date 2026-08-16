@@ -153,6 +153,41 @@ def get_cog_info(name: str) -> CogInfo | None:
     return None
 
 
+# ---------------------------------------------------------------------------
+# Widget discovery — collect WIDGETS from loaded cog modules
+# ---------------------------------------------------------------------------
+
+WidgetInfo = dict[str, str]
+
+
+def get_available_widgets() -> list[WidgetInfo]:
+    """Discover widgets from all loaded cog modules.
+
+    Each cog module may define a ``WIDGETS`` list of dicts:
+        {"id": "moderation_recent", "title": "Recent Actions",
+         "template": "widgets/moderation_recent.html", "size": "medium"}
+    """
+    import importlib
+
+    widgets: list[WidgetInfo] = []
+    for module_name in sorted(_loaded_cogs):
+        try:
+            mod = importlib.import_module(module_name)
+            cog_widgets = getattr(mod, "WIDGETS", None)
+            if cog_widgets and isinstance(cog_widgets, list):
+                for w in cog_widgets:
+                    if isinstance(w, dict) and "id" in w and "template" in w:
+                        w_copy = dict(w)
+                        w_copy.setdefault("cog", module_name)
+                        w_copy.setdefault("size", "medium")
+                        widgets.append(w_copy)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("widget_discover_failed", module=module_name, error=str(exc))
+
+    # Also check bot.extensions for live-loaded cogs
+    return widgets
+
+
 def _update_loaded_state(module_name: str, loaded: bool) -> None:
     """Update the internal tracking of loaded cogs."""
     if loaded:

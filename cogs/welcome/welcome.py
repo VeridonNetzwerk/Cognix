@@ -20,6 +20,16 @@ COG_INFO = {
     "requires_admin": False,
 }
 
+WIDGETS = [
+    {
+        "id": "welcome_recent",
+        "title": "Recent Members",
+        "template": "widgets/welcome_recent.html",
+        "size": "medium",
+        "icon": "ph-user-plus",
+    },
+]
+
 from typing import Any
 
 import discord

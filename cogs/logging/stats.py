@@ -9,6 +9,16 @@ COG_INFO = {
     "requires_admin": False,
 }
 
+WIDGETS = [
+    {
+        "id": "stats_overview",
+        "title": "Server Stats",
+        "template": "widgets/stats_overview.html",
+        "size": "medium",
+        "icon": "ph-chart-bar",
+    },
+]
+
 from datetime import UTC, date, datetime
 
 import discord

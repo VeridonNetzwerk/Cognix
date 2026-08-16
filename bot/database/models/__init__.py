@@ -30,6 +30,7 @@ from bot.database.models.auth.web_user import (
     WebRole,
     WebUser,
 )
+from bot.database.models.auth.user_dashboard_widget import UserDashboardWidget
 from bot.database.models.auth.web_user_settings import (
     MODULES,
     PermissionLevel,
@@ -61,6 +62,7 @@ __all__ = [
     "MusicPlayHistory",
     "PermissionLevel",
     "RefreshToken",
+    "UserDashboardWidget",
     "RolePermission",
     "Server",
     "ServerCogState",

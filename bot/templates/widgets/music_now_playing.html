@@ -1,0 +1,23 @@
+{# Music widget: now playing #}
+<div class="space-y-3">
+  {% if widget_data.music_now_playing %}
+  <div class="flex items-center gap-3">
+    <div class="w-12 h-12 rounded-lg shrink-0 flex items-center justify-center"
+         style="background: color-mix(in oklch, var(--color-accent) 20%, transparent);">
+      <i class="ph-fill ph-music-note text-xl" style="color: var(--color-accent);"></i>
+    </div>
+    <div class="min-w-0 flex-1">
+      <p class="text-sm font-medium truncate">{{ widget_data.music_now_playing.title }}</p>
+      <p class="text-xs truncate" style="color: var(--color-muted-foreground);">{{ widget_data.music_now_playing.artist }}</p>
+    </div>
+  </div>
+  <div class="flex items-center gap-2 text-xs" style="color: var(--color-muted-foreground);">
+    <i class="ph-fill ph-users"></i>
+    <span>{{ widget_data.music_now_playing.guild_name }}</span>
+  </div>
+  {% else %}
+  <div class="flex items-center justify-center h-24 text-sm" style="color: var(--color-muted-foreground);">
+    <i class="ph ph-music-note text-2xl mr-2"></i> Nothing playing
+  </div>
+  {% endif %}
+</div>

@@ -14,6 +14,16 @@ COG_INFO = {
     "requires_admin": True,
 }
 
+WIDGETS = [
+    {
+        "id": "giveaways_active",
+        "title": "Active Giveaways",
+        "template": "widgets/giveaways_active.html",
+        "size": "medium",
+        "icon": "ph-gift",
+    },
+]
+
 import asyncio
 import random
 import re

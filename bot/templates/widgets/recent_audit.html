@@ -1,0 +1,21 @@
+{# Core widget: Recent audit events #}
+<div class="space-y-2 max-h-72 overflow-y-auto pr-2 scroll-thin">
+  {% for ev in recent_audit %}
+  <div class="flex items-center justify-between p-3 rounded-lg gap-3 transition-colors"
+       style="background: color-mix(in oklch, var(--color-secondary) 30%, transparent);"
+       onmouseover="this.style.background='color-mix(in oklch, var(--color-secondary) 50%, transparent)'"
+       onmouseout="this.style.background='color-mix(in oklch, var(--color-secondary) 30%, transparent)'">
+    <div class="flex-1 min-w-0">
+      <p class="text-sm font-medium truncate">{{ ev.action }}</p>
+    </div>
+    <span class="font-mono text-xs px-2 py-1 rounded-md shrink-0"
+          style="border: 1px solid var(--color-border); color: var(--color-muted-foreground);">
+      {{ ev.created_at.strftime('%Y-%m-%d %H:%M') }}
+    </span>
+  </div>
+  {% else %}
+  <div class="flex items-center justify-center h-48 text-sm" style="color: var(--color-muted-foreground);">
+    No recent audit events
+  </div>
+  {% endfor %}
+</div>

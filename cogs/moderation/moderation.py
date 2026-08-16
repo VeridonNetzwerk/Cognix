@@ -14,6 +14,16 @@ COG_INFO = {
     "requires_admin": True,
 }
 
+WIDGETS = [
+    {
+        "id": "moderation_recent",
+        "title": "Recent Moderation Actions",
+        "template": "widgets/moderation_recent.html",
+        "size": "medium",
+        "icon": "ph-shield-warning",
+    },
+]
+
 from datetime import UTC, datetime, timedelta
 from typing import Any
 

@@ -1,0 +1,47 @@
+{# Core widget: Bot status with lifecycle controls #}
+<div class="space-y-4">
+  <div class="flex items-center justify-between">
+    <h3 class="text-lg font-semibold">Bot status</h3>
+    <span class="status-pill {% if not metrics.bot_online %}offline{% endif %}">
+      <span class="status-dot {% if not metrics.bot_online %}offline{% endif %} {% if metrics.bot_online %}animate-pulse-glow{% endif %}"></span>
+      {{ 'online' if metrics.bot_online else 'offline' }}
+    </span>
+  </div>
+  <div class="border-t" style="border-color: var(--color-border);"></div>
+  <div class="grid grid-cols-3 gap-4">
+    <div>
+      <p class="text-xs uppercase tracking-wider mb-1" style="color: var(--color-muted-foreground);">Uptime</p>
+      <p class="font-mono font-medium text-sm">{{ metrics.uptime }}</p>
+    </div>
+    <div>
+      <p class="text-xs uppercase tracking-wider mb-1" style="color: var(--color-muted-foreground);">Latency</p>
+      <p class="font-mono font-medium text-sm"
+         style="color: {% if metrics.latency_ms < 100 %}var(--color-success){% elif metrics.latency_ms < 300 %}var(--color-warning){% else %}var(--color-destructive){% endif %};">
+        {{ metrics.latency_ms }} ms
+      </p>
+    </div>
+    <div>
+      <p class="text-xs uppercase tracking-wider mb-1" style="color: var(--color-muted-foreground);">Version</p>
+      <p class="font-mono font-medium text-sm">{{ metrics.version }}</p>
+    </div>
+  </div>
+  {% if can_servers_write %}
+  <div class="border-t pt-4" style="border-color: var(--color-border);" x-data="{ busy: false, msg: '' }">
+    <div class="flex gap-2">
+      <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/lifecycle/start',{method:'POST'}).then(r=>r.json()).then(j=>{msg='start: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
+              class="btn btn-success flex-1 justify-center disabled:opacity-50">
+        <i class="ph-fill ph-play"></i> Start
+      </button>
+      <button :disabled="busy" @click="if(!confirm('Stop the bot?'))return; busy=true; fetch('/api/v1/bot/lifecycle/stop',{method:'POST'}).then(r=>r.json()).then(j=>{msg='stop: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
+              class="btn btn-destructive flex-1 justify-center disabled:opacity-50">
+        <i class="ph-fill ph-stop"></i> Stop
+      </button>
+      <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/lifecycle/restart',{method:'POST'}).then(r=>r.json()).then(j=>{msg='restart: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
+              class="btn btn-warning flex-1 justify-center disabled:opacity-50">
+        <i class="ph ph-arrow-clockwise"></i> Restart
+      </button>
+    </div>
+    <p x-text="msg" class="text-xs mt-2" style="color: var(--color-muted-foreground);"></p>
+  </div>
+  {% endif %}
+</div>

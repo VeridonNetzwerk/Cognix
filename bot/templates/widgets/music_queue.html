@@ -1,0 +1,17 @@
+{# Music widget: queue #}
+<div class="space-y-2 max-h-64 overflow-y-auto pr-2 scroll-thin">
+  {% for track in widget_data.music_queue %}
+  <div class="flex items-center gap-2 p-2 rounded-lg"
+       style="background: color-mix(in oklch, var(--color-secondary) 30%, transparent);">
+    <span class="font-mono text-xs shrink-0" style="color: var(--color-muted-foreground);">{{ loop.index }}</span>
+    <div class="min-w-0 flex-1">
+      <p class="text-sm truncate">{{ track.title }}</p>
+    </div>
+    <span class="text-xs shrink-0" style="color: var(--color-muted-foreground);">{{ track.duration }}</span>
+  </div>
+  {% else %}
+  <div class="flex items-center justify-center h-24 text-sm" style="color: var(--color-muted-foreground);">
+    Queue is empty
+  </div>
+  {% endfor %}
+</div>

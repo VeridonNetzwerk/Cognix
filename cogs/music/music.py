@@ -17,6 +17,23 @@ COG_INFO = {
     "requires_admin": True,
 }
 
+WIDGETS = [
+    {
+        "id": "music_now_playing",
+        "title": "Now Playing",
+        "template": "widgets/music_now_playing.html",
+        "size": "small",
+        "icon": "ph-music-note",
+    },
+    {
+        "id": "music_queue",
+        "title": "Music Queue",
+        "template": "widgets/music_queue.html",
+        "size": "medium",
+        "icon": "ph-queue",
+    },
+]
+
 import uuid
 from datetime import UTC, datetime
 

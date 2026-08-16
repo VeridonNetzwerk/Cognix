@@ -16,6 +16,16 @@ COG_INFO = {
     "requires_admin": False,
 }
 
+WIDGETS = [
+    {
+        "id": "activity_recent",
+        "title": "Recent Activity",
+        "template": "widgets/activity_recent.html",
+        "size": "medium",
+        "icon": "ph-activity",
+    },
+]
+
 from datetime import UTC, datetime
 from typing import Any
 
