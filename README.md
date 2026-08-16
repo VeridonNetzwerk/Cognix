@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="bot/static/text.png" alt="CogniX" width="300" />
+</p>
+
 # CogniX
 
 A modular, production-ready Discord bot platform with a secure web dashboard.
@@ -95,6 +99,7 @@ CogniX/
 │   ├── tests/              #   Test suite
 │   │   ├── unit/           #     Unit tests (bot/, web/, database/, config/)
 │   │   └── conftest.py     #     Shared test fixtures
+│   ├── static/             #   Static assets (logo, Schriftzug)
 │   └── utils/              #   Embed helpers, time parser
 ├── web/                    # Web dashboard + JSON API
 │   ├── app.py              #   FastAPI app factory

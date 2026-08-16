@@ -5,6 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% block title %}{{ bot_info.name or 'CogniX' }}{% endblock %}</title>
+    <link rel="icon" href="/static/logo.png" />
     {% if bot_info.avatar_url %}
       <link rel="icon" href="{{ bot_info.avatar_url }}" />
     {% endif %}
@@ -310,11 +311,7 @@
         <div class="flex items-center gap-3 p-4 border-b shrink-0" style="border-color: var(--color-border);">
           <a href="/" class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
              style="background: color-mix(in oklch, var(--color-primary) 20%, transparent);">
-            {% if bot_info.avatar_url %}
-              <img src="{{ bot_info.avatar_url }}" alt="" class="w-9 h-9 rounded-md object-cover" />
-            {% else %}
-              <i class="ph-fill ph-user-circle" style="font-size: 1.5rem; color: var(--color-primary);"></i>
-            {% endif %}
+            <img src="/static/logo.png" alt="CogniX" class="w-9 h-9 rounded-md object-cover" />
           </a>
           <div class="min-w-0 flex-1">
             <h2 class="font-semibold text-sm truncate">{{ bot_info.name or 'CogniX' }}</h2>

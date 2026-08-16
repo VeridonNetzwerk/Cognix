@@ -9,9 +9,12 @@ from __future__ import annotations
 import traceback
 from contextlib import asynccontextmanager
 
+from pathlib import Path
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from bot.runtime import get_bot_info
@@ -124,6 +127,11 @@ def create_app() -> FastAPI:
         ws_api.ws_router,
     ):
         app.include_router(r, prefix=API_V1_PREFIX)
+
+    # ---- Static files (logo, favicon, etc.) ----
+    static_dir = Path(__file__).resolve().parent.parent / "bot" / "static"
+    if static_dir.is_dir():
+        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     # ---- HTML dashboard (Jinja2) — primary user-facing surface ----
     app.include_router(views_router)
