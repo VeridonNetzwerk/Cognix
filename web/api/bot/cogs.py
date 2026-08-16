@@ -33,11 +33,11 @@ class ServerCogEnableRequest(BaseModel):
 
 @router.get("/")
 async def list_cogs(session: SessionDep) -> dict:
-    """Return all loaded cogs with their global load status."""
-    from bot.pages._shared import _get_loaded_cogs_set, _build_loaded_cog_list
+    """Return all available cogs with their global load status."""
+    from bot.pages._shared import _get_loaded_cogs_set
 
-    live_cogs = _get_loaded_cogs_set()
-    loaded_cogs = _build_loaded_cog_list(live_cogs)
+    all_cogs = get_all_cog_info()
+    loaded_set = _get_loaded_cogs_set()
 
     return {
         "cogs": [
@@ -46,12 +46,13 @@ async def list_cogs(session: SessionDep) -> dict:
                 "module": info["module"],
                 "description": info.get("description", ""),
                 "category": info.get("category", ""),
-                "loaded": True,
+                "loaded": info["module"] in loaded_set,
                 "requires_admin": info.get("requires_admin", False),
             }
-            for info in loaded_cogs
+            for info in all_cogs
         ],
-        "loaded_count": len(loaded_cogs),
+        "total": len(all_cogs),
+        "loaded_count": sum(1 for c in all_cogs if c["module"] in loaded_set),
     }
 
 
