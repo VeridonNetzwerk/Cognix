@@ -115,7 +115,16 @@ async def index(request: Request,
         w_info = widget_by_id.get(wid)
         if w_info is None:
             continue
-        active_widgets.append(w_info)
+        w_copy = dict(w_info)
+        # Attach user's size preferences
+        uw = user_layout.get(wid)
+        if uw:
+            w_copy["size_w"] = uw.size_w or 1
+            w_copy["size_h"] = uw.size_h or 1
+        else:
+            w_copy.setdefault("size_w", 1)
+            w_copy.setdefault("size_h", 1)
+        active_widgets.append(w_copy)
 
     # 5. Load widget data (async queries per widget type)
     widget_data: dict[str, dict] = {}

@@ -8,7 +8,20 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
 
-from bot.cogs.registry import get_all_cog_info, load_cog, unload_cog, reload_cog
+from bot.cogs.registry import (
+    get_all_cog_info,
+    get_store_cog_info,
+    install_cog,
+    uninstall_cog,
+    is_cog_installed,
+    load_cog,
+    unload_cog,
+    reload_cog,
+    refresh_cogs_cache,
+    refresh_store_cache,
+    get_cog_requirements,
+    get_cog_files,
+)
 from bot.database.models.server.server_config import ServerConfig
 from bot.runtime import get_bot
 from web.deps import SessionDep, require_admin
@@ -24,6 +37,84 @@ class CogActionRequest(BaseModel):
 class ServerCogEnableRequest(BaseModel):
     cog_name: str
     enabled: bool
+
+
+class CogInstallRequest(BaseModel):
+    module: str
+
+
+# ---------------------------------------------------------------------------
+# Cog Store — list available, install, uninstall
+# ---------------------------------------------------------------------------
+
+
+@router.get("/store")
+async def list_store_cogs() -> dict:
+    """Return all cogs available in the store (not yet installed)."""
+    store_cogs = get_store_cog_info()
+    installed_cogs = get_all_cog_info()
+    installed_modules = {c["module"] for c in installed_cogs}
+
+    return {
+        "cogs": [
+            {
+                "name": info["name"],
+                "module": info["module"],
+                "description": info.get("description", ""),
+                "category": info.get("category", ""),
+                "requires_admin": info.get("requires_admin", False),
+                "installed": info["module"] in installed_modules,
+                "requirements": get_cog_requirements(info["module"]),
+                "extra_files": get_cog_files(info["module"]),
+            }
+            for info in store_cogs
+        ],
+        "total": len(store_cogs),
+    }
+
+
+@router.post("/store/install")
+async def store_install_cog(req: CogInstallRequest) -> dict:
+    """Install a cog from the store into cogs/ and load it."""
+    result = install_cog(req.module)
+    if not result.get("ok"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, result.get("error", "install failed"))
+
+    warnings = []
+    if result.get("warning"):
+        warnings.append(result["warning"])
+
+    # Auto-load the newly installed cog
+    bot = get_bot()
+    if bot is not None:
+        load_result = await load_cog(bot, req.module)
+        if not load_result.get("ok"):
+            warnings.append(f"Load failed: {load_result.get('error')}")
+
+    if warnings:
+        return {"ok": True, "warning": "; ".join(warnings)}
+    return {"ok": True}
+
+
+@router.post("/store/uninstall")
+async def store_uninstall_cog(req: CogInstallRequest) -> dict:
+    """Uninstall a cog — unload it and remove from cogs/."""
+    # Unload first if loaded
+    bot = get_bot()
+    if bot is not None:
+        from bot.cogs.registry import is_cog_loaded
+        if is_cog_loaded(req.module):
+            unload_result = await unload_cog(bot, req.module)
+            if not unload_result.get("ok"):
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Failed to unload: {unload_result.get('error')}")
+
+    result = uninstall_cog(req.module)
+    if not result.get("ok"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, result.get("error", "uninstall failed"))
+
+    if result.get("warning"):
+        return {"ok": True, "warning": result["warning"]}
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------

@@ -123,6 +123,17 @@ def setup_env() -> None:
     info(f"  AUTH_PEPPER: {auth_pepper[:12]}...")
 
 
+def setup_cogs_dir() -> None:
+    header("Setting up cogs directory")
+    cogs_dir = ROOT / "cogs"
+    if cogs_dir.exists():
+        info("cogs/ directory already exists — skipping")
+    else:
+        cogs_dir.mkdir(exist_ok=True)
+        (cogs_dir / "__init__.py").touch()
+        info("Created empty cogs/ directory — install cogs from the web panel")
+
+
 def run_migrations(python: str) -> None:
     header("Running database migrations")
     # Ensure data/ dir exists for SQLite
@@ -173,8 +184,8 @@ def print_next_steps(python: str) -> None:
   3. Open {YELLOW}http://localhost:8080{RESET} in your browser
      The first-run setup wizard will guide you through the rest.
 
-  4. Install cogs separately — copy them from the cogs/ directory or
-     download them as needed.
+  4. Install cogs from the web panel — open the Cogs page
+     to browse and install available cogs with one click.
 
   {BOLD}Useful commands:{RESET}
      Start bot:     {python} main.py
@@ -194,6 +205,7 @@ def main() -> int:
         python = create_venv()
         install_deps(python)
         setup_env()
+        setup_cogs_dir()
         run_migrations(python)
         create_admin(python)
         print_next_steps(python)

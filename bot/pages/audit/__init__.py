@@ -1,1 +1,1 @@
-from bot.pages.audit.audit import *  # noqa: F401,F403
+# Audit page routes are now provided by the logging cog (cogs/logging/pages/audit.py)

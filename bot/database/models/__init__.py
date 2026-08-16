@@ -14,6 +14,7 @@ from bot.database.models.invites.invite_uses import InviteUse
 from bot.database.models.moderation.moderation import ModerationAction, ModerationActionType, Warning_
 from bot.database.models.music.music_playlist import MusicPlaylist
 from bot.database.models.music.music_play_history import MusicPlayHistory
+from bot.database.models.music.music_settings import MusicSettings
 from bot.database.models.auth.role_permission import RolePermission
 from bot.database.models.server.server import Server
 from bot.database.models.server.server_cog_state import ServerCogState
@@ -60,6 +61,7 @@ __all__ = [
     "ModerationActionType",
     "MusicPlaylist",
     "MusicPlayHistory",
+    "MusicSettings",
     "PermissionLevel",
     "RefreshToken",
     "UserDashboardWidget",

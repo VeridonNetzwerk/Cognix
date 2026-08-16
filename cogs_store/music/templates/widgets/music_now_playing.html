@@ -1,0 +1,42 @@
+{# Music widget: now playing #}
+<div class="space-y-3">
+  {% if widget_data.music_now_playing %}
+  <div class="flex items-center gap-3">
+    {% if widget_data.music_now_playing.thumbnail %}
+    <img src="{{ widget_data.music_now_playing.thumbnail }}" class="w-12 h-12 rounded-lg shrink-0 object-cover">
+    {% else %}
+    <div class="w-12 h-12 rounded-lg shrink-0 flex items-center justify-center"
+         style="background: color-mix(in oklch, var(--color-accent) 20%, transparent);">
+      <i class="ph-fill ph-music-note text-xl" style="color: var(--color-accent);"></i>
+    </div>
+    {% endif %}
+    <div class="min-w-0 flex-1">
+      <p class="text-sm font-medium truncate">{{ widget_data.music_now_playing.title }}</p>
+      <p class="text-xs truncate" style="color: var(--color-muted-foreground);">{{ widget_data.music_now_playing.artist }}</p>
+    </div>
+  </div>
+  {% if widget_data.music_now_playing.duration %}
+  <div class="space-y-1">
+    <div class="h-1 rounded-full overflow-hidden" style="background: var(--color-border);">
+      <div class="h-full rounded-full" style="width: {{ widget_data.music_now_playing.progress_pct }}%; background: var(--color-accent);"></div>
+    </div>
+    <div class="flex justify-between text-[10px]" style="color: var(--color-muted-foreground);">
+      <span>{{ widget_data.music_now_playing.position }}</span>
+      <span>{{ widget_data.music_now_playing.duration_fmt }}</span>
+    </div>
+  </div>
+  {% endif %}
+  <div class="flex items-center gap-3 text-xs" style="color: var(--color-muted-foreground);">
+    <span class="flex items-center gap-1"><i class="ph-fill ph-users"></i> {{ widget_data.music_now_playing.guild_name }}</span>
+    {% if widget_data.music_now_playing.is_playing %}
+    <span class="flex items-center gap-1 text-emerald-500"><i class="ph-fill ph-play"></i> playing</span>
+    {% elif widget_data.music_now_playing.is_paused %}
+    <span class="flex items-center gap-1 text-amber-500"><i class="ph-fill ph-pause"></i> paused</span>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="flex items-center justify-center h-24 text-sm" style="color: var(--color-muted-foreground);">
+    <i class="ph ph-music-note text-2xl mr-2"></i> Nothing playing
+  </div>
+  {% endif %}
+</div>

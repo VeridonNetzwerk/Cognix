@@ -22,6 +22,8 @@ class UserDashboardWidget(Base):
     widget_id: Mapped[str] = mapped_column(String(64), nullable=False)
     position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     visible: Mapped[bool] = mapped_column(default=True, nullable=False)
+    size_w: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    size_h: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )

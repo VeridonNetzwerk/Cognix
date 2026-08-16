@@ -1,1 +1,1 @@
-from bot.pages.giveaways.giveaways import *  # noqa: F401,F403
+# Giveaways page routes are now provided by the giveaways cog (cogs/giveaways/pages/giveaways.py)

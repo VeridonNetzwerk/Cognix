@@ -23,6 +23,12 @@ class ReorderRequest(BaseModel):
     target_id: str
 
 
+class ResizeRequest(BaseModel):
+    widget_id: str
+    size_w: int
+    size_h: int
+
+
 @router.post("/widgets/add")
 async def add_widget(
     req: WidgetIdRequest,
@@ -101,4 +107,27 @@ async def reorder_widget(
         source.position, target.position = target.position, source.position
         source.updated_at = datetime.now(tz=UTC)
         target.updated_at = datetime.now(tz=UTC)
+    return {"ok": True}
+
+
+@router.post("/widgets/resize")
+async def resize_widget(
+    req: ResizeRequest,
+    session: SessionDep,
+    user=Depends(get_current_user),
+) -> dict:
+    """Resize a widget on the user's dashboard."""
+    # Clamp to reasonable bounds
+    w = max(1, min(4, req.size_w))
+    h = max(1, min(3, req.size_h))
+    widget = await session.scalar(
+        select(UserDashboardWidget).where(
+            UserDashboardWidget.user_id == user.id,
+            UserDashboardWidget.widget_id == req.widget_id,
+        )
+    )
+    if widget is not None:
+        widget.size_w = w
+        widget.size_h = h
+        widget.updated_at = datetime.now(tz=UTC)
     return {"ok": True}

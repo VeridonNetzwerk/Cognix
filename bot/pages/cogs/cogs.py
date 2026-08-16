@@ -9,7 +9,7 @@ from fastapi import Cookie, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 
-from bot.cogs.registry import get_all_cog_info, load_cog, unload_cog, reload_cog
+from bot.cogs.registry import get_all_cog_info, get_store_cog_info, load_cog, unload_cog, reload_cog, get_cog_requirements, get_cog_files
 from bot.runtime import get_bot
 from bot.database.models.cogs.cog_state import CogState
 from bot.database.models.server.server import Server
@@ -62,6 +62,26 @@ async def cogs_view(request: Request,
     # Only show loaded cog names in per-server table
     loaded_cog_names = [c["name"] for c in cogs if c["loaded"]]
 
+    # Store cogs (available to install from cogs_store/)
+    store_cog_infos = get_store_cog_info()
+    installed_modules = {c["module"] for c in all_cog_infos}
+    store_cogs = sorted(
+        (
+            {
+                "name": info["name"],
+                "module": info["module"],
+                "description": info.get("description", ""),
+                "category": info.get("category", ""),
+                "requires_admin": info.get("requires_admin", False),
+                "installed": info["module"] in installed_modules,
+                "requirements": get_cog_requirements(info["module"]),
+                "extra_files": get_cog_files(info["module"]),
+            }
+            for info in store_cog_infos
+        ),
+        key=lambda c: (c["category"], c["name"]),
+    )
+
     return _render(
         request,
         "cogs/cogs.html",
@@ -70,6 +90,7 @@ async def cogs_view(request: Request,
         servers=servers,
         per_server=per_server,
         cog_names=loaded_cog_names,
+        store_cogs=store_cogs,
     )
 
 

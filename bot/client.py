@@ -161,6 +161,12 @@ class CogniXBot(commands.Bot):
             log.info("cogs_restored", count=loaded)
         except Exception as exc:  # noqa: BLE001
             log.warning("cog_restore_failed", error=str(exc))
+        # Start idle audio player cleanup timer
+        try:
+            from bot.services.audio_player import start_cleanup_timer
+            asyncio.create_task(start_cleanup_timer(self))
+        except Exception as exc:  # noqa: BLE001
+            log.warning("audio_cleanup_timer_failed", error=str(exc))
         # Backfill any guild that joined while the bot was offline so FK
         # constraints (stat_events.server_id, tickets.server_id, ...) hold.
         try:

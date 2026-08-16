@@ -1,1 +1,1 @@
-from bot.pages.backups.backups import *  # noqa: F401,F403
+# Backups page routes are now provided by the backups cog (cogs/backups/pages/backups.py)

@@ -3,19 +3,26 @@
 {% block header %}Dashboard{% endblock %}
 {% block content %}
 <div x-data="dashboardWidgets()" x-init="init()">
-  {# === Widget grid === #}
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6"
-       id="widget-grid">
+  {# === Widget grid (4 columns) === #}
+  <div class="grid grid-cols-4 gap-3 mb-6 auto-rows-[minmax(120px,auto)]"
+       id="widget-grid"
+       :class="{ 'gap-4': editMode }">
 
     {% for w in active_widgets %}
-    <div class="gradient-border p-5 flex flex-col gap-3 widget-card"
+    <div class="gradient-border p-5 flex flex-col gap-3 widget-card relative transition-all"
          data-widget-id="{{ w.id }}"
+         :style="`grid-column: span ${widgetSize('{{ w.id }}').w}; grid-row: span ${widgetSize('{{ w.id }}').h}`"
          draggable="true"
          @dragstart="dragStart($event, '{{ w.id }}')"
          @dragover.prevent="dragOver($event, '{{ w.id }}')"
          @drop="drop($event, '{{ w.id }}')"
          @dragend="dragEnd()"
-         :class="{ 'opacity-50': dragging === '{{ w.id }}', 'border-primary': dragOverId === '{{ w.id }}' }">
+         :class="{
+           'opacity-50': dragging === '{{ w.id }}',
+           'ring-2 ring-primary': dragOverId === '{{ w.id }}',
+           'cursor-move': editMode,
+           'scale-95': editMode && dragging !== '{{ w.id }}'
+         }">
 
       {# Widget header #}
       <div class="flex items-center justify-between gap-2">
@@ -29,11 +36,10 @@
           </span>
           {% endif %}
         </div>
-        <div class="flex items-center gap-1 shrink-0">
-          <i class="ph ph-dots-six-vertical text-slate-600 cursor-grab" title="Drag to reorder"></i>
+        <div class="flex items-center gap-1 shrink-0" x-show="editMode" x-cloak>
           <button @click="removeWidget('{{ w.id }}')"
                   class="text-slate-500 hover:text-rose-400 transition" title="Remove widget">
-            <i class="ph ph-x-circle"></i>
+            <i class="ph ph-x-circle text-lg"></i>
           </button>
         </div>
       </div>
@@ -41,9 +47,17 @@
       <div class="border-t" style="border-color: var(--color-border);"></div>
 
       {# Widget content — include the partial template #}
-      <div class="flex-1">
+      <div class="flex-1 overflow-hidden">
         {% set w_data = widget_data.get(w.id, {}) %}
         {% include w.template %}
+      </div>
+
+      {# Resize handle (bottom-right corner, only in edit mode) #}
+      <div x-show="editMode" x-cloak
+           class="absolute bottom-1 right-1 w-5 h-5 cursor-nwse-resize flex items-end justify-end"
+           @mousedown.prevent="startResize($event, '{{ w.id }}')"
+           title="Drag to resize">
+        <i class="ph ph-arrow-down-right text-slate-500 text-xs"></i>
       </div>
     </div>
     {% endfor %}
@@ -53,56 +67,76 @@
     <div class="col-span-full gradient-border p-12 text-center">
       <i class="ph ph-squares-four text-4xl mb-3" style="color: var(--color-muted-foreground);"></i>
       <p class="text-lg font-medium mb-1">No widgets on your dashboard</p>
-      <p class="text-sm mb-4" style="color: var(--color-muted-foreground);">Add widgets to customize your home screen.</p>
-      <button @click="showAddMenu = true" class="btn btn-primary">
-        <i class="ph ph-plus"></i> Add widgets
-      </button>
+      <p class="text-sm mb-4" style="color: var(--color-muted-foreground);">Tap the edit button to add widgets.</p>
     </div>
     {% endif %}
   </div>
 
-  {# === Add widget button + menu === #}
-  <div class="flex items-center gap-3 mb-6">
-    <button @click="showAddMenu = !showAddMenu"
-            class="btn btn-secondary">
-      <i class="ph ph-plus-circle"></i> Add widget
+  {# === Edit mode FAB (pencil, bottom-right) === #}
+  <div class="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+    {# Add widget panel (slides in when editMode is on) #}
+    <div x-show="editMode" x-cloak
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 translate-y-4"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100 translate-y-0"
+         x-transition:leave-end="opacity-0 translate-y-4"
+         class="gradient-border p-4 w-80 max-h-[60vh] overflow-y-auto scroll-thin">
+      <h4 class="text-sm font-semibold mb-3">Add widgets</h4>
+      <div class="space-y-2">
+        {% for w in available_to_add %}
+        <div class="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors hover:bg-slate-800/50"
+             style="background: color-mix(in oklch, var(--color-secondary) 20%, transparent);"
+             @click="addWidget('{{ w.id }}')">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+               style="background: color-mix(in oklch, var(--color-primary) 15%, transparent);">
+            <i class="ph-fill {{ w.icon }} text-sm" style="color: var(--color-primary);"></i>
+          </div>
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium truncate">{{ w.title }}</p>
+            {% if w.cog and w.cog != '__core__' %}
+            <p class="text-[10px]" style="color: var(--color-muted-foreground);">{{ w.cog.split('.')[-1] }}</p>
+            {% endif %}
+          </div>
+          <i class="ph ph-plus shrink-0 text-slate-500"></i>
+        </div>
+        {% else %}
+        <p class="text-sm text-center py-4" style="color: var(--color-muted-foreground);">
+          All available widgets are already on your dashboard.
+        </p>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# Edit toggle button (pencil) #}
+    <button @click="toggleEdit()"
+            class="w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105"
+            :class="editMode ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-300 border border-slate-700'"
+            :title="editMode ? 'Done editing' : 'Edit dashboard'">
+      <i class="ph-fill text-2xl" :class="editMode ? 'ph-check' : 'ph-pencil-simple'"></i>
     </button>
-    <span class="text-xs" style="color: var(--color-muted-foreground);" x-show="saving" x-cloak>Saving...</span>
-    <span class="text-xs text-emerald-400" x-show="saved" x-cloak>Saved!</span>
   </div>
 
-  <div x-show="showAddMenu" x-cloak
-       class="gradient-border p-4 mb-6"
-       @click.outside="showAddMenu = false">
-    <h4 class="text-sm font-semibold mb-3">Available widgets</h4>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-      {% for w in available_to_add %}
-      <div class="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors hover:bg-slate-800/50"
-           style="background: color-mix(in oklch, var(--color-secondary) 20%, transparent);"
-           @click="addWidget('{{ w.id }}')">
-        <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-             style="background: color-mix(in oklch, var(--color-primary) 15%, transparent);">
-          <i class="ph-fill {{ w.icon }}" style="color: var(--color-primary);"></i>
-        </div>
-        <div class="min-w-0">
-          <p class="text-sm font-medium truncate">{{ w.title }}</p>
-          {% if w.cog and w.cog != '__core__' %}
-          <p class="text-xs" style="color: var(--color-muted-foreground);">{{ w.cog.split('.')[-1] }}</p>
-          {% endif %}
-        </div>
-        <i class="ph ph-plus ml-auto shrink-0 text-slate-500"></i>
-      </div>
-      {% else %}
-      <p class="col-span-full text-sm text-center py-4" style="color: var(--color-muted-foreground);">
-        All available widgets are already on your dashboard.
-      </p>
-      {% endfor %}
+  {# Saving indicator #}
+  <div class="fixed bottom-6 left-6 z-50"
+       x-show="saving" x-cloak
+       x-transition>
+    <div class="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-400 flex items-center gap-2">
+      <i class="ph ph-spinner animate-spin"></i> Saving...
+    </div>
+  </div>
+  <div class="fixed bottom-6 left-6 z-50"
+       x-show="saved" x-cloak
+       x-transition>
+    <div class="px-3 py-2 rounded-lg bg-emerald-900/60 border border-emerald-700 text-xs text-emerald-300 flex items-center gap-2">
+      <i class="ph ph-check-circle"></i> Saved!
     </div>
   </div>
 
   {# === Bot lifecycle controls (always visible) === #}
   {% if can_servers_write %}
-  <div class="gradient-border p-4" x-data="{ busy: false, msg: '' }">
+  <div class="gradient-border p-4 mt-2" x-data="{ busy: false, msg: '' }">
     <div class="flex gap-2">
       <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/lifecycle/start',{method:'POST'}).then(r=>r.json()).then(j=>{msg='start: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
               class="btn btn-success flex-1 justify-center disabled:opacity-50">
@@ -125,30 +159,49 @@
 <script>
 function dashboardWidgets() {
   return {
-    showAddMenu: false,
+    editMode: false,
     dragging: null,
     dragOverId: null,
     saving: false,
     saved: false,
+    resizing: null,
+    resizeStart: null,
+    _dirty: false,
+    widgetSizes: {
+      {% for w in active_widgets %}
+      '{{ w.id }}': { w: {{ w.size_w or 1 }}, h: {{ w.size_h or 1 }} },
+      {% endfor %}
+    },
 
     init() {
-      // Enable drag-and-drop reordering
-      const grid = document.getElementById('widget-grid');
-      if (!grid) return;
+    },
+
+    widgetSize(id) {
+      return this.widgetSizes[id] || { w: 1, h: 1 };
+    },
+
+    toggleEdit() {
+      this.editMode = !this.editMode;
+      if (!this.editMode && this._dirty) {
+        window.location.reload();
+      }
     },
 
     dragStart(e, id) {
+      if (!this.editMode) return;
       this.dragging = id;
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', id);
     },
 
     dragOver(e, id) {
+      if (!this.editMode) return;
       e.dataTransfer.dropEffect = 'move';
       this.dragOverId = id;
     },
 
     drop(e, targetId) {
+      if (!this.editMode) return;
       e.preventDefault();
       const sourceId = e.dataTransfer.getData('text/plain');
       if (sourceId && sourceId !== targetId) {
@@ -163,8 +216,54 @@ function dashboardWidgets() {
       this.dragOverId = null;
     },
 
+    startResize(e, id) {
+      if (!this.editMode) return;
+      const grid = document.getElementById('widget-grid');
+      const gridRect = grid.getBoundingClientRect();
+      const cols = 4;
+      const gap = 12;
+      const colWidth = (gridRect.width - gap * (cols - 1)) / cols;
+      const rowHeight = 120 + gap;
+
+      this.resizing = id;
+      this.resizeStart = {
+        id,
+        startX: e.clientX,
+        startY: e.clientY,
+        startW: this.widgetSizes[id].w,
+        startH: this.widgetSizes[id].h,
+        colWidth,
+        rowHeight,
+      };
+
+      const onMove = (ev) => {
+        if (!this.resizeStart) return;
+        const dx = ev.clientX - this.resizeStart.startX;
+        const dy = ev.clientY - this.resizeStart.startY;
+        const newW = Math.max(1, Math.min(4, Math.round(this.resizeStart.startW + dx / this.resizeStart.colWidth)));
+        const newH = Math.max(1, Math.min(3, Math.round(this.resizeStart.startH + dy / this.resizeStart.rowHeight)));
+        if (this.widgetSizes[id].w !== newW || this.widgetSizes[id].h !== newH) {
+          this.widgetSizes[id] = { w: newW, h: newH };
+        }
+      };
+
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        if (this.resizing) {
+          this.resizeWidget(this.resizing, this.widgetSizes[this.resizing].w, this.widgetSizes[this.resizing].h);
+          this.resizing = null;
+          this.resizeStart = null;
+        }
+      };
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    },
+
     async reorderWidget(sourceId, targetId) {
       this.saving = true;
+      this._dirty = true;
       try {
         const resp = await fetch('/api/v1/dashboard/widgets/reorder', {
           method: 'POST',
@@ -174,8 +273,24 @@ function dashboardWidgets() {
         if (resp.ok) {
           this.saved = true;
           setTimeout(() => this.saved = false, 2000);
-          // Reload to reflect new order
-          window.location.reload();
+        }
+      } finally {
+        this.saving = false;
+      }
+    },
+
+    async resizeWidget(widgetId, w, h) {
+      this.saving = true;
+      this._dirty = true;
+      try {
+        const resp = await fetch('/api/v1/dashboard/widgets/resize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ widget_id: widgetId, size_w: w, size_h: h }),
+        });
+        if (resp.ok) {
+          this.saved = true;
+          setTimeout(() => this.saved = false, 2000);
         }
       } finally {
         this.saving = false;
@@ -184,6 +299,7 @@ function dashboardWidgets() {
 
     async addWidget(widgetId) {
       this.saving = true;
+      this._dirty = true;
       try {
         const resp = await fetch('/api/v1/dashboard/widgets/add', {
           method: 'POST',
@@ -200,6 +316,7 @@ function dashboardWidgets() {
 
     async removeWidget(widgetId) {
       this.saving = true;
+      this._dirty = true;
       try {
         const resp = await fetch('/api/v1/dashboard/widgets/remove', {
           method: 'POST',

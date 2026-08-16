@@ -1,1 +1,1 @@
-from bot.pages.music.music import *  # noqa: F401,F403
+# Music page routes are now provided by the music cog (cogs/music/pages/music.py)

@@ -33,6 +33,23 @@ _META_CACHE: dict[str, tuple[float, list["Track"]]] = {}
 _META_TTL = 3600.0
 _META_MAX = 256
 
+# Stream URL cache (shorter TTL — signed URLs expire)
+_STREAM_CACHE: dict[str, tuple[float, str]] = {}
+_STREAM_TTL = 1800.0  # 30 minutes
+_STREAM_MAX = 128
+
+# Concurrency limiter for yt-dlp extractions
+_EXTRACT_SEMAPHORE = asyncio.Semaphore(3)
+
+# EQ presets — FFmpeg audio filter strings
+EQ_PRESETS: dict[str, str] = {
+    "flat": "",
+    "bass_boost": "bass=gain=8",
+    "nightcore": "asetrate=44100*1.25,aresample=44100,atempo=1.0",
+    "vaporwave": "asetrate=44100*0.85,aresample=44100,atempo=1.0",
+    "vocal": "highpass=f=200,lowpass=f=4000",
+}
+
 
 YTDL_OPTS: dict[str, Any] = {
     "format": "bestaudio/best",
@@ -107,21 +124,16 @@ async def search_tracks(query: str, *, requested_by: int | None = None, limit: i
     if use_cache:
         hit = _META_CACHE.get(cache_key)
         if hit and (now - hit[0]) < _META_TTL:
-            # cached metadata — clone with fresh requested_by
             return [
                 Track(**{**t.__dict__, "requested_by": requested_by})
                 for t in hit[1]
             ]
-        # opportunistic cleanup
         if len(_META_CACHE) > _META_MAX:
             _META_CACHE.clear()
 
     is_pure_search = query.startswith("ytsearch")
 
     def _extract() -> list[Track]:
-        # For autocomplete searches we use extract_flat to skip per-video info
-        # extraction (≈10× faster). Real playback re-resolves via this same
-        # function with use_cache=False which goes through the slow path.
         opts = dict(YTDL_OPTS)
         if is_pure_search:
             opts["extract_flat"] = "in_playlist"
@@ -138,17 +150,36 @@ async def search_tracks(query: str, *, requested_by: int | None = None, limit: i
             return [Track.from_info(info, query=query, requested_by=requested_by)]
 
     loop = asyncio.get_running_loop()
-    try:
-        tracks = await asyncio.wait_for(
-            loop.run_in_executor(None, _extract),
-            timeout=15.0,
-        )
-    except asyncio.TimeoutError:
-        log.warning("audio_search_timeout", query=query[:80])
-        return []
+    async with _EXTRACT_SEMAPHORE:
+        try:
+            tracks = await asyncio.wait_for(
+                loop.run_in_executor(None, _extract),
+                timeout=15.0,
+            )
+        except asyncio.TimeoutError:
+            log.warning("audio_search_timeout", query=query[:80])
+            return []
     if use_cache and tracks:
         _META_CACHE[cache_key] = (now, list(tracks))
     return tracks
+
+
+async def resolve_stream_url(query: str) -> str:
+    """Resolve only the stream URL for a track, using short-lived cache."""
+    now = time.time()
+    cached = _STREAM_CACHE.get(query)
+    if cached and (now - cached[0]) < _STREAM_TTL:
+        return cached[1]
+
+    if len(_STREAM_CACHE) > _STREAM_MAX:
+        _STREAM_CACHE.clear()
+
+    tracks = await search_tracks(query, use_cache=False, limit=1)
+    if tracks and tracks[0].stream_url:
+        url = tracks[0].stream_url
+        _STREAM_CACHE[query] = (now, url)
+        return url
+    return ""
 
 
 class GuildPlayer:
@@ -170,10 +201,16 @@ class GuildPlayer:
         self.current: Track | None = None
         self.volume: float = 1.0  # 0.0 – 2.0
         self.loop: str = "off"
+        self.eq_preset: str = "flat"
+        self.auto_play: bool = False
         self._lock = asyncio.Lock()
         self._next_event = asyncio.Event()
         self._task: asyncio.Task | None = None
+        self._prefetch_task: asyncio.Task | None = None
         self._started_at: float = 0.0
+        self._seek_offset: float = 0.0
+        self._state_callbacks: list = []
+        self._last_played_query: str = ""
 
     # ------------------------------------------------------------------
     @property
@@ -212,20 +249,37 @@ class GuildPlayer:
     def clear(self) -> None:
         self.queue.clear()
 
+    def register_state_callback(self, cb) -> None:
+        self._state_callbacks.append(cb)
+
+    def _notify_state(self) -> None:
+        for cb in self._state_callbacks:
+            try:
+                asyncio.create_task(cb(self.snapshot()))
+            except Exception:  # noqa: BLE001
+                pass
+
     # ------------------------------------------------------------------
     async def _player_loop(self) -> None:
         consecutive_failures = 0
         while True:
             self._next_event.clear()
             if not self.queue and self.current is None:
-                return
+                # Auto-play: try to fetch related tracks
+                if self.auto_play and self._last_played_query:
+                    await self._try_autoplay()
+                if not self.queue:
+                    self._notify_state()
+                    return
             if self.current is None:
                 self.current = self.queue.pop(0)
 
             track = self.current
+            self._last_played_query = track.query or track.url
             try:
                 await self._play_track(track)
                 consecutive_failures = 0
+                self._notify_state()
             except Exception as exc:  # noqa: BLE001
                 log.warning("audio_play_failed", error=str(exc), title=track.title)
                 self.current = None
@@ -243,35 +297,108 @@ class GuildPlayer:
             except Exception as exc:  # noqa: BLE001
                 log.warning("audio_wait_failed", error=str(exc))
 
+            # Cancel prefetch if still running
+            if self._prefetch_task and not self._prefetch_task.done():
+                self._prefetch_task.cancel()
+
             if self.loop == "track":
                 continue
             if self.loop == "queue" and self.current is not None:
                 self.queue.append(self.current)
             self.current = None
+            self._seek_offset = 0.0
+            self._notify_state()
+
+    def _start_prefetch(self) -> None:
+        """Pre-fetch the next track's stream URL to reduce gap between songs."""
+        if not self.queue:
+            return
+        next_track = self.queue[0]
+        if next_track.stream_url:
+            return
+        query = next_track.query or next_track.url
+        if not query:
+            return
+        async def _do_prefetch() -> None:
+            try:
+                url = await resolve_stream_url(query)
+                if url:
+                    next_track.stream_url = url
+                    log.debug("audio_prefetch_done", query=query[:60])
+            except asyncio.CancelledError:
+                pass
+            except Exception:  # noqa: BLE001
+                log.debug("audio_prefetch_failed", query=query[:60])
+        self._prefetch_task = asyncio.create_task(_do_prefetch())
+
+    async def _try_autoplay(self) -> None:
+        """Fetch related tracks from YouTube when queue is empty and auto_play is on."""
+        try:
+            def _get_related() -> list[dict]:
+                opts = dict(YTDL_OPTS)
+                opts["extract_flat"] = "in_playlist"
+                opts["playlistend"] = 5
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    info = ydl.extract_info(self._last_played_query, download=False)
+                    if info and "related" in info and info["related"]:
+                        return info["related"][:5]
+                    return []
+            loop = asyncio.get_running_loop()
+            related = await asyncio.wait_for(
+                loop.run_in_executor(None, _get_related),
+                timeout=10.0,
+            )
+            for entry in related:
+                if entry and entry.get("url"):
+                    self.add(Track(
+                        query=entry.get("url", ""),
+                        title=entry.get("title", "Unknown"),
+                        url=entry.get("url", ""),
+                        duration=int(entry.get("duration") or 0),
+                        thumbnail=entry.get("thumbnail") or "",
+                        uploader=entry.get("uploader") or "",
+                        requested_by=self.bot.user.id if self.bot.user else None,
+                    ))
+            if self.queue:
+                log.info("audio_autoplay_added", count=len(self.queue), guild=self.guild_id)
+        except asyncio.TimeoutError:
+            log.debug("audio_autoplay_timeout")
+        except Exception as exc:  # noqa: BLE001
+            log.debug("audio_autoplay_failed", error=str(exc))
 
     async def _play_track(self, track: Track) -> None:
         vc = self.voice_client
         if vc is None or not vc.is_connected():
             raise RuntimeError("Voice client not connected")
 
-        # Re-resolve the stream URL (signed URLs expire). Don't cache the
-        # *stream_url* portion — but reuse cached metadata for everything else.
-        info_list = await search_tracks(
-            track.query or track.url,
-            requested_by=track.requested_by,
-            use_cache=False,
-        )
-        if not info_list:
-            raise RuntimeError("Could not resolve track")
-        track.stream_url = info_list[0].stream_url
-        if not track.thumbnail:
-            track.thumbnail = info_list[0].thumbnail
+        # Use pre-fetched stream URL or resolve now
+        if track.stream_url:
+            cached = _STREAM_CACHE.get(track.query or track.url)
+            if cached and (time.time() - cached[0]) < _STREAM_TTL:
+                pass
+            else:
+                track.stream_url = await resolve_stream_url(track.query or track.url)
+        else:
+            track.stream_url = await resolve_stream_url(track.query or track.url)
+
+        if not track.stream_url:
+            raise RuntimeError("Could not resolve track stream URL")
+
+        # Build FFmpeg options with EQ preset and seek offset
+        before_opts = FFMPEG_BEFORE
+        if self._seek_offset > 0:
+            before_opts += f" -ss {self._seek_offset:.1f}"
+
+        eq_filter = EQ_PRESETS.get(self.eq_preset, "")
+        ffmpeg_opts = FFMPEG_OPTIONS
+        if eq_filter:
+            ffmpeg_opts += f" -af {eq_filter}"
 
         try:
             source = discord.FFmpegPCMAudio(
                 track.stream_url,
-                before_options=FFMPEG_BEFORE,
-                options=FFMPEG_OPTIONS,
+                before_options=before_opts,
+                options=ffmpeg_opts,
             )
             transformed = discord.PCMVolumeTransformer(source, volume=self.volume)
         except Exception as exc:  # noqa: BLE001
@@ -280,6 +407,8 @@ class GuildPlayer:
 
         loop = asyncio.get_running_loop()
         self._started_at = loop.time()
+        if self._seek_offset > 0:
+            self._started_at -= self._seek_offset
 
         def _after(err: Exception | None) -> None:
             # Runs on the FFmpeg thread — must NOT touch asyncio state directly.
@@ -307,16 +436,21 @@ class GuildPlayer:
         except Exception:  # noqa: BLE001
             pass
 
+        # Pre-fetch next track's stream URL while current plays
+        self._start_prefetch()
+
     # ------------------------------------------------------------------
     async def pause(self) -> None:
         vc = self.voice_client
         if vc is not None and vc.is_playing():
             vc.pause()
+        self._notify_state()
 
     async def resume(self) -> None:
         vc = self.voice_client
         if vc is not None and vc.is_paused():
             vc.resume()
+        self._notify_state()
 
     async def skip(self) -> None:
         vc = self.voice_client
@@ -326,13 +460,13 @@ class GuildPlayer:
     async def stop(self) -> None:
         self.queue.clear()
         self.current = None
+        self._seek_offset = 0.0
         vc = self.voice_client
         if vc is not None:
             try:
                 vc.stop()
             except Exception:  # noqa: BLE001
                 pass
-            # Give FFmpeg a moment to terminate cleanly before yanking the socket.
             try:
                 await asyncio.sleep(0.5)
             except Exception:  # noqa: BLE001
@@ -342,6 +476,22 @@ class GuildPlayer:
             except Exception:  # noqa: BLE001
                 pass
         self._next_event.set()
+        self._notify_state()
+
+    async def seek(self, seconds: float) -> None:
+        """Seek to a position in the current track."""
+        self._seek_offset = max(0.0, seconds)
+        vc = self.voice_client
+        if vc is not None and (vc.is_playing() or vc.is_paused()):
+            vc.stop()
+            self._next_event.clear()
+            await asyncio.sleep(0.2)
+            try:
+                await self._play_track(self.current)
+                self._notify_state()
+            except Exception as exc:  # noqa: BLE001
+                log.warning("audio_seek_failed", error=str(exc))
+                self._next_event.set()
 
     def set_volume(self, value: float) -> None:
         value = max(0.0, min(2.0, value))
@@ -353,12 +503,18 @@ class GuildPlayer:
             except Exception:  # noqa: BLE001
                 pass
 
+    def set_eq(self, preset: str) -> None:
+        """Set EQ preset. Takes effect on next track (or after seek)."""
+        if preset in EQ_PRESETS:
+            self.eq_preset = preset
+
     def position_seconds(self) -> int:
         if not self.is_playing or self._started_at == 0.0:
-            return 0
+            return int(self._seek_offset) if self._seek_offset else 0
         try:
             loop = asyncio.get_running_loop()
-            return int(loop.time() - self._started_at)
+            pos = loop.time() - self._started_at
+            return max(0, int(pos))
         except RuntimeError:
             return 0
 
@@ -372,6 +528,8 @@ class GuildPlayer:
             "is_playing": self.is_playing,
             "is_paused": self.is_paused,
             "position": self.position_seconds(),
+            "eq_preset": self.eq_preset,
+            "auto_play": self.auto_play,
         }
 
 
@@ -416,17 +574,9 @@ class AudioManager:
             player = self._players.pop(gid, None)
             if player and player._task and not player._task.done():
                 player._task.cancel()
-            # Clean up giveaway locks too
-            try:
-                if hasattr(player.bot, 'get_cog'):
-                    cog = player.bot.get_cog('Giveaways')
-                    if cog and gid in cog._locks:
-                        del cog._locks[gid]
-            except Exception:  # noqa: BLE001
-                pass
+            if player and player._prefetch_task and not player._prefetch_task.done():
+                player._prefetch_task.cancel()
         return len(stale_keys)
-
-
 
 
 _manager = AudioManager()
@@ -457,3 +607,15 @@ async def _record_play_history(guild_id: int, track: "Track") -> None:
             ))
     except Exception as exc:  # noqa: BLE001
         log.debug("music_history_write_failed", error=str(exc))
+
+
+async def start_cleanup_timer(bot: discord.Client) -> None:
+    """Background task that periodically cleans up idle players."""
+    while not bot.is_closed():
+        try:
+            removed = get_manager().cleanup_idle_players()
+            if removed:
+                log.info("audio_cleanup_idle", removed=removed)
+        except Exception:  # noqa: BLE001
+            pass
+        await asyncio.sleep(60.0)

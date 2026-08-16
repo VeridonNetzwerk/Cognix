@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from jinja2 import ChoiceLoader, FileSystemLoader
 from sqlalchemy import select
 
 from bot.runtime import get_bot, get_bot_info
@@ -18,7 +19,25 @@ from bot.database.session import db_session
 from web.security.tokens import TokenError, decode_token
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
+COGS_DIR = Path(__file__).resolve().parent.parent / "cogs"
+
+
+def _get_template_loaders() -> list[FileSystemLoader]:
+    """Build list of template loaders: core templates + each cog's templates dir."""
+    loaders = [FileSystemLoader(str(TEMPLATES_DIR))]
+    if COGS_DIR.exists():
+        for cog_subdir in sorted(COGS_DIR.iterdir()):
+            if not cog_subdir.is_dir() or cog_subdir.name.startswith("_"):
+                continue
+            cog_templates = cog_subdir / "templates"
+            if cog_templates.exists():
+                loaders.append(FileSystemLoader(str(cog_templates)))
+    return loaders
+
+
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+# Override the loader with a ChoiceLoader that includes cog templates
+templates.env.loader = ChoiceLoader(_get_template_loaders())
 
 router = APIRouter(include_in_schema=False)
 

@@ -19,11 +19,12 @@
 
   <div class="grid lg:grid-cols-[260px_1fr_320px] gap-4 min-h-[640px]">
 
-    <!-- LEFT: Browser (search / playlists / queue tabs) -->
+    <!-- LEFT: Browser (search / playlists / lyrics tabs) -->
     <aside class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col">
       <div class="flex gap-1 mb-3 text-xs">
         <button @click="leftTab='search'" :class="leftTab==='search' ? 'bg-brand-600 text-white' : 'bg-slate-800 text-slate-300'" class="flex-1 py-1.5 rounded">Search</button>
         <button @click="leftTab='lists'" :class="leftTab==='lists' ? 'bg-brand-600 text-white' : 'bg-slate-800 text-slate-300'" class="flex-1 py-1.5 rounded">Playlists</button>
+        <button @click="leftTab='lyrics'; loadLyrics()" :class="leftTab==='lyrics' ? 'bg-brand-600 text-white' : 'bg-slate-800 text-slate-300'" class="flex-1 py-1.5 rounded">Lyrics</button>
       </div>
 
       <template x-if="leftTab==='search'">
@@ -54,21 +55,65 @@
 
       <template x-if="leftTab==='lists'">
         <div class="flex flex-col flex-1 min-h-0">
-          <div class="text-[11px] uppercase text-slate-500 mb-1.5">Playlists</div>
+          <div class="flex items-center justify-between mb-1.5">
+            <div class="text-[11px] uppercase text-slate-500">Playlists</div>
+            <button class="text-[10px] px-2 py-0.5 bg-brand-600 hover:bg-brand-500 rounded text-white" @click="showPlCreate = !showPlCreate">+ New</button>
+          </div>
+          <div x-show="showPlCreate" class="mb-2 flex gap-1">
+            <input x-model="newPlName" placeholder="Playlist name…" class="flex-1 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs">
+            <button class="bg-emerald-600 hover:bg-emerald-500 px-2 py-1 rounded text-xs text-white" @click="createPlaylist()">Create</button>
+          </div>
           <ul class="flex-1 overflow-auto scroll-thin divide-y divide-slate-800 text-sm">
             <template x-for="p in playlists" :key="p.id">
-              <li class="py-2 flex items-center justify-between gap-2">
-                <div class="min-w-0">
-                  <div class="font-medium truncate" x-text="p.name"></div>
-                  <div class="text-[10px] text-slate-500"><span x-text="p.tracks?.length || 0"></span> tracks</div>
+              <li class="py-2">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="min-w-0 cursor-pointer" @click="togglePlExpand(p.id)">
+                    <div class="font-medium truncate" x-text="p.name"></div>
+                    <div class="text-[10px] text-slate-500"><span x-text="p.tracks?.length || 0"></span> tracks</div>
+                  </div>
+                  <div class="flex items-center gap-1 shrink-0">
+                    <button class="text-[10px] px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded" @click="playPlaylist(p)">Play</button>
+                    <button class="text-[10px] px-1.5 py-0.5 bg-rose-800/60 hover:bg-rose-700 rounded text-rose-300" @click="deletePlaylist(p)">Del</button>
+                  </div>
                 </div>
-                <button class="text-[10px] px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded" @click="playPlaylist(p)">Play</button>
+                <div x-show="expandedPl === p.id" class="mt-1.5 space-y-1">
+                  <template x-for="(t, ti) in p.tracks" :key="ti">
+                    <div class="flex items-center gap-2 p-1 rounded bg-slate-800/30">
+                      <span class="text-[10px] text-slate-500 w-4" x-text="ti+1"></span>
+                      <div class="min-w-0 flex-1">
+                        <div class="text-[11px] truncate" x-text="t.title"></div>
+                      </div>
+                      <button class="text-rose-400 hover:text-rose-300 text-[10px] px-1" @click="removeTrackFromPlaylist(p, ti)">✕</button>
+                    </div>
+                  </template>
+                  <div class="flex gap-1 mt-1">
+                    <input x-model="plAddUrl" placeholder="URL or search…" class="flex-1 bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-[11px]">
+                    <button class="bg-slate-700 hover:bg-slate-600 px-2 py-0.5 rounded text-[10px] text-white" @click="addTrackToPlaylist(p)">+ Add</button>
+                  </div>
+                </div>
               </li>
             </template>
             <li x-show="!playlists.length" class="py-3 text-[11px] text-slate-500">
-              Create with <code>/playlist create</code> in Discord.
+              No playlists yet. Click "+ New" to create one.
             </li>
           </ul>
+        </div>
+      </template>
+
+      <template x-if="leftTab==='lyrics'">
+        <div class="flex flex-col flex-1 min-h-0">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="font-semibold text-sm">Lyrics</h2>
+            <button class="text-[10px] px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded" @click="loadLyrics()">Refresh</button>
+          </div>
+          <div class="flex-1 overflow-auto scroll-thin pr-1">
+            <div x-show="lyricsLoading" class="text-xs text-slate-500 py-4 text-center">Fetching lyrics…</div>
+            <div x-show="!lyricsLoading && lyrics.plain" class="text-xs whitespace-pre-wrap leading-relaxed text-slate-300" x-text="lyrics.plain"></div>
+            <div x-show="!lyricsLoading && !lyrics.plain && lyrics.found === false" class="text-xs text-slate-500 py-4 text-center">
+              No lyrics found for the current track.
+            </div>
+            <div x-show="!lyricsLoading && !lyrics.plain && !lyrics.found && lyrics.error" class="text-xs text-slate-500 py-4 text-center" x-text="lyrics.error"></div>
+          </div>
         </div>
       </template>
     </aside>
@@ -94,7 +139,7 @@
         <div class="text-sm text-slate-400 truncate" x-text="state.current?.uploader || ''"></div>
       </div>
 
-      <!-- Progress bar -->
+      <!-- Progress bar (seekable) -->
       <div class="w-full max-w-lg mt-6">
         <div class="h-1.5 bg-slate-800 rounded-full overflow-hidden cursor-pointer" @click="seekClick($event)">
           <div class="h-full bg-brand-500" :style="`width:${progressPct}%`"></div>
@@ -122,6 +167,26 @@
           <input type="range" min="0" max="200" x-model.number="volume"
                  @change="cmd('volume', { percent: volume })" class="w-28">
           <span class="text-xs w-10 text-slate-400" x-text="volume + '%'"></span>
+        </div>
+      </div>
+
+      <!-- EQ + Autoplay row -->
+      <div class="mt-4 flex items-center gap-4 text-xs">
+        <div class="flex items-center gap-2">
+          <span class="text-slate-500">EQ:</span>
+          <select x-model="eqPreset" @change="setEq()" class="bg-slate-800 border border-slate-700 rounded px-2 py-0.5 text-xs">
+            <option value="flat">Flat</option>
+            <option value="bass_boost">Bass Boost</option>
+            <option value="nightcore">Nightcore</option>
+            <option value="vaporwave">Vaporwave</option>
+            <option value="vocal">Vocal</option>
+          </select>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-slate-500">Auto-play:</span>
+          <button class="px-2 py-0.5 rounded text-xs"
+                  :class="state.auto_play ? 'bg-emerald-700/50 text-emerald-300' : 'bg-slate-800 text-slate-400'"
+                  @click="toggleAutoplay()" x-text="state.auto_play ? 'ON' : 'OFF'"></button>
         </div>
       </div>
     </section>
@@ -225,18 +290,25 @@ function musicPanel() {
     serverId: '',
     servers: {{ servers_json|safe if servers_json else '[]' }},
     state: { current: null, queue: [], volume: 1.0, loop: 'off',
-             is_playing: false, is_paused: false, position: 0 },
+             is_playing: false, is_paused: false, position: 0, eq_preset: 'flat', auto_play: false },
     playlists: [],
     leftTab: 'search',
     rightTab: 'queue',
     latest: [],
     top: [],
+    lyrics: { found: null, plain: '', synced: '' },
+    lyricsLoading: false,
     query: '',
     results: [],
     searching: false,
     volume: 100,
+    eqPreset: 'flat',
     dragSrc: null,
     _timer: null,
+    showPlCreate: false,
+    newPlName: '',
+    expandedPl: null,
+    plAddUrl: '',
 
     async boot() {
       try {
@@ -249,7 +321,7 @@ function musicPanel() {
       if (!this.serverId && this.servers.length) this.serverId = String(this.servers[0].id);
       await this.refresh();
       await this.loadPlaylists();
-      this._timer = setInterval(() => this.refresh(true), 2000);
+      this._timer = setInterval(() => this.refresh(true), 3000);
     },
 
     async refresh(silent) {
@@ -259,6 +331,7 @@ function musicPanel() {
         if (r.ok) {
           this.state = await r.json();
           this.volume = Math.round((this.state.volume || 1.0) * 100);
+          this.eqPreset = this.state.eq_preset || 'flat';
         }
       } catch (e) { if (!silent) console.warn(e); }
     },
@@ -293,6 +366,19 @@ function musicPanel() {
           this.top = data.items || [];
         }
       } catch (e) {}
+    },
+
+    async loadLyrics() {
+      if (!this.serverId || !this.state.current) return;
+      this.lyricsLoading = true;
+      this.lyrics = { found: null, plain: '', synced: '' };
+      try {
+        const r = await fetch(`/api/v1/music/${this.serverId}/lyrics`, { credentials: 'same-origin' });
+        if (r.ok) {
+          this.lyrics = await r.json();
+        }
+      } catch (e) { console.warn(e); }
+      this.lyricsLoading = false;
     },
 
     fmtTimeAgo(iso) {
@@ -374,14 +460,94 @@ function musicPanel() {
       await this.refresh();
     },
 
-    seekClick(e) { /* seeking not yet supported by native voice; reserved */ },
+    async seekClick(e) {
+      if (!this.state.current || !this.state.current.duration) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const pct = (e.clientX - rect.left) / rect.width;
+      const pos = Math.floor(pct * this.state.current.duration);
+      await this.cmd('seek', { position: pos });
+    },
+
+    async setEq() {
+      await this.cmd('eq', { preset: this.eqPreset });
+    },
+
+    async toggleAutoplay() {
+      try {
+        const r = await fetch(`/api/v1/music/${this.serverId}/autoplay`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: !this.state.auto_play }),
+        });
+        if (r.ok) {
+          const data = await r.json();
+          this.state.auto_play = data.auto_play;
+        }
+      } catch (e) { console.warn(e); }
+    },
 
     async playPlaylist(p) {
-      if (!p || !p.tracks) return;
-      for (const t of p.tracks) {
-        const q = t.url || t.query || t.title;
-        if (q) await this.cmd('play', { query: q });
-      }
+      if (!p || !p.id) return;
+      try {
+        await fetch(`/api/v1/music/${this.serverId}/playlists/${p.id}/play`, {
+          method: 'POST', credentials: 'same-origin',
+        });
+      } catch (e) { console.warn(e); }
+      await this.refresh();
+    },
+
+    async createPlaylist() {
+      const name = this.newPlName.trim();
+      if (!name) return;
+      try {
+        await fetch(`/api/v1/music/${this.serverId}/playlists`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        });
+        this.newPlName = '';
+        this.showPlCreate = false;
+        await this.loadPlaylists();
+      } catch (e) { console.warn(e); }
+    },
+
+    async deletePlaylist(p) {
+      if (!confirm(`Delete playlist "${p.name}"?`)) return;
+      try {
+        await fetch(`/api/v1/music/${this.serverId}/playlists/${p.id}`, {
+          method: 'DELETE', credentials: 'same-origin',
+        });
+        await this.loadPlaylists();
+      } catch (e) { console.warn(e); }
+    },
+
+    togglePlExpand(id) {
+      this.expandedPl = this.expandedPl === id ? null : id;
+    },
+
+    async addTrackToPlaylist(p) {
+      if (!this.plAddUrl.trim()) return;
+      try {
+        await fetch(`/api/v1/music/${this.serverId}/playlists/${p.id}/tracks`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: this.plAddUrl }),
+        });
+        this.plAddUrl = '';
+        await this.loadPlaylists();
+      } catch (e) { console.warn(e); }
+    },
+
+    async removeTrackFromPlaylist(p, index) {
+      try {
+        await fetch(`/api/v1/music/${this.serverId}/playlists/${p.id}/tracks/${index}`, {
+          method: 'DELETE', credentials: 'same-origin',
+        });
+        await this.loadPlaylists();
+      } catch (e) { console.warn(e); }
     },
 
     fmtTime(s) {

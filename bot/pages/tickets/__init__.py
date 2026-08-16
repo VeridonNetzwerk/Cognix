@@ -1,1 +1,1 @@
-from bot.pages.tickets.tickets import *  # noqa: F401,F403
+# Tickets page routes are now provided by the tickets cog (cogs/tickets/pages/tickets.py)

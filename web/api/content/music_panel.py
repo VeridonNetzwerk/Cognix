@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from bot.services.audio_player import (
+    EQ_PRESETS,
     get_manager,
     search_tracks,
     yt_dlp_available,
@@ -50,6 +51,18 @@ class ReorderRequest(BaseModel):
     dst: int
 
 
+class SeekRequest(BaseModel):
+    position: int  # seconds
+
+
+class EqRequest(BaseModel):
+    preset: str
+
+
+class AutoPlayRequest(BaseModel):
+    enabled: bool
+
+
 # ----- Helpers -----
 
 def _bot():
@@ -79,6 +92,8 @@ def _state(server_id: int) -> dict[str, Any]:
             "is_playing": False,
             "is_paused": False,
             "position": 0,
+            "eq_preset": "flat",
+            "auto_play": False,
         }
     return p.snapshot()
 
@@ -201,6 +216,44 @@ async def loop_(server_id: int, body: LoopRequest) -> dict:
         raise HTTPException(400, "mode must be off/track/queue")
     p.loop = body.mode
     return {"ok": True, "loop": p.loop}
+
+
+@router.post("/{server_id}/seek")
+async def seek(server_id: int, body: SeekRequest) -> dict:
+    p = _player_for(server_id)
+    if p is None:
+        raise HTTPException(404, "no active player")
+    if p.current is None:
+        raise HTTPException(400, "nothing playing")
+    await p.seek(max(0, body.position))
+    return {"ok": True}
+
+
+@router.get("/{server_id}/eq")
+async def get_eq(server_id: int) -> dict:
+    p = _player_for(server_id)
+    preset = p.eq_preset if p else "flat"
+    return {"preset": preset, "available": list(EQ_PRESETS.keys())}
+
+
+@router.post("/{server_id}/eq")
+async def set_eq(server_id: int, body: EqRequest) -> dict:
+    p = _player_for(server_id)
+    if p is None:
+        raise HTTPException(404, "no active player")
+    if body.preset not in EQ_PRESETS:
+        raise HTTPException(400, f"unknown preset. Available: {', '.join(EQ_PRESETS.keys())}")
+    p.set_eq(body.preset)
+    return {"ok": True, "preset": p.eq_preset}
+
+
+@router.post("/{server_id}/autoplay")
+async def set_autoplay(server_id: int, body: AutoPlayRequest) -> dict:
+    p = _player_for(server_id)
+    if p is None:
+        raise HTTPException(404, "no active player")
+    p.auto_play = body.enabled
+    return {"ok": True, "auto_play": p.auto_play}
 
 
 # ----- Queue manipulation -----
@@ -480,3 +533,64 @@ async def history_top(server_id: int, limit: int = 25) -> dict:
             for r in rows
         ]
     }
+
+
+# ----- Lyrics (lrclib.net — free, no API key) -----
+
+
+@router.get("/{server_id}/lyrics")
+async def get_lyrics(server_id: int) -> dict:
+    """Fetch lyrics for the currently playing track via lrclib.net."""
+    import httpx
+
+    p = _player_for(server_id)
+    if p is None or p.current is None:
+        raise HTTPException(400, "nothing playing")
+
+    track = p.current
+    artist = track.uploader or ""
+    title = track.title or ""
+
+    # Clean title — remove "(Official Video)", "[MV]", etc.
+    import re
+    clean_title = re.sub(r'\s*[\(\[](?:Official|MV|Music Video|Audio|Lyrics)[^)\]]*[\)\]]', '', title, flags=re.IGNORECASE).strip()
+    clean_artist = artist.replace(" - Topic", "").strip()
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://lrclib.net/api/get",
+                params={"artist_name": clean_artist, "track_name": clean_title},
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                return {
+                    "found": True,
+                    "plain": data.get("plainLyrics") or "",
+                    "synced": data.get("syncedLyrics") or "",
+                    "track": clean_title,
+                    "artist": clean_artist,
+                }
+            elif resp.status_code == 404:
+                resp2 = await client.get(
+                    "https://lrclib.net/api/search",
+                    params={"track_name": clean_title},
+                )
+                if resp2.status_code == 200:
+                    results = resp2.json()
+                    if results:
+                        best = results[0]
+                        return {
+                            "found": True,
+                            "plain": best.get("plainLyrics") or "",
+                            "synced": best.get("syncedLyrics") or "",
+                            "track": best.get("trackName") or clean_title,
+                            "artist": best.get("artistName") or clean_artist,
+                        }
+                return {"found": False, "track": clean_title, "artist": clean_artist}
+            else:
+                return {"found": False, "error": f"lrclib returned {resp.status_code}"}
+    except httpx.TimeoutException:
+        return {"found": False, "error": "lyrics request timed out"}
+    except Exception as exc:
+        return {"found": False, "error": str(exc)}

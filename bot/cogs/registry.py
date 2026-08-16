@@ -1,17 +1,20 @@
 """Cog Registry — central registry of all available cogs and their load state.
 
 This module provides:
-1. Dynamic discovery of cogs from the top-level cogs/ directory
-2. Runtime tracking of which cogs are currently loaded
-3. Helper functions to load/unload/reload cogs with automatic slash-command tree sync
-4. Persistence of loaded state to the database so it survives restarts
+1. Dynamic discovery of cogs from the top-level cogs/ directory (installed/active)
+2. Discovery of cogs from cogs_store/ directory (available to install)
+3. Runtime tracking of which cogs are currently loaded
+4. Helper functions to load/unload/reload cogs with automatic slash-command tree sync
+5. Persistence of loaded state to the database so it survives restarts
+6. Install/uninstall cogs (copy between cogs_store/ and cogs/)
 
 Design principle:
 - Extensions in discord.py are bot-wide (not per-guild). When a cog is loaded,
   its commands become available on ALL servers.
 - Per-server enable/disable is handled separately via ServerConfig.enabled_cogs.
 - This registry tracks which cogs are *loaded* globally.
-- Cogs live in the top-level cogs/ directory and are discovered dynamically.
+- Installed cogs live in the top-level cogs/ directory and are auto-loaded on startup.
+- Available (not-yet-installed) cogs live in cogs_store/ and can be installed via the web panel.
 """
 
 from __future__ import annotations
@@ -30,6 +33,7 @@ log = get_logger("bot.cog_registry")
 CogInfo = dict[str, str | bool]
 
 _COGS_DIR = Path(__file__).resolve().parent.parent.parent / "cogs"
+_COGS_STORE_DIR = Path(__file__).resolve().parent.parent.parent / "cogs_store"
 
 
 def _make_cog_info(module: str, *, name: str = "", description: str = "", category: str = "", requires_admin: bool = False) -> CogInfo:
@@ -62,6 +66,11 @@ def _discover_cogs() -> list[CogInfo]:
 
     for py_file in sorted(_COGS_DIR.rglob("*.py")):
         if py_file.name == "__init__.py" or py_file.name.startswith("_"):
+            continue
+
+        # Skip non-cog files: pages/ and templates/ are cog web assets, not discord.py cogs
+        parts_relative = py_file.relative_to(_COGS_DIR).parts
+        if any(p in ("pages", "templates") for p in parts_relative[:-1]):
             continue
 
         try:
@@ -111,8 +120,387 @@ def refresh_cogs_cache() -> None:
 
 
 def get_all_cog_info() -> list[CogInfo]:
-    """Return metadata for all available cogs."""
+    """Return metadata for all installed cogs (in cogs/ directory)."""
     return [dict(c) for c in _discover_cogs_cached()]
+
+
+# ---------------------------------------------------------------------------
+# Cog Store — discover cogs available to install from cogs_store/
+# ---------------------------------------------------------------------------
+
+_store_cache: list[CogInfo] | None = None
+
+
+def _discover_store_cogs() -> list[CogInfo]:
+    """Discover all cog modules in the cogs_store/ directory.
+
+    These are cogs that are bundled but NOT installed. The user can
+    install them via the web panel, which copies them to cogs/.
+    """
+    if not _COGS_STORE_DIR.exists():
+        return []
+
+    cogs: list[CogInfo] = []
+
+    for py_file in sorted(_COGS_STORE_DIR.rglob("*.py")):
+        if py_file.name == "__init__.py" or py_file.name.startswith("_"):
+            continue
+
+        # Skip non-cog files: pages/ and templates/ are cog web assets, not discord.py cogs
+        parts_relative = py_file.relative_to(_COGS_STORE_DIR).parts
+        if any(p in ("pages", "templates") for p in parts_relative[:-1]):
+            continue
+
+        try:
+            rel = py_file.relative_to(_COGS_STORE_DIR.parent)
+            module_parts = list(rel.parts)
+            module_parts[-1] = module_parts[-1].removesuffix(".py")
+            # Use 'cogs.' prefix for the module name (where it will live after install)
+            if module_parts[0] == "cogs_store":
+                module_parts[0] = "cogs"
+            module_name = ".".join(module_parts)
+        except ValueError:
+            continue
+
+        # Read COG_INFO without importing (the module is in cogs_store, not importable as cogs.)
+        info = _read_cog_info_from_file(py_file)
+        if info:
+            cogs.append(_make_cog_info(
+                module_name,
+                name=info.get("name", ""),
+                description=info.get("description", ""),
+                category=info.get("category", ""),
+                requires_admin=info.get("requires_admin", False),
+            ))
+        else:
+            cogs.append(_make_cog_info(module_name))
+
+    return cogs
+
+
+def _read_cog_info_from_file(py_file: Path) -> dict | None:
+    """Read COG_INFO dict from a .py file without importing it."""
+    import ast
+
+    try:
+        tree = ast.parse(py_file.read_text(encoding="utf-8"))
+        for node in tree.body:
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and target.id == "COG_INFO":
+                        return ast.literal_eval(node.value)
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
+def get_store_cog_info() -> list[CogInfo]:
+    """Return metadata for all cogs available in the store (cogs_store/)."""
+    global _store_cache
+    if _store_cache is None:
+        _store_cache = _discover_store_cogs()
+    return [dict(c) for c in _store_cache]
+
+
+def refresh_store_cache() -> None:
+    """Force a re-scan of the cogs_store directory."""
+    global _store_cache
+    _store_cache = None
+
+
+def is_cog_installed(module_name: str) -> bool:
+    """Check if a cog is installed (exists in cogs/ directory)."""
+    # module_name is like 'cogs.moderation.moderation'
+    parts = module_name.split(".")
+    if parts[0] == "cogs":
+        parts = parts[1:]
+    py_file = _COGS_DIR / Path(*parts).with_suffix(".py")
+    return py_file.exists()
+
+
+# ---------------------------------------------------------------------------
+# Pip package tracking — persist which packages were installed by which cog
+# ---------------------------------------------------------------------------
+
+_PKG_TRACK_FILE = _COGS_DIR.parent / "data" / "cog_packages.json"
+
+
+def _load_pkg_tracking() -> dict[str, list[str]]:
+    """Load the cog→packages mapping from disk."""
+    import json
+    if _PKG_TRACK_FILE.exists():
+        try:
+            return json.loads(_PKG_TRACK_FILE.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            pass
+    return {}
+
+
+def _save_pkg_tracking(data: dict[str, list[str]]) -> None:
+    """Save the cog→packages mapping to disk."""
+    import json
+    _PKG_TRACK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _PKG_TRACK_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def _parse_requirements(req_path: Path) -> list[str]:
+    """Parse a requirements.txt file and return a list of package names (normalized)."""
+    if not req_path.exists():
+        return []
+    packages: list[str] = []
+    for line in req_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or line.startswith("-"):
+            continue
+        # Strip version specifiers: package>=1.0 → package
+        pkg = line.split("=")[0].split(">")[0].split("<")[0].split("!")[0].split("~")[0].strip()
+        if pkg:
+            packages.append(pkg)
+    return packages
+
+
+def _get_all_installed_cog_requirements(exclude: str | None = None) -> set[str]:
+    """Get all packages required by all installed cogs, optionally excluding one."""
+    tracking = _load_pkg_tracking()
+    all_pkgs: set[str] = set()
+    for cog_module, pkgs in tracking.items():
+        if exclude and cog_module == exclude:
+            continue
+        # Only count packages from cogs that are still installed
+        if is_cog_installed(cog_module):
+            all_pkgs.update(pkgs)
+    return all_pkgs
+
+
+def _pip_install(packages: list[str]) -> dict:
+    """Install packages via pip. Returns {'ok': True} or {'error': '...'}."""
+    import subprocess
+    import sys
+    if not packages:
+        return {"ok": True}
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", *packages],
+            capture_output=True, text=True, timeout=120,
+        )
+        if result.returncode != 0:
+            return {"error": f"pip install failed: {result.stderr.strip()[-500:]}"}
+        log.info("cog_pip_installed", packages=packages)
+        return {"ok": True}
+    except subprocess.TimeoutExpired:
+        return {"error": "pip install timed out (120s)"}
+    except Exception as exc:  # noqa: BLE001
+        return {"error": f"pip install error: {exc}"}
+
+
+def _pip_uninstall(packages: list[str]) -> dict:
+    """Uninstall packages via pip. Returns {'ok': True} or {'error': '...'}."""
+    import subprocess
+    import sys
+    if not packages:
+        return {"ok": True}
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "uninstall", "-y", *packages],
+            capture_output=True, text=True, timeout=60,
+        )
+        if result.returncode != 0:
+            return {"error": f"pip uninstall failed: {result.stderr.strip()[-500:]}"}
+        log.info("cog_pip_uninstalled", packages=packages)
+        return {"ok": True}
+    except subprocess.TimeoutExpired:
+        return {"error": "pip uninstall timed out (60s)"}
+    except Exception as exc:  # noqa: BLE001
+        return {"error": f"pip uninstall error: {exc}"}
+
+
+def get_cog_requirements(module_name: str) -> list[str]:
+    """Get the pip requirements for a cog from its cogs_store directory."""
+    parts = module_name.split(".")
+    if parts[0] == "cogs":
+        store_parts = ["cogs_store"] + parts[1:]
+    else:
+        store_parts = ["cogs_store"] + parts
+    # For multi-file cogs, the requirements.txt is in the cog's directory
+    # module_name is like 'cogs.music.music' → dir is cogs_store/music/
+    if len(store_parts) >= 3:
+        store_dir = _COGS_STORE_DIR.parent / Path(*store_parts[:-1])
+    else:
+        store_dir = _COGS_STORE_DIR.parent / Path(*store_parts)
+    req_file = store_dir / "requirements.txt"
+    return _parse_requirements(req_file)
+
+
+def get_cog_files(module_name: str) -> list[dict]:
+    """Get list of extra files (non-.py) bundled with a cog in cogs_store."""
+    parts = module_name.split(".")
+    if parts[0] == "cogs":
+        store_parts = ["cogs_store"] + parts[1:]
+    else:
+        store_parts = ["cogs_store"] + parts
+    if len(store_parts) >= 3:
+        store_dir = _COGS_STORE_DIR.parent / Path(*store_parts[:-1])
+    else:
+        store_dir = _COGS_STORE_DIR.parent / Path(*store_parts)
+    if not store_dir.exists():
+        return []
+    extra_files: list[dict] = []
+    for f in sorted(store_dir.rglob("*")):
+        if f.is_dir():
+            continue
+        if f.name == "__init__.py" or f.name.startswith("_") or f.suffix == ".pyc":
+            continue
+        if f.suffix == ".py":
+            continue  # Main cog files aren't "extra"
+        rel = f.relative_to(store_dir)
+        extra_files.append({
+            "path": str(rel),
+            "size": f.stat().st_size,
+        })
+    return extra_files
+
+
+def _refresh_template_loader() -> None:
+    """Refresh the Jinja2 template loader to pick up new/removed cog templates."""
+    try:
+        from bot.pages._shared import _get_template_loaders, templates
+        from jinja2 import ChoiceLoader
+        templates.env.loader = ChoiceLoader(_get_template_loaders())
+    except Exception as exc:  # noqa: BLE001
+        log.warning("template_loader_refresh_failed", error=str(exc))
+
+
+def install_cog(module_name: str) -> dict:
+    """Install a cog from cogs_store/ to cogs/ directory.
+
+    Copies the entire cog directory (including templates, static files, etc.),
+    installs pip requirements if present, and tracks installed packages.
+    Returns {'ok': True} on success, {'error': '...'} on failure.
+    """
+    import shutil
+
+    # module_name is like 'cogs.moderation.moderation'
+    parts = module_name.split(".")
+    if parts[0] == "cogs":
+        store_parts = ["cogs_store"] + parts[1:]
+        cog_parts = parts
+    else:
+        store_parts = ["cogs_store"] + parts
+        cog_parts = ["cogs"] + parts
+
+    # The cog directory is the parent of the main .py file
+    # e.g. cogs_store/music/ for cogs.music.music
+    store_dir = _COGS_STORE_DIR.parent / Path(*store_parts[:-1]) if len(store_parts) >= 3 else _COGS_STORE_DIR.parent / Path(*store_parts)
+    cog_dir = _COGS_DIR.parent / Path(*cog_parts[:-1]) if len(cog_parts) >= 3 else _COGS_DIR.parent / Path(*cog_parts)
+
+    store_file = _COGS_STORE_DIR.parent / Path(*store_parts).with_suffix(".py")
+    cog_file = _COGS_DIR.parent / Path(*cog_parts).with_suffix(".py")
+
+    if not store_file.exists():
+        return {"error": f"Cog not found in store: {module_name}"}
+
+    # Create target directory if needed
+    cog_dir.mkdir(parents=True, exist_ok=True)
+
+    # Copy entire directory contents (except __pycache__)
+    if store_dir.exists() and store_dir != _COGS_STORE_DIR:
+        for item in store_dir.iterdir():
+            if item.name == "__pycache__":
+                continue
+            dest = cog_dir / item.name
+            if item.is_dir():
+                shutil.copytree(str(item), str(dest), dirs_exist_ok=True)
+            else:
+                shutil.copy2(str(item), str(dest))
+    else:
+        # Fallback: just copy the .py file
+        shutil.copy2(str(store_file), str(cog_file))
+
+    # Install pip requirements if present
+    req_file = store_dir / "requirements.txt" if store_dir.exists() else None
+    if req_file and req_file.exists():
+        packages = _parse_requirements(req_file)
+        if packages:
+            pip_result = _pip_install(packages)
+            if not pip_result.get("ok"):
+                # Cog files copied but pip failed — still track what we attempted
+                log.warning("cog_pip_install_failed", cog=module_name, error=pip_result.get("error"))
+                # Track the packages anyway so we can retry/uninstall later
+                tracking = _load_pkg_tracking()
+                tracking[module_name] = packages
+                _save_pkg_tracking(tracking)
+                return {"ok": True, "warning": f"Cog installed but pip install failed: {pip_result.get('error')}"}
+            # Track installed packages
+            tracking = _load_pkg_tracking()
+            tracking[module_name] = packages
+            _save_pkg_tracking(tracking)
+
+    # Refresh caches
+    refresh_cogs_cache()
+    refresh_store_cache()
+    _refresh_template_loader()
+
+    log.info("cog_installed", cog=module_name)
+    return {"ok": True}
+
+
+def uninstall_cog(module_name: str) -> dict:
+    """Uninstall a cog — remove it from cogs/ directory and uninstall pip packages.
+
+    The cog remains available in cogs_store/ for reinstallation.
+    Pip packages are only uninstalled if no other installed cog still needs them.
+    Returns {'ok': True} on success, {'error': '...'} on failure.
+    """
+    import shutil
+
+    parts = module_name.split(".")
+    if parts[0] == "cogs":
+        parts = parts[1:]
+
+    cog_file = _COGS_DIR / Path(*parts).with_suffix(".py")
+
+    if not cog_file.exists():
+        return {"error": f"Cog not installed: {module_name}"}
+
+    # Determine the cog directory
+    cog_dir = cog_file.parent
+
+    # Remove the entire cog directory (except __init__.py if it's the top-level cogs/ dir)
+    if cog_dir == _COGS_DIR:
+        # Top-level — just remove the .py file
+        cog_file.unlink()
+    else:
+        # Remove entire subdirectory
+        shutil.rmtree(str(cog_dir), ignore_errors=True)
+        # Recreate __init__.py if needed for parent dirs
+        parent = cog_dir.parent
+        while parent != _COGS_DIR and parent.exists():
+            init = parent / "__init__.py"
+            if not init.exists():
+                init.write_text("", encoding="utf-8")
+            break
+
+    # Uninstall pip packages that are no longer needed
+    tracking = _load_pkg_tracking()
+    cog_packages = tracking.pop(module_name, [])
+    if cog_packages:
+        # Find packages still needed by other installed cogs
+        still_needed = _get_all_installed_cog_requirements(exclude=module_name)
+        to_uninstall = [p for p in cog_packages if p not in still_needed]
+        if to_uninstall:
+            pip_result = _pip_uninstall(to_uninstall)
+            if not pip_result.get("ok"):
+                log.warning("cog_pip_uninstall_failed", cog=module_name, error=pip_result.get("error"))
+                # Still save tracking (without this cog) even if pip uninstall failed
+        _save_pkg_tracking(tracking)
+
+    # Refresh caches
+    refresh_cogs_cache()
+    refresh_store_cache()
+    _refresh_template_loader()
+
+    log.info("cog_uninstalled", cog=module_name)
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------
@@ -354,23 +742,45 @@ async def persist_loaded_cogs(cog_names: list[str]) -> None:
 
 
 async def restore_loaded_cogs(bot: Any) -> int:
-    """Restore previously saved cog load state.
+    """Auto-load all cogs found in the cogs/ directory on startup.
 
-    Returns the number of cogs that were re-loaded.
+    This is the universal cog loader: any .py file (excluding __init__.py
+    and _*.py) in cogs/ and its subdirectories will be loaded.
+    The DB persisted list is synced to reflect what was actually loaded.
+
+    Returns the number of cogs that were loaded.
     """
+    # First, try to load from persisted DB state (for backwards compat)
     saved = await get_persisted_loaded_cogs()
-    if not saved:
+
+    # Then, auto-discover and load ALL cogs in the cogs/ directory
+    available = _discover_cogs_cached()
+    available_modules = [c["module"] for c in available]
+
+    # Merge: load persisted first, then any new ones discovered
+    to_load: list[str] = []
+    for name in saved:
+        if name not in to_load:
+            to_load.append(name)
+    for name in available_modules:
+        if name not in to_load:
+            to_load.append(name)
+
+    if not to_load:
         return 0
 
     count = 0
-    for name in saved:
+    for name in to_load:
+        if name in _loaded_cogs:
+            count += 1
+            continue
         result = await load_cog(bot, name)
         if result.get("ok"):
             count += 1
         else:
             log.warning("restore_cog_failed", cog=name, error=result.get("error"))
 
-    if count > 0:
-        await persist_loaded_cogs(get_loaded_cogs())
+    # Sync DB to reflect actual loaded state
+    await persist_loaded_cogs(get_loaded_cogs())
 
     return count
