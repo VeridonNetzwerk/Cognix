@@ -43,6 +43,7 @@ class BotStatus(BaseModel):
     uptime_seconds: float
     memory_mb: float
     version: str
+    error: str | None = None
 
 
 class StatsPoint(BaseModel):

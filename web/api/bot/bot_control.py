@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from bot.client import _build_activity
 from bot.runtime import (
     get_bot,
+    get_bot_error,
     get_bot_info,
     is_bot_paused,
     request_bot_restart,
@@ -40,6 +41,7 @@ async def status_endpoint() -> BotStatus:
                 uptime_seconds=p.get("uptime_seconds", 0.0),
                 memory_mb=p.get("memory_mb", 0.0),
                 version=p.get("version", "0.0.0"),
+                error=get_bot_error(),
             )
         except Exception:  # noqa: BLE001
             pass
@@ -51,6 +53,7 @@ async def status_endpoint() -> BotStatus:
         uptime_seconds=info["uptime_seconds"],
         memory_mb=0.0,
         version=info["version"],
+        error=get_bot_error(),
     )
 
 

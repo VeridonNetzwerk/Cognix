@@ -231,11 +231,6 @@ async def server_detail(request: Request, server_id: int,
     async with db_session() as s:
         srv = await s.get(Server, server_id)
         cfg = await s.get(ServerConfig, server_id)
-        perms = (
-            await s.scalars(
-                select(RolePermission).where(RolePermission.server_id == server_id)
-            )
-        ).all()
     if srv is None:
         return _render(request, "error.html", user=user, status=404,
                        title="Server not found", detail="No such server.")
@@ -245,5 +240,4 @@ async def server_detail(request: Request, server_id: int,
         user=user,
         server=srv,
         config=cfg or {},
-        permissions=perms,
     )

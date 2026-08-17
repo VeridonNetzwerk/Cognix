@@ -3,13 +3,13 @@
 {% block header %}Dashboard{% endblock %}
 {% block content %}
 <div x-data="dashboardWidgets()" x-init="init()">
-  {# === Widget grid (4 columns) === #}
-  <div class="grid grid-cols-4 gap-3 mb-6 auto-rows-[minmax(120px,auto)]"
+  {# === Widget grid (4 columns, fills container) === #}
+  <div class="grid grid-cols-4 gap-3 mb-6 auto-rows-[minmax(140px,1fr)]"
        id="widget-grid"
        :class="{ 'gap-4': editMode }">
 
     {% for w in active_widgets %}
-    <div class="gradient-border p-5 flex flex-col gap-3 widget-card relative transition-all"
+    <div class="gradient-border p-4 flex flex-col gap-2.5 widget-card relative transition-all min-h-0"
          data-widget-id="{{ w.id }}"
          :style="`grid-column: span ${widgetSize('{{ w.id }}').w}; grid-row: span ${widgetSize('{{ w.id }}').h}`"
          draggable="true"
@@ -134,26 +134,6 @@
     </div>
   </div>
 
-  {# === Bot lifecycle controls (always visible) === #}
-  {% if can_servers_write %}
-  <div class="gradient-border p-4 mt-2" x-data="{ busy: false, msg: '' }">
-    <div class="flex gap-2">
-      <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/lifecycle/start',{method:'POST'}).then(r=>r.json()).then(j=>{msg='start: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
-              class="btn btn-success flex-1 justify-center disabled:opacity-50">
-        <i class="ph-fill ph-play"></i> Start
-      </button>
-      <button :disabled="busy" @click="if(!confirm('Stop the bot?'))return; busy=true; fetch('/api/v1/bot/lifecycle/stop',{method:'POST'}).then(r=>r.json()).then(j=>{msg='stop: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
-              class="btn btn-destructive flex-1 justify-center disabled:opacity-50">
-        <i class="ph-fill ph-stop"></i> Stop
-      </button>
-      <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/lifecycle/restart',{method:'POST'}).then(r=>r.json()).then(j=>{msg='restart: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
-              class="btn btn-warning flex-1 justify-center disabled:opacity-50">
-        <i class="ph ph-arrow-clockwise"></i> Restart
-      </button>
-    </div>
-    <p x-text="msg" class="text-xs mt-2" style="color: var(--color-muted-foreground);"></p>
-  </div>
-  {% endif %}
 </div>
 
 <script>

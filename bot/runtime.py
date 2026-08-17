@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from bot.client import CogniXBot
 
 _BOT: "Optional[CogniXBot]" = None
+_BOT_ERROR: str | None = None
 
 
 def set_bot(bot: "CogniXBot") -> None:
@@ -29,6 +30,21 @@ def clear_bot() -> None:
 
 def get_bot() -> "Optional[CogniXBot]":
     return _BOT
+
+
+def set_bot_error(error: str | None) -> None:
+    """Store the last bot connection/login error so the web layer can surface it."""
+    global _BOT_ERROR
+    _BOT_ERROR = error
+
+
+def clear_bot_error() -> None:
+    global _BOT_ERROR
+    _BOT_ERROR = None
+
+
+def get_bot_error() -> str | None:
+    return _BOT_ERROR
 
 
 def _format_uptime(seconds: float) -> str:
@@ -73,7 +89,8 @@ def get_bot_info() -> dict[str, Any]:
             "guild_count": 0,
             "user_count": 0,
             "version": "0.1.0",
-            "footer": "Powered by Cognix \u00b7 Made by \u98df\u3079\u7269",
+            "footer": "\u00a9 2026 VeridonNetzwerk \u00b7 MIT License \u00b7 Built with AI \U0001F916",
+            "error": _BOT_ERROR,
         }
     start = getattr(bot, "start_time", 0.0) or time.time()
     uptime_seconds = max(0.0, time.time() - start)
@@ -95,7 +112,8 @@ def get_bot_info() -> dict[str, Any]:
         "guild_count": len(bot.guilds),
         "user_count": user_count,
         "version": "0.1.0",
-        "footer": "Powered by Cognix \u00b7 Made by \u98df\u3079\u7269",
+        "footer": "\u00a9 2026 VeridonNetzwerk \u00b7 MIT License \u00b7 Built with AI \U0001F916",
+        "error": _BOT_ERROR,
     }
 
 

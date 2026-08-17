@@ -61,6 +61,13 @@ async def perform_setup(session: AsyncSession, req: SetupRequest) -> SetupRespon
     if len(pw) < 10:
         raise SetupError("Admin password must be at least 10 characters")
 
+    # Verify the bot token with Discord before persisting it
+    from bot.utils.discord_validate import validate_bot_token_and_app_id
+
+    token_result = await validate_bot_token_and_app_id(bot_token, req.bot_application_id or "")
+    if not token_result.valid:
+        raise SetupError(token_result.error or "Invalid bot token")
+
     # Ensure MASTER_KEY exists before encrypting secrets
     settings = get_settings()
     if not settings.master_key:

@@ -138,6 +138,9 @@ class CogniXBot(commands.Bot):
     async def on_ready(self) -> None:
         if self.start_time == 0.0:
             self.start_time = time.time()
+        # Clear any previous error now that we're connected
+        from bot.runtime import clear_bot_error
+        clear_bot_error()
         # BUG #2: Pterodactyl egg detection string. The default "yolks:python"
         # egg matches "is online!" / "online!" / "Bot is online" patterns to
         # flip the server state from STARTING -> RUNNING.
@@ -284,14 +287,24 @@ async def run_bot() -> None:
         await asyncio.sleep(30)
         token = await _fetch_token()
 
-    from bot.runtime import clear_bot, set_bot
+    from bot.runtime import clear_bot, clear_bot_error, set_bot, set_bot_error
 
     bot = CogniXBot()
     set_bot(bot)
     try:
         await bot.start(token)
-    except discord.LoginFailure:
-        log.error("bot_login_failed")
+        clear_bot_error()
+    except discord.LoginFailure as exc:
+        set_bot_error(f"Discord login failed: {exc}")
+        log.error("bot_login_failed", error=str(exc))
+        raise
+    except discord.HTTPException as exc:
+        set_bot_error(f"Discord HTTP error: {exc}")
+        log.error("bot_http_error", error=str(exc))
+        raise
+    except Exception as exc:
+        set_bot_error(f"Bot error: {exc}")
+        log.error("bot_error", error=str(exc))
         raise
     finally:
         clear_bot()

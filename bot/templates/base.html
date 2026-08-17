@@ -5,9 +5,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% block title %}{{ bot_info.name or 'CogniX' }}{% endblock %}</title>
-    <link rel="icon" href="/static/logo.png" />
     {% if bot_info.avatar_url %}
       <link rel="icon" href="{{ bot_info.avatar_url }}" />
+    {% else %}
+      <link rel="icon" type="image/svg+xml" href="/static/discord-logo.svg" />
     {% endif %}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -309,9 +310,13 @@
              style="background: var(--color-card); border-color: var(--color-border);">
         <!-- Brand / status header -->
         <div class="flex items-center gap-3 p-4 border-b shrink-0" style="border-color: var(--color-border);">
-          <a href="/" class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+          <a href="/" class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 overflow-hidden"
              style="background: color-mix(in oklch, var(--color-primary) 20%, transparent);">
-            <img src="/static/logo.png" alt="CogniX" class="w-9 h-9 rounded-md object-cover" />
+            {% if bot_info.avatar_url %}
+              <img src="{{ bot_info.avatar_url }}" alt="{{ bot_info.name }}" class="w-full h-full object-cover" />
+            {% else %}
+              <img src="/static/discord-logo.svg" alt="{{ bot_info.name }}" class="w-7 h-7" />
+            {% endif %}
           </a>
           <div class="min-w-0 flex-1">
             <h2 class="font-semibold text-sm truncate">{{ bot_info.name or 'CogniX' }}</h2>
@@ -406,12 +411,26 @@
                 {{ flash.message }}
               </div>
             {% endif %}
+            {% if bot_info.error and user %}
+              <div class="mb-4 px-4 py-3 rounded-lg border flex items-start gap-3"
+                   style="background: color-mix(in oklch, var(--color-destructive) 12%, transparent); border-color: color-mix(in oklch, var(--color-destructive) 30%, transparent);">
+                <i class="ph ph-warning-circle text-xl shrink-0" style="color: var(--color-destructive);"></i>
+                <div class="flex-1 min-w-0">
+                  <p class="font-semibold text-sm" style="color: var(--color-destructive);">Bot connection error</p>
+                  <p class="text-sm mt-0.5" style="color: var(--color-foreground);">{{ bot_info.error }}</p>
+                  <p class="text-xs mt-1" style="color: var(--color-muted-foreground);">
+                    The bot token may be invalid or revoked. Update it in
+                    <a href="/settings" class="underline font-medium" style="color: var(--color-primary);">Settings</a>.
+                  </p>
+                </div>
+              </div>
+            {% endif %}
             {% block content %}{% endblock %}
           </div>
         </main>
       </div>
     </div>
-    <div aria-hidden="true" style="position:fixed;bottom:8px;right:12px;opacity:0.07;font-size:11px;pointer-events:none;z-index:0;user-select:none;color:var(--color-foreground);">Powered by Cognix · Made by 食べ物</div>
+    <div aria-hidden="true" style="position:fixed;bottom:8px;right:12px;opacity:0.07;font-size:11px;pointer-events:none;z-index:0;user-select:none;color:var(--color-foreground);">© 2026 VeridonNetzwerk · MIT License · Built with AI 🤖</div>
     {% block scripts %}{% endblock %}
   </body>
 </html>

@@ -110,9 +110,12 @@ async def _serve_bot(stop: asyncio.Event) -> None:
             raise
         except Exception as exc:  # noqa: BLE001
             log.warning("bot_crashed_restarting", error=str(exc))
+            # Use a longer backoff for login failures to avoid hammering
+            # Discord with an invalid token (rate-limit protection).
+            backoff = 30 if "login" in str(exc).lower() or "401" in str(exc) else 2
         # backoff
         try:
-            await asyncio.wait_for(stop.wait(), timeout=2)
+            await asyncio.wait_for(stop.wait(), timeout=backoff)
         except asyncio.TimeoutError:
             continue
 

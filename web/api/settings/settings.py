@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, SecretStr
 from sqlalchemy import select
 
@@ -59,6 +59,16 @@ async def update_settings(payload: SettingsUpdate, session: SessionDep) -> dict:
     if payload.bot_token is not None:
         token = payload.bot_token.get_secret_value().strip()
         if token:
+            # Validate the new token with Discord before persisting
+            from bot.utils.discord_validate import validate_bot_token_and_app_id
+
+            app_id = payload.bot_application_id or cfg.bot_application_id or ""
+            token_result = await validate_bot_token_and_app_id(token, app_id)
+            if not token_result.valid:
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST,
+                    token_result.error or "Invalid bot token",
+                )
             cfg.bot_token_encrypted = encrypt_secret(token, aad=b"bot_token")
     for field in (
         "bot_application_id",
