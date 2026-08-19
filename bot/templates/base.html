@@ -206,6 +206,9 @@
       @keyframes spin { to { transform: rotate(360deg); } }
       @keyframes count-up { from { opacity:0; transform: translateY(10px) } to { opacity:1; transform: translateY(0) } }
       .animate-count-up { animation: count-up 0.6s ease-out both; }
+      @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes pulseLogo { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+      @keyframes progress { 0% { width: 0%; opacity: 0.6; } 50% { width: 70%; opacity: 1; } 100% { width: 100%; opacity: 0.6; } }
 
       /* Scroll bars */
       .scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -609,10 +612,10 @@
         </main>
       </div>
     </div>
-    {# === Bot starting overlay — shows when bot is offline === #}
+    {# === Bot starting overlay — macOS style, shows when bot is offline === #}
     {% if user and not bot_info.online %}
-    <div x-data="{ show: true, checking: false }"
-         x-init="setInterval(() => { checking = true; fetch('/api/v1/bot/status', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).then(j => { checking = false; if (j && j.online) { show = false; cognixToastSuccess('Bot ist jetzt online!'); } }).catch(() => checking = false) }, 2000)"
+    <div x-data="{ show: true, checking: false, stage: 0 }"
+         x-init="setInterval(() => { checking = true; fetch('/api/v1/bot/status', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).then(j => { checking = false; if (j && j.online) { show = false; cognixToastSuccess('Bot ist jetzt online!'); } }).catch(() => checking = false) }, 2000); setInterval(() => { stage = Math.min(stage + 1, 3) }, 800)"
          x-show="show" x-cloak
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0"
@@ -620,17 +623,26 @@
          x-transition:leave="transition ease-in duration-300"
          x-transition:leave-start="opacity-100"
          x-transition:leave-end="opacity-0"
-         style="position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:oklch(0.12 0.03 260 / 0.85);backdrop-filter:blur(8px);">
-      <div style="text-align:center;padding:2.5rem 3rem;border-radius:1rem;background:var(--color-card);border:1px solid var(--color-border);box-shadow:0 10px 40px rgba(0,0,0,0.4);max-width:400px;">
-        <div style="width:48px;height:48px;margin:0 auto 1.25rem;border:4px solid var(--color-border);border-top-color:var(--color-primary);border-radius:50%;animation:spin 0.9s linear infinite;"></div>
-        <h2 style="font-size:1.15rem;font-weight:600;margin:0 0 0.5rem;">Bot startet…</h2>
-        <p style="font-size:0.85rem;color:var(--color-muted-foreground);margin:0;">
-          CogniX verbindet sich mit Discord — einen Moment bitte.
-        </p>
-        <div x-show="checking" style="margin-top:0.75rem;font-size:0.75rem;color:var(--color-muted-foreground);">
-          <i class="ph ph-spinner animate-spin"></i> Verbinde…
+         style="position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#000000;backdrop-filter:blur(20px);">
+      <div style="text-align:center;animation:fadeIn 0.6s ease-out;">
+        <div style="width:56px;height:56px;margin:0 auto 1.8rem;border-radius:14px;background:linear-gradient(135deg,#7c5cff,#5b8def);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 32px rgba(124,92,255,0.35);animation:pulseLogo 2s ease-in-out infinite;">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="white"><path d="M12 2L2 19h20L12 2zm0 4.5L18.5 17h-13L12 6.5z"/></svg>
+        </div>
+        <h2 style="font-size:1.05rem;font-weight:500;margin:0 0 0.3rem;letter-spacing:-0.01em;color:#e8eaf2;">CogniX</h2>
+        <p style="font-size:0.8rem;color:#6e7080;margin:0 0 1.8rem;min-height:1.1em;" x-text="['Bot wird gestartet…', 'Verbinde mit Discord…', 'Module werden geladen…', 'Fast fertig…'][stage]">Bot wird gestartet…</p>
+        <div style="width:240px;height:4px;margin:0 auto;background:rgba(255,255,255,0.08);border-radius:999px;overflow:hidden;">
+          <div style="height:100%;width:0%;background:linear-gradient(90deg,#7c5cff,#5b8def);border-radius:999px;animation:progress 2.2s ease-in-out infinite;"></div>
         </div>
       </div>
+      <button @click="show = false"
+              style="position:fixed;bottom:24px;right:28px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#6e7080;padding:0.5rem 1.1rem;border-radius:999px;font-size:0.8rem;font-weight:500;cursor:pointer;transition:all 0.2s ease;font-family:inherit;display:flex;align-items:center;gap:0.4rem;"
+              onmouseover="this.style.background='rgba(255,255,255,0.1)';this.style.color='#e8eaf2';this.style.borderColor='rgba(255,255,255,0.2)';"
+              onmouseout="this.style.background='rgba(255,255,255,0.06)';this.style.color='#6e7080';this.style.borderColor='rgba(255,255,255,0.1)';"
+              onmousedown="this.style.transform='scale(0.97)'"
+              onmouseup="this.style.transform='scale(1)'">
+        Überspringen
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
     </div>
     {% endif %}
 
