@@ -48,11 +48,9 @@ def get_bot_error() -> str | None:
     return _BOT_ERROR
 
 
-# --- live ping monitor (active Discord round-trip, non-overlapping) -------
-# The monitor performs an active REST round-trip to Discord every second and
-# stores the measured latency. Measurements never overlap: each iteration
-# awaits the probe to completion before sleeping, so a slow probe (>>1s) simply
-# delays the next one instead of piling up concurrent checks.
+# --- live ping monitor (gateway heartbeat with smoothing) ----------------
+# The monitor samples bot.latency (discord.py's gateway heartbeat round-trip)
+# every 2 seconds and applies exponential smoothing to eliminate spikes.
 _PING_MS: float | None = None
 _PING_AT: float = 0.0
 _PING_ERROR: str | None = None
@@ -70,35 +68,37 @@ def get_ping_info() -> dict[str, Any]:
 async def run_ping_monitor(bot: "CogniXBot") -> None:
     """Continuously measure Discord latency. Runs until the bot is closed.
 
-    Uses discord.py's REST client to time a lightweight round-trip to Discord
-    (the gateway metadata endpoint — read-only, no side effects). The loop is
-    intentionally self-scheduling: probe -> sleep(1s) -> probe, which guarantees
-    two measurements can never run concurrently.
+    Uses the gateway heartbeat latency (bot.latency) which is a stable
+    rolling average maintained by discord.py's websocket protocol. We sample
+    it every 2 seconds and apply exponential smoothing to eliminate spikes.
     """
     from bot.config.logging import get_logger
 
     log = get_logger("bot.ping")
     log.info("ping_monitor_started")
+    global _PING_MS, _PING_AT, _PING_ERROR
     while not bot.is_closed():
         if bot.is_ready():
             try:
-                start = time.monotonic()
-                # Lightweight, read-only REST call to Discord — a real network
-                # round-trip that reflects gateway/API latency from this host.
-                # `get_bot_gateway` is a cheap GET /gateway/bot round-trip.
-                await bot.http.get_bot_gateway()
-                elapsed_ms = (time.monotonic() - start) * 1000.0
-                global _PING_MS, _PING_AT, _PING_ERROR
-                _PING_MS = round(elapsed_ms, 1)
-                _PING_AT = time.time()
-                _PING_ERROR = None
+                # Use gateway heartbeat latency — stable, no extra API calls
+                raw = bot.latency
+                if raw is not None and raw >= 0:
+                    raw_ms = round(raw * 1000, 1)
+                    # Exponential smoothing: blend new sample with previous
+                    # to eliminate transient spikes (alpha=0.3 = 30% new, 70% old)
+                    if _PING_MS is not None and _PING_MS > 0:
+                        _PING_MS = round(_PING_MS * 0.7 + raw_ms * 0.3, 1)
+                    else:
+                        _PING_MS = raw_ms
+                    _PING_AT = time.time()
+                    _PING_ERROR = None
             except Exception as exc:  # noqa: BLE001
                 _PING_ERROR = str(exc)
                 log.warning("ping_measure_failed", error=str(exc))
-        # Non-overlapping cadence: only advance to the next measurement after
-        # the current one (and this sleep) fully complete.
+        # Sample every 2 seconds — gateway heartbeat updates ~every 40s,
+        # but this keeps the timestamp fresh and catches disconnects quickly
         try:
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(2.0)
         except asyncio.CancelledError:
             break
     log.info("ping_monitor_stopped")
@@ -123,6 +123,28 @@ def _format_uptime(seconds: float) -> str:
         parts.append(f"{minutes}m")
     parts.append(f"{secs}s")
     return " ".join(parts)
+
+
+def _format_age(created_at) -> str:
+    """Format how long ago a datetime was, e.g. '2 Jahren, 3 Monaten'."""
+    from datetime import datetime, timezone
+
+    if hasattr(created_at, 'tzinfo') and created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    now = datetime.now(tz=timezone.utc)
+    delta = now - created_at
+    days = delta.days
+    years = days // 365
+    remaining_days = days % 365
+    months = remaining_days // 30
+    parts: list[str] = []
+    if years > 0:
+        parts.append(f"{years} Jahr{'en' if years != 1 else ''}")
+    if months > 0:
+        parts.append(f"{months} Monat{'en' if months != 1 else ''}")
+    if not parts:
+        parts.append(f"{days} Tag{'en' if days != 1 else ''}")
+    return ", ".join(parts)
 
 
 def get_bot_info() -> dict[str, Any]:
@@ -152,6 +174,7 @@ def get_bot_info() -> dict[str, Any]:
             "user_count": 0,
             "version": "0.1.0",
             "created_at": "",
+            "age_text": "",
             "footer": "\u00a9 2026 VeridonNetzwerk \u00b7 MIT License \u00b7 Built with AI \U0001F916",
             "error": _BOT_ERROR,
             "ping_error": _PING_ERROR,
@@ -177,6 +200,8 @@ def get_bot_info() -> dict[str, Any]:
         "user_count": user_count,
         "version": "0.1.0",
         "created_at": bot.user.created_at.strftime("%d. %b. %Y"),
+        "age_text": _format_age(bot.user.created_at),
+        "id": bot.user.id,
         "footer": "\u00a9 2026 VeridonNetzwerk \u00b7 MIT License \u00b7 Built with AI \U0001F916",
         "error": _BOT_ERROR,
         "ping_error": _PING_ERROR,

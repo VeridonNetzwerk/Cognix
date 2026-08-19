@@ -44,6 +44,7 @@ class BotStatus(BaseModel):
     memory_mb: float
     version: str
     error: str | None = None
+    ping_error: str | None = None
 
 
 class StatsPoint(BaseModel):

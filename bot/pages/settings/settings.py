@@ -25,6 +25,22 @@ from web.security import totp as _totp
 from web.security.permissions import get_permission_map, has_permission
 
 
+def _get_bot_guilds() -> list[dict]:
+    """Return list of guilds the bot is in, with name and icon."""
+    bot = get_bot()
+    if bot is None:
+        return []
+    result = []
+    for g in bot.guilds:
+        result.append({
+            "id": str(g.id),
+            "name": g.name,
+            "icon_url": str(g.icon.url) if g.icon else None,
+            "member_count": g.member_count or 0,
+        })
+    return result
+
+
 async def _get_or_create_settings(session, user) -> WebUserSettings:
     row = await session.get(WebUserSettings, user.id)
     if row is None:
@@ -213,7 +229,7 @@ async def bot_profile_view(
             prof = BotProfile(id=1, updated_at=_dt2.now(tz=UTC))
             s.add(prof)
             await s.flush()
-    return _render(request, "settings/bot_profile.html", user=user, profile=prof)
+    return _render(request, "settings/bot_profile.html", user=user, profile=prof, guilds=_get_bot_guilds())
 
 
 @router.post("/bot-profile")
@@ -243,7 +259,7 @@ async def bot_profile_save(
             prof.avatar_data = avatar_data[:1_000_000]
         if banner_data.startswith("data:"):
             prof.banner_data = banner_data[:2_000_000]
-        prof.activity_type = activity_type if activity_type in ("playing","listening","watching","competing","streaming") else "playing"
+        prof.activity_type = activity_type if activity_type in ("none","playing","listening","watching","competing","streaming") else "none"
         prof.activity_text = activity_text[:128]
         prof.status = status if status in ("online","idle","dnd","invisible") else "online"
         prof.updated_at = _dt2.now(tz=UTC)
@@ -285,7 +301,10 @@ async def bot_profile_save(
                 "dnd": _d.Status.dnd,
                 "invisible": _d.Status.invisible,
             }
-            activity = _d.Activity(type=atype_map.get(activity_type, _d.ActivityType.playing), name=activity_text or "Cognix")
+            if activity_type == "none":
+                activity = None
+            else:
+                activity = _d.Activity(type=atype_map.get(activity_type, _d.ActivityType.playing), name=activity_text or "Cognix")
             await bot.change_presence(activity=activity, status=status_map.get(status, _d.Status.online))
         except Exception:
             pass

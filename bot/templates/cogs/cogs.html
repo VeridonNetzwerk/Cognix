@@ -633,7 +633,7 @@ function cogMarketplace(data) {
         if (data.ok) {
           this.storeAvailable = true;
           this.showToast('Store synced successfully', 'success');
-          setTimeout(() => window.location.reload(), 600);
+          setTimeout(() => this.refreshCogsData(), 600);
         } else {
           this.storeAvailable = false;
           this.showToast('Could not reach GitHub store', 'error');
@@ -705,7 +705,7 @@ function cogMarketplace(data) {
           this.showDevInstall = false;
           this.devInstallPath = '';
           this.devInstallModule = '';
-          setTimeout(() => window.location.reload(), 800);
+          setTimeout(() => this.refreshCogsData(), 800);
         } else {
           this.showToast(data.detail || data.error || 'Dev install failed', 'error');
         }
@@ -713,6 +713,19 @@ function cogMarketplace(data) {
         this.stopProgress();
         this.busy = null;
         this.showToast('Network error during dev install', 'error');
+      }
+    },
+
+    async refreshCogsData() {
+      try {
+        const resp = await fetch('/api/v1/cogs/store', { credentials: 'same-origin' });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data.cogs) {
+          this.cogs = data.cogs;
+        }
+      } catch (e) {
+        // silent fail
       }
     },
 
@@ -897,7 +910,7 @@ function cogMarketplace(data) {
           } else {
             this.showToast(upd.name + ' updated to v' + upd.store_version, 'success');
           }
-          setTimeout(() => window.location.reload(), 800);
+          setTimeout(() => this.refreshCogsData(), 800);
         } else {
           this.showToast(data.detail || data.error || 'Update failed', 'error');
         }
@@ -939,7 +952,7 @@ function cogMarketplace(data) {
           });
         });
       }
-      setTimeout(() => window.location.reload(), 800);
+      setTimeout(() => this.refreshCogsData(), 800);
     },
 
     openUpdateDetail(upd) {
@@ -968,7 +981,7 @@ function cogMarketplace(data) {
       try {
         await this._postJSON(`/api/v1/cogs/${encodeURIComponent(cog.name)}/load`);
         this.showToast(cog.name + ' aktiviert', 'success');
-        setTimeout(() => window.location.reload(), 500);
+        setTimeout(() => this.refreshCogsData(), 500);
       } catch (e) {
         this.showToast('Aktivierung fehlgeschlagen: ' + e.message, 'error');
       } finally {
@@ -981,7 +994,7 @@ function cogMarketplace(data) {
       try {
         await this._postJSON(`/api/v1/cogs/${encodeURIComponent(cog.name)}/unload`);
         this.showToast(cog.name + ' deaktiviert', 'success');
-        setTimeout(() => window.location.reload(), 500);
+        setTimeout(() => this.refreshCogsData(), 500);
       } catch (e) {
         this.showToast('Deaktivierung fehlgeschlagen: ' + e.message, 'error');
       } finally {
@@ -994,7 +1007,7 @@ function cogMarketplace(data) {
       try {
         await this._postJSON(`/api/v1/cogs/${encodeURIComponent(cog.name)}/reload`);
         this.showToast(cog.name + ' neu geladen', 'success');
-        setTimeout(() => window.location.reload(), 500);
+        setTimeout(() => this.refreshCogsData(), 500);
       } catch (e) {
         this.showToast('Reload fehlgeschlagen: ' + e.message, 'error');
       } finally {
@@ -1007,7 +1020,7 @@ function cogMarketplace(data) {
       try {
         const j = await this._postJSON(`/api/v1/cogs/${encodeURIComponent(cog.name)}/toggle`);
         this.showToast(cog.name + (j.enabled ? ' aktiviert' : ' deaktiviert'), 'success');
-        setTimeout(() => window.location.reload(), 500);
+        setTimeout(() => this.refreshCogsData(), 500);
       } catch (e) {
         this.showToast('Toggle fehlgeschlagen: ' + e.message, 'error');
       } finally {
@@ -1023,7 +1036,7 @@ function cogMarketplace(data) {
           'PUT'
         );
         this.showToast('Server-Override gespeichert', 'success');
-        setTimeout(() => window.location.reload(), 400);
+        setTimeout(() => this.refreshCogsData(), 400);
       } catch (e) {
         this.showToast('Server-Toggle fehlgeschlagen: ' + e.message, 'error');
       }

@@ -42,6 +42,7 @@ async def status_endpoint() -> BotStatus:
                 memory_mb=p.get("memory_mb", 0.0),
                 version=p.get("version", "0.0.0"),
                 error=get_bot_error(),
+                ping_error=p.get("ping_error"),
             )
         except Exception:  # noqa: BLE001
             pass
@@ -54,6 +55,7 @@ async def status_endpoint() -> BotStatus:
         memory_mb=0.0,
         version=info["version"],
         error=get_bot_error(),
+        ping_error=info.get("ping_error"),
     )
 
 
