@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import time
+
+import psutil
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -40,6 +43,7 @@ async def status_endpoint() -> BotStatus:
                 user_count=p.get("user_count", 0),
                 uptime_seconds=p.get("uptime_seconds", 0.0),
                 memory_mb=p.get("memory_mb", 0.0),
+                panel_memory_mb=round(psutil.Process(os.getpid()).memory_info().rss / 1048576, 1),
                 version=p.get("version", "0.0.0"),
                 error=get_bot_error(),
                 ping_error=p.get("ping_error"),
@@ -53,6 +57,7 @@ async def status_endpoint() -> BotStatus:
         user_count=info["user_count"],
         uptime_seconds=info["uptime_seconds"],
         memory_mb=info.get("memory_mb", 0.0),
+        panel_memory_mb=round(psutil.Process(os.getpid()).memory_info().rss / 1048576, 1),
         version=info["version"],
         error=get_bot_error(),
         ping_error=info.get("ping_error"),

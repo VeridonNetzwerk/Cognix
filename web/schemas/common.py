@@ -42,6 +42,7 @@ class BotStatus(BaseModel):
     user_count: int
     uptime_seconds: float
     memory_mb: float
+    panel_memory_mb: float = 0.0
     version: str
     error: str | None = None
     ping_error: str | None = None

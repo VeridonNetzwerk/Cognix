@@ -30,6 +30,9 @@ def default_widget_size(size: str) -> tuple[int, int]:
 
 async def compute_metrics(session, user) -> dict:
     """Compute dashboard metrics (servers, users, cogs, tickets, bot status)."""
+    import os
+    import psutil
+
     servers_count = (await session.scalar(select(func.count(Server.id)))) or 0
     cogs_count = (await session.scalar(
         select(func.count(CogState.id)).where(CogState.enabled.is_(True))
@@ -53,6 +56,8 @@ async def compute_metrics(session, user) -> dict:
         )) or 0
 
     info = get_bot_info()
+    panel_mem = round(psutil.Process(os.getpid()).memory_info().rss / 1048576, 1)
+    bot_mem = info.get("memory_mb", 0.0)
     return {
         "servers": servers_count,
         "users": users_count,
@@ -63,7 +68,9 @@ async def compute_metrics(session, user) -> dict:
         "latency_ms": info["latency_ms"],
         "guild_count": info["guild_count"],
         "user_count": users_count,
-        "memory_mb": info.get("memory_mb", 0.0),
+        "memory_mb": bot_mem,
+        "panel_memory_mb": panel_mem,
+        "total_memory_mb": round(bot_mem + panel_mem, 1),
         "version": info["version"],
     }
 

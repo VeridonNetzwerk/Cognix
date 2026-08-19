@@ -6,14 +6,24 @@
   guildCount: {{ metrics.guild_count or 0 }},
   userCount: {{ metrics.user_count or 0 }},
   memoryMb: {{ metrics.memory_mb or 0 }},
+  panelMemoryMb: {{ metrics.panel_memory_mb or 0 }},
+  totalMemoryMb: {{ metrics.total_memory_mb or 0 }},
   version: {{ metrics.version | tojson }}
 })' x-init="start()">
   <div class="flex items-center justify-between">
     <h3 class="text-lg font-semibold">Bot Status</h3>
-    <span class="status-pill" :class="online ? '' : 'offline'">
-      <span class="status-dot" :class="online ? 'animate-pulse-glow' : 'offline'"></span>
-      <span x-text="online ? 'online' : 'offline'"></span>
-    </span>
+    <div class="flex items-center gap-2">
+      <template x-if="actionMsg">
+        <span class="text-xs flex items-center gap-1" :style="actionMsgOk ? 'color: var(--color-success);' : 'color: var(--color-destructive);'">
+          <i class="ph" :class="actionMsgOk ? 'ph-check-circle' : 'ph-warning-circle'"></i>
+          <span x-text="actionMsg"></span>
+        </span>
+      </template>
+      <span class="status-pill" :class="online ? '' : 'offline'">
+        <span class="status-dot" :class="online ? 'animate-pulse-glow' : 'offline'"></span>
+        <span x-text="online ? 'online' : 'offline'"></span>
+      </span>
+    </div>
   </div>
   <div class="border-t" style="border-color: var(--color-border);"></div>
   <div class="grid grid-cols-2 gap-3">
@@ -49,7 +59,7 @@
         <i class="ph ph-users text-sm" style="color: var(--color-warning);"></i>
       </div>
       <div class="min-w-0">
-        <p class="text-[10px] uppercase tracking-wider" style="color: var(--color-muted-foreground);">Nutzer</p>
+        <p class="text-[10px] uppercase tracking-wider" style="color: var(--color-muted-foreground);">Users</p>
         <p class="font-mono font-medium text-sm truncate" x-text="formatNum(userCount)">0</p>
       </div>
     </div>
@@ -59,7 +69,10 @@
       </div>
       <div class="min-w-0">
         <p class="text-[10px] uppercase tracking-wider" style="color: var(--color-muted-foreground);">Memory</p>
-        <p class="font-mono font-medium text-sm truncate" x-text="memoryMb + ' MB'">0 MB</p>
+        <p class="font-mono font-medium text-sm truncate">
+          <span x-text="totalMemoryMb + ' MB'">0 MB</span>
+          <span class="text-[10px]" style="color: var(--color-muted-foreground);" x-text="'(bot ' + memoryMb + ' / panel ' + panelMemoryMb + ')'" ></span>
+        </p>
       </div>
     </div>
     <div class="flex items-center gap-2">
@@ -75,37 +88,25 @@
   <template x-if="pingError">
     <div class="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg" style="color: var(--color-destructive); background: color-mix(in oklch, var(--color-destructive) 10%, transparent);">
       <i class="ph ph-warning-circle shrink-0"></i>
-      <span x-text="'Ping-Fehler: ' + pingError"></span>
-    </div>
-  </template>
-  <template x-if="!online && !pingError">
-    <div class="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg" style="color: var(--color-warning); background: color-mix(in oklch, var(--color-warning) 10%, transparent);">
-      <i class="ph ph-info shrink-0"></i>
-      <span>Bot ist offline — Token in den Einstellungen konfigurieren.</span>
+      <span x-text="'Ping error: ' + pingError"></span>
     </div>
   </template>
   {% if can_servers_write %}
-  <div class="border-t pt-3" style="border-color: var(--color-border);" x-data="{ busy: false, msg: '', msgOk: false }">
+  <div class="border-t pt-3" style="border-color: var(--color-border);" x-data="{ busy: false }">
     <div class="flex gap-2">
-      <button :disabled="busy" @click="busy=true; msg=''; fetch('/api/v1/bot/start',{method:'POST'}).then(r=>r.json()).then(j=>{msg=j.ok?'Bot wird gestartet…':'Start fehlgeschlagen'; msgOk=j.ok}).finally(()=>busy=false)"
+      <button :disabled="busy" @click="busy=true; actionMsg=''; fetch('/api/v1/bot/start',{method:'POST'}).then(r=>r.json()).then(j=>{actionMsg=j.ok?'Starting…':'Start failed'; actionMsgOk=j.ok}).finally(()=>busy=false)"
               class="btn btn-success flex-1 justify-center disabled:opacity-50">
         <i class="ph-fill ph-play"></i> Start
       </button>
-      <button :disabled="busy" @click="if(!confirm('Stop the bot?'))return; busy=true; msg=''; fetch('/api/v1/bot/stop',{method:'POST'}).then(r=>r.json()).then(j=>{msg=j.ok?'Bot gestoppt':'Stop fehlgeschlagen'; msgOk=j.ok}).finally(()=>busy=false)"
+      <button :disabled="busy" @click="if(!confirm('Stop the bot?'))return; busy=true; actionMsg=''; fetch('/api/v1/bot/stop',{method:'POST'}).then(r=>r.json()).then(j=>{actionMsg=j.ok?'Stopped':'Stop failed'; actionMsgOk=j.ok}).finally(()=>busy=false)"
               class="btn btn-destructive flex-1 justify-center disabled:opacity-50">
         <i class="ph-fill ph-stop"></i> Stop
       </button>
-      <button :disabled="busy" @click="busy=true; msg=''; fetch('/api/v1/bot/restart',{method:'POST'}).then(r=>r.json()).then(j=>{msg=j.ok?'Bot wird neu gestartet…':'Neustart fehlgeschlagen'; msgOk=j.ok}).finally(()=>busy=false)"
+      <button :disabled="busy" @click="busy=true; actionMsg=''; fetch('/api/v1/bot/restart',{method:'POST'}).then(r=>r.json()).then(j=>{actionMsg=j.ok?'Restarting…':'Restart failed'; actionMsgOk=j.ok}).finally(()=>busy=false)"
               class="btn btn-warning flex-1 justify-center disabled:opacity-50">
         <i class="ph ph-arrow-clockwise"></i> Restart
       </button>
     </div>
-    <template x-if="msg">
-      <p class="text-xs mt-2 flex items-center gap-1.5" :style="msgOk ? 'color: var(--color-success);' : 'color: var(--color-destructive);'">
-        <i class="ph" :class="msgOk ? 'ph-check-circle' : 'ph-warning-circle'"></i>
-        <span x-text="msg"></span>
-      </p>
-    </template>
   </div>
   {% endif %}
 </div>

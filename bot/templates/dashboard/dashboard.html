@@ -382,8 +382,12 @@ function dashboardWidgets() {
       guildCount: initial.guildCount || 0,
       userCount: initial.userCount || 0,
       memoryMb: initial.memoryMb || 0,
+      panelMemoryMb: initial.panelMemoryMb || 0,
+      totalMemoryMb: initial.totalMemoryMb || 0,
       version: initial.version || '0.1.0',
       pingError: '',
+      actionMsg: '',
+      actionMsgOk: false,
       formatNum(n) {
         if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
         if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
@@ -408,6 +412,8 @@ function dashboardWidgets() {
               if (typeof j.guild_count === 'number') this.guildCount = j.guild_count;
               if (typeof j.user_count === 'number') this.userCount = j.user_count;
               if (typeof j.memory_mb === 'number') this.memoryMb = Math.round(j.memory_mb * 10) / 10;
+              if (typeof j.panel_memory_mb === 'number') this.panelMemoryMb = Math.round(j.panel_memory_mb * 10) / 10;
+              this.totalMemoryMb = Math.round((this.memoryMb + this.panelMemoryMb) * 10) / 10;
               this.pingError = j.ping_error ? j.ping_error : (j.error && !j.online ? j.error : '');
               this.online = !!j.online;
             })

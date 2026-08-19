@@ -36,11 +36,11 @@ _ALLOWED_PREFIXES = (
 )
 
 _LOADING_HTML = """<!doctype html>
-<html lang="de">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CogniX — wird initialisiert</title>
+    <title>CogniX — Starting up</title>
     <style>
       :root { color-scheme: dark; }
       * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -56,11 +56,15 @@ _LOADING_HTML = """<!doctype html>
       .container {
         text-align: center;
         animation: fadeIn 0.6s ease-out;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0;
       }
       @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       .logo {
-        width: 56px; height: 56px; margin: 0 auto 1.8rem;
-        border-radius: 14px;
+        width: 64px; height: 64px; margin: 0 auto 1.5rem;
+        border-radius: 16px;
         background: linear-gradient(135deg, #7c5cff, #5b8def);
         display: flex; align-items: center; justify-content: center;
         box-shadow: 0 8px 32px rgba(124, 92, 255, 0.35);
@@ -70,30 +74,37 @@ _LOADING_HTML = """<!doctype html>
         0%, 100% { transform: scale(1); box-shadow: 0 8px 32px rgba(124, 92, 255, 0.35); }
         50% { transform: scale(1.05); box-shadow: 0 12px 40px rgba(124, 92, 255, 0.5); }
       }
-      .logo svg { width: 30px; height: 30px; fill: white; }
+      .logo svg { width: 34px; height: 34px; fill: white; }
       h1 {
-        font-size: 1.05rem; font-weight: 500; margin: 0 0 0.3rem;
+        font-size: 1.1rem; font-weight: 600; margin: 0 0 0.3rem;
         letter-spacing: -0.01em;
       }
       .status {
-        font-size: 0.8rem; color: #6e7080; margin: 0 0 1.8rem;
+        font-size: 0.78rem; color: #6e7080; margin: 0 0 1.8rem;
         min-height: 1.1em;
+        transition: opacity 0.3s ease;
       }
       .progress-track {
-        width: 240px; height: 4px; margin: 0 auto;
+        width: 260px; height: 4px; margin: 0 auto;
         background: rgba(255, 255, 255, 0.08);
         border-radius: 999px; overflow: hidden;
+        position: relative;
       }
       .progress-bar {
         height: 100%; width: 0%;
         background: linear-gradient(90deg, #7c5cff, #5b8def);
         border-radius: 999px;
-        animation: progress 2.2s ease-in-out infinite;
+        transition: width 0.5s ease;
       }
-      @keyframes progress {
-        0% { width: 0%; opacity: 0.6; }
-        50% { width: 70%; opacity: 1; }
-        100% { width: 100%; opacity: 0.6; }
+      .progress-bar::after {
+        content: '';
+        position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+        animation: shimmer 1.5s ease-in-out infinite;
+      }
+      @keyframes shimmer {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
       }
       .skip-btn {
         position: fixed; bottom: 24px; right: 28px;
@@ -120,32 +131,47 @@ _LOADING_HTML = """<!doctype html>
         <svg viewBox="0 0 24 24"><path d="M12 2L2 19h20L12 2zm0 4.5L18.5 17h-13L12 6.5z"/></svg>
       </div>
       <h1>CogniX</h1>
-      <p class="status" id="status">System wird initialisiert…</p>
+      <p class="status" id="status">Initializing…</p>
       <div class="progress-track">
-        <div class="progress-bar"></div>
+        <div class="progress-bar" id="progressBar"></div>
       </div>
     </div>
     <button class="skip-btn" onclick="document.cookie='cognix_skip_loading=1; path=/; max-age=60'; window.location.reload();">
-      Überspringen
+      Skip
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
     </button>
     <script>
       (async () => {
         const statusEl = document.getElementById('status');
-        const stages = ['System wird initialisiert…', 'Datenbank wird vorbereitet…', 'Module werden geladen…', 'Fast fertig…'];
+        const barEl = document.getElementById('progressBar');
+        const stages = [
+          { label: 'Initializing…', pct: 10 },
+          { label: 'Connecting to database…', pct: 30 },
+          { label: 'Loading modules…', pct: 50 },
+          { label: 'Syncing cog store…', pct: 70 },
+          { label: 'Almost ready…', pct: 90 },
+        ];
         let stage = 0;
-        const interval = setInterval(() => {
-          stage = Math.min(stage + 1, stages.length - 1);
-          if (statusEl) statusEl.textContent = stages[stage];
-        }, 700);
+        function setStage(i) {
+          stage = Math.min(i, stages.length - 1);
+          if (statusEl) statusEl.textContent = stages[stage].label;
+          if (barEl) barEl.style.width = stages[stage].pct + '%';
+        }
+        setStage(0);
+        const interval = setInterval(() => setStage(stage + 1), 800);
         async function check() {
           try {
             const r = await fetch('/api/v1/bot/status', { credentials: 'same-origin' });
-            if (r.ok) { clearInterval(interval); window.location.reload(); }
+            if (r.ok) {
+              clearInterval(interval);
+              setStage(stages.length - 1);
+              if (barEl) barEl.style.width = '100%';
+              setTimeout(() => window.location.reload(), 200);
+            }
           } catch (e) {}
         }
         check();
-        setInterval(check, 1500);
+        setInterval(check, 1000);
       })();
     </script>
   </body>

@@ -99,25 +99,6 @@
     </div>
   </template>
 
-  {# ---- Sort controls ---- #}
-  <template x-if="activeTab === 'explore' && !(searchOpen && searchQuery)">
-    <div class="flex items-center gap-2 mb-4 text-xs">
-      <span style="color: var(--color-muted-foreground);">Sort by:</span>
-      <button @click="toggleSort('name')" class="px-2 py-1 rounded-md transition-colors"
-              :style="sortBy === 'name' ? 'background: var(--color-primary); color: var(--color-primary-foreground);' : 'background: var(--color-muted); color: var(--color-muted-foreground);'">
-        Name <i class="ph text-[10px]" :class="sortBy === 'name' ? (sortDir === 'asc' ? 'ph-caret-up' : 'ph-caret-down') : ''"></i>
-      </button>
-      <button @click="toggleSort('category')" class="px-2 py-1 rounded-md transition-colors"
-              :style="sortBy === 'category' ? 'background: var(--color-primary); color: var(--color-primary-foreground);' : 'background: var(--color-muted); color: var(--color-muted-foreground);'">
-        Category <i class="ph text-[10px]" :class="sortBy === 'category' ? (sortDir === 'asc' ? 'ph-caret-up' : 'ph-caret-down') : ''"></i>
-      </button>
-      <button @click="toggleSort('version')" class="px-2 py-1 rounded-md transition-colors"
-              :style="sortBy === 'version' ? 'background: var(--color-primary); color: var(--color-primary-foreground);' : 'background: var(--color-muted); color: var(--color-muted-foreground);'">
-        Version <i class="ph text-[10px]" :class="sortBy === 'version' ? (sortDir === 'asc' ? 'ph-caret-up' : 'ph-caret-down') : ''"></i>
-      </button>
-    </div>
-  </template>
-
   {# ---- Top control bar: search icon + Explore/Installed segmented tabs (Ubuntu App Center header) ---- #}
   <div class="flex items-center gap-3 mb-6">
     <button @click="toggleSearch()"
@@ -169,6 +150,25 @@
       </span>
     </template>
   </div>
+
+  {# ---- Sort controls (below the tab bar) ---- #}
+  <template x-if="activeTab === 'explore' && !(searchOpen && searchQuery)">
+    <div class="flex items-center gap-2 mb-4 text-xs">
+      <span style="color: var(--color-muted-foreground);">Sort by:</span>
+      <button @click="toggleSort('name')" class="px-2 py-1 rounded-md transition-colors"
+              :style="sortBy === 'name' ? 'background: var(--color-primary); color: var(--color-primary-foreground);' : 'background: var(--color-muted); color: var(--color-muted-foreground);'">
+        Name <i class="ph text-[10px]" :class="sortBy === 'name' ? (sortDir === 'asc' ? 'ph-caret-up' : 'ph-caret-down') : ''"></i>
+      </button>
+      <button @click="toggleSort('category')" class="px-2 py-1 rounded-md transition-colors"
+              :style="sortBy === 'category' ? 'background: var(--color-primary); color: var(--color-primary-foreground);' : 'background: var(--color-muted); color: var(--color-muted-foreground);'">
+        Category <i class="ph text-[10px]" :class="sortBy === 'category' ? (sortDir === 'asc' ? 'ph-caret-up' : 'ph-caret-down') : ''"></i>
+      </button>
+      <button @click="toggleSort('version')" class="px-2 py-1 rounded-md transition-colors"
+              :style="sortBy === 'version' ? 'background: var(--color-primary); color: var(--color-primary-foreground);' : 'background: var(--color-muted); color: var(--color-muted-foreground);'">
+        Version <i class="ph text-[10px]" :class="sortBy === 'version' ? (sortDir === 'asc' ? 'ph-caret-up' : 'ph-caret-down') : ''"></i>
+      </button>
+    </div>
+  </template>
 
   {# ================= EXPLORE TAB ================= #}
   <template x-if="activeTab === 'explore'">

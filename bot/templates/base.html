@@ -614,8 +614,8 @@
     </div>
     {# === Bot starting overlay — macOS style, shows when bot is offline === #}
     {% if user and not bot_info.online %}
-    <div x-data="{ show: true, checking: false, stage: 0 }"
-         x-init="setInterval(() => { checking = true; fetch('/api/v1/bot/status', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).then(j => { checking = false; if (j && j.online) { show = false; cognixToastSuccess('Bot ist jetzt online!'); } }).catch(() => checking = false) }, 2000); setInterval(() => { stage = Math.min(stage + 1, 3) }, 800)"
+    <div x-data="{ show: true, stage: 0, barWidth: 10 }"
+         x-init="setInterval(() => { fetch('/api/v1/bot/status', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).then(j => { if (j && j.online) { show = false; cognixToastSuccess('Bot is now online!'); } }).catch(() => {}) }, 2000); setInterval(() => { stage = Math.min(stage + 1, 4); barWidth = [10, 30, 50, 70, 90][stage] }, 800)"
          x-show="show" x-cloak
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0"
@@ -624,14 +624,14 @@
          x-transition:leave-start="opacity-100"
          x-transition:leave-end="opacity-0"
          style="position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#000000;backdrop-filter:blur(20px);">
-      <div style="text-align:center;animation:fadeIn 0.6s ease-out;">
-        <div style="width:56px;height:56px;margin:0 auto 1.8rem;border-radius:14px;background:linear-gradient(135deg,#7c5cff,#5b8def);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 32px rgba(124,92,255,0.35);animation:pulseLogo 2s ease-in-out infinite;">
-          <svg width="30" height="30" viewBox="0 0 24 24" fill="white"><path d="M12 2L2 19h20L12 2zm0 4.5L18.5 17h-13L12 6.5z"/></svg>
+      <div style="display:flex;flex-direction:column;align-items:center;text-align:center;animation:fadeIn 0.6s ease-out;">
+        <div style="width:64px;height:64px;margin:0 auto 1.5rem;border-radius:16px;background:linear-gradient(135deg,#7c5cff,#5b8def);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 32px rgba(124,92,255,0.35);animation:pulseLogo 2s ease-in-out infinite;">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="white"><path d="M12 2L2 19h20L12 2zm0 4.5L18.5 17h-13L12 6.5z"/></svg>
         </div>
-        <h2 style="font-size:1.05rem;font-weight:500;margin:0 0 0.3rem;letter-spacing:-0.01em;color:#e8eaf2;">CogniX</h2>
-        <p style="font-size:0.8rem;color:#6e7080;margin:0 0 1.8rem;min-height:1.1em;" x-text="['Bot wird gestartet…', 'Verbinde mit Discord…', 'Module werden geladen…', 'Fast fertig…'][stage]">Bot wird gestartet…</p>
-        <div style="width:240px;height:4px;margin:0 auto;background:rgba(255,255,255,0.08);border-radius:999px;overflow:hidden;">
-          <div style="height:100%;width:0%;background:linear-gradient(90deg,#7c5cff,#5b8def);border-radius:999px;animation:progress 2.2s ease-in-out infinite;"></div>
+        <h2 style="font-size:1.1rem;font-weight:600;margin:0 0 0.3rem;letter-spacing:-0.01em;color:#e8eaf2;">CogniX</h2>
+        <p style="font-size:0.78rem;color:#6e7080;margin:0 0 1.8rem;min-height:1.1em;" x-text="['Starting bot…', 'Connecting to Discord…', 'Loading modules…', 'Syncing commands…', 'Almost ready…'][stage]">Starting bot…</p>
+        <div style="width:260px;height:4px;margin:0 auto;background:rgba(255,255,255,0.08);border-radius:999px;overflow:hidden;position:relative;">
+          <div :style="`height:100%;width:${barWidth}%;background:linear-gradient(90deg,#7c5cff,#5b8def);border-radius:999px;transition:width 0.5s ease;`"></div>
         </div>
       </div>
       <button @click="show = false"
@@ -640,7 +640,7 @@
               onmouseout="this.style.background='rgba(255,255,255,0.06)';this.style.color='#6e7080';this.style.borderColor='rgba(255,255,255,0.1)';"
               onmousedown="this.style.transform='scale(0.97)'"
               onmouseup="this.style.transform='scale(1)'">
-        Überspringen
+        Skip
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </button>
     </div>
