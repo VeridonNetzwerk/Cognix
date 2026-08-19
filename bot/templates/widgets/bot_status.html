@@ -2,7 +2,7 @@
 <div class="space-y-3" x-data='botStatusWidget({
   online: {{ metrics.bot_online | tojson }},
   uptime: {{ metrics.uptime | tojson }},
-  latency: {{ metrics.latency_ms or 0 }},
+  latency: {{ metrics.latency_ms if metrics.latency_ms and metrics.latency_ms == metrics.latency_ms else 0 }},
   guildCount: {{ metrics.guild_count or 0 }},
   userCount: {{ metrics.user_count or 0 }},
   memoryMb: {{ metrics.memory_mb or 0 }},

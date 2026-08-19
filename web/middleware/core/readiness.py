@@ -75,9 +75,13 @@ _LOADING_HTML = """<!doctype html>
         50% { transform: scale(1.05); box-shadow: 0 12px 40px rgba(124, 92, 255, 0.5); }
       }
       .logo svg { width: 34px; height: 34px; fill: white; }
-      h1 {
-        font-size: 1.1rem; font-weight: 600; margin: 0 0 0.3rem;
-        letter-spacing: -0.01em;
+      .text-logo {
+        font-size: 1.75rem; font-weight: 700; margin: 0 0 0.4rem;
+        letter-spacing: -0.02em;
+        background: linear-gradient(135deg, #7c5cff, #5b8def);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
       }
       .status {
         font-size: 0.78rem; color: #6e7080; margin: 0 0 1.8rem;
@@ -130,7 +134,7 @@ _LOADING_HTML = """<!doctype html>
       <div class="logo">
         <svg viewBox="0 0 24 24"><path d="M12 2L2 19h20L12 2zm0 4.5L18.5 17h-13L12 6.5z"/></svg>
       </div>
-      <h1>CogniX</h1>
+      <div class="text-logo">CogniX</div>
       <p class="status" id="status">Initializing…</p>
       <div class="progress-track">
         <div class="progress-bar" id="progressBar"></div>

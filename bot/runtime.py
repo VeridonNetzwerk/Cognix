@@ -158,9 +158,9 @@ def get_bot_info() -> dict[str, Any]:
     # Prefer the live active-ping measurement; fall back to the passive
     # gateway heartbeat latency if the monitor hasn't produced a sample yet.
     ping = get_ping_ms()
-    if ping is not None:
+    if ping is not None and ping == ping:  # nan != nan
         latency_ms = ping
-    elif bot is not None and bot.latency:
+    elif bot is not None and bot.latency and bot.latency == bot.latency:
         latency_ms = round(bot.latency * 1000, 1)
     else:
         latency_ms = 0.0
