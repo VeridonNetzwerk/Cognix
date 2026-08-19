@@ -22,7 +22,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     Defaults: 120 req/min globally; 10 req/min on /auth/login.
     """
 
-    def __init__(self, app, *, default: tuple[int, int] = (120, 60)) -> None:
+    def __init__(self, app, *, default: tuple[int, int] = (300, 60)) -> None:
         super().__init__(app)
         self._default = default
         self._mem: dict[str, list[float]] = {}
@@ -47,6 +47,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return (10, 60)
         if path.startswith("/api/v1/setup"):
             return (30, 60)
+        if path.startswith("/api/v1/bot/status") or path.startswith("/api/v1/dashboard/widgets/refresh"):
+            return (600, 60)
         return self._default
 
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
