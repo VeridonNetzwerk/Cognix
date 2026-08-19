@@ -2,7 +2,7 @@
 <div class="gradient-border p-4 flex flex-col gap-2.5 widget-card relative transition-all min-h-0"
      data-widget-id="{{ w.id }}"
      :style="`grid-column: ${widgetPos('{{ w.id }}').col} / span ${widgetPos('{{ w.id }}').w}; grid-row: ${widgetPos('{{ w.id }}').row} / span ${widgetPos('{{ w.id }}').h};`"
-     draggable="true"
+     :draggable="editMode ? 'true' : 'false'"
      @dragstart="dragStart($event, '{{ w.id }}')"
      @dragend="dragEnd()"
      :class="{
@@ -34,7 +34,17 @@
 
   <div class="border-t" style="border-color: var(--color-border);"></div>
 
-  {# Widget content — initial server-rendered HTML, then live-updated via polling #}
+  {# Widget content #}
+  {% if w.self_updating %}
+  {# Self-updating widgets (own nested Alpine x-data + polling) must be
+     rendered directly — injecting them via x-html/innerHTML prevents Alpine
+     from initializing their nested component, leaving x-text bindings blank. #}
+  <div class="flex-1 overflow-hidden">
+    {% set w_data = widget_data.get(w.id, {}) %}
+    {% include w.template %}
+  </div>
+  {% else %}
+  {# Static/data-only widgets — initial server-rendered HTML, then live-updated via polling #}
   <div class="flex-1 overflow-hidden"
        x-html="widgetContents['{{ w.id }}']"
        x-init="widgetContents['{{ w.id }}'] = $refs['content-{{ w.id }}']?.innerHTML || ''">
@@ -43,6 +53,7 @@
       {% include w.template %}
     </template>
   </div>
+  {% endif %}
 
   {# Resize handle (bottom-right corner, only in edit mode) #}
   <div x-show="editMode" x-cloak

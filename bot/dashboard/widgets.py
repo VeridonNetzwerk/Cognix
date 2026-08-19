@@ -147,6 +147,7 @@ CORE_WIDGETS = [
         "size": "medium",
         "icon": "ph-robot",
         "cog": "__core__",
+        "self_updating": True,
     },
     {
         "id": "metrics_overview",
