@@ -7,6 +7,7 @@ reset password, force-disable 2FA.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -72,7 +73,9 @@ async def list_users(
     session: SessionDep,
     _: Annotated[WebUser, Depends(require_admin)],
 ) -> list[WebUser]:
-    rows = (await session.scalars(select(WebUser).order_by(WebUser.username))).all()
+    rows = (await session.scalars(
+        select(WebUser).where(WebUser.deleted_at.is_(None)).order_by(WebUser.username)
+    )).all()
     return list(rows)
 
 
@@ -179,4 +182,5 @@ async def delete_user(
     if user.id == actor.id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "cannot delete yourself")
     _audit(session, actor=actor, action=AUDIT_USER_DELETED, target=user.id, request=request)
-    await session.delete(user)
+    user.deleted_at = datetime.now(UTC)
+    user.is_active = False

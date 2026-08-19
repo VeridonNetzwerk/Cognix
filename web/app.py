@@ -39,6 +39,16 @@ from web.services.bot_ipc import get_ipc
 
 log = get_logger("web.app")
 
+# Toggled to True once the web app's startup (engine init, embed seed, IPC
+# connect) has completed. Used by ReadinessMiddleware to show a loading screen
+# while the panel is still initializing on a fresh start.
+APP_READY = False
+
+
+def mark_app_ready() -> None:
+    global APP_READY
+    APP_READY = True
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # noqa: ARG001
@@ -64,7 +74,17 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
     except Exception as exc:  # noqa: BLE001
         # IPC is optional (Redis disabled) — never block API startup on it.
         log.warning("ipc_connect_failed", error=str(exc))
+    # Warm the GitHub-backed cog store cache so the marketplace is populated
+    # once the panel is ready (also keeps the boot loading screen meaningful).
+    try:
+        from bot.cogs import github_store
+
+        await github_store.ensure_store_cache()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("github_store_warm_failed", error=str(exc))
     log.info("api_started", env=settings.app_env, host=settings.app_host, port=settings.app_port)
+    # Boot is complete — the panel is now ready to serve authenticated pages.
+    mark_app_ready()
     try:
         yield
     finally:
@@ -89,6 +109,10 @@ def create_app() -> FastAPI:
 
     # ---- Middleware (order matters: first added = outermost) ----
     app.add_middleware(RequestIDMiddleware)
+    # Show a loading screen while the panel is still booting (before APP_READY).
+    from web.middleware.core.readiness import ReadinessMiddleware
+
+    app.add_middleware(ReadinessMiddleware)
     app.add_middleware(RateLimitMiddleware)
     app.add_middleware(SetupGateMiddleware)
     app.add_middleware(AuthRefreshMiddleware)

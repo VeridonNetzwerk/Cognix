@@ -81,10 +81,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     def _mem_allow(self, key: str, now: float, limit: int, window: int) -> bool:
         bucket = self._mem.setdefault(key, [])
         cutoff = now - window
-        i = 0
-        for i, ts in enumerate(bucket):  # noqa: B007
-            if ts >= cutoff:
-                break
-        del bucket[:i]
+        while bucket and bucket[0] < cutoff:
+            bucket.pop(0)
         bucket.append(now)
         return len(bucket) <= limit

@@ -12,6 +12,7 @@ from bot.database.models.auth.web_user import RefreshToken, WebUser
 from web.schemas.auth import LoginRequest
 from web.security.passwords import verify_password
 from web.security.tokens import (
+    TokenError,
     decode_token,
     hash_refresh_token,
     issue_access_token,
@@ -35,8 +36,10 @@ async def authenticate(session: AsyncSession, req: LoginRequest) -> WebUser:
     )
     if user is None or not user.is_active:
         raise AuthError("invalid credentials")
-    if user.locked_until and user.locked_until > _now():
-        raise AuthError("account locked")
+    if user.locked_until:
+        locked = user.locked_until if user.locked_until.tzinfo else user.locked_until.replace(tzinfo=UTC)
+        if locked > _now():
+            raise AuthError("account locked")
 
     if not verify_password(req.password.get_secret_value(), user.password_hash):
         user.failed_login_count += 1
@@ -86,7 +89,10 @@ async def issue_session(
 async def rotate_refresh(
     session: AsyncSession, raw_token: str, *, user_agent: str = "", ip: str = ""
 ) -> tuple[str, str, datetime, bool]:
-    payload = decode_token(raw_token, expected_type="refresh")
+    try:
+        payload = decode_token(raw_token, expected_type="refresh")
+    except TokenError as exc:
+        raise AuthError("invalid refresh") from exc
     remember_me = bool(payload.get("rm", False))
     token_hash = hash_refresh_token(raw_token)
     rt = await session.scalar(
@@ -105,7 +111,12 @@ async def rotate_refresh(
                 sibling.revoked_at = _now()
         raise AuthError("invalid refresh")
 
-    if rt.revoked_at is not None or rt.expires_at < _now():
+    if rt.revoked_at is not None:
+        revoked = rt.revoked_at if rt.revoked_at.tzinfo else rt.revoked_at.replace(tzinfo=UTC)
+    else:
+        revoked = None
+    expires = rt.expires_at if rt.expires_at.tzinfo else rt.expires_at.replace(tzinfo=UTC)
+    if revoked is not None or expires < _now():
         # Replay attempt: revoke whole family.
         for sibling in (
             await session.scalars(

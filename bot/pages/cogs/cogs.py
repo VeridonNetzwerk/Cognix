@@ -5,12 +5,26 @@ from __future__ import annotations
 from datetime import UTC
 from datetime import datetime as _dt
 
+from pathlib import Path
+
 from fastapi import Cookie, Request, Response
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from sqlalchemy import select
 
-from bot.cogs.registry import get_all_cog_info, get_store_cog_info, load_cog, unload_cog, reload_cog, get_cog_requirements, get_cog_files
+from bot.cogs.registry import (
+    COG_CATEGORIES,
+    COG_CATEGORY_ALL,
+    get_all_cog_info,
+    get_store_cog_info,
+    get_cog_updates,
+    load_cog,
+    unload_cog,
+    reload_cog,
+    get_cog_requirements,
+    get_cog_files,
+)
 from bot.runtime import get_bot
+from bot.cogs import github_store
 from bot.database.models.cogs.cog_state import CogState
 from bot.database.models.server.server import Server
 from bot.database.models.server.server_cog_state import ServerCogState
@@ -24,6 +38,13 @@ async def cogs_view(request: Request,
                     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
 
+    # Pull the store catalog from GitHub (cached) so the marketplace is populated
+    # even when cogs_store/ is not bundled locally.
+    store_ok = await github_store.ensure_store_cache()
+    from bot.cogs.registry import refresh_store_cache as _refresh_store_cache
+    _refresh_store_cache()
+    store_sync = github_store.get_sync_status()
+
     all_cog_infos = get_all_cog_info()
     loaded_set = _get_loaded_cogs_set()
 
@@ -34,22 +55,56 @@ async def cogs_view(request: Request,
         )).all()
     state_by_name = {r.cog_name: r.enabled for r in rows}
 
-    # Build marketplace list: all discovered cogs with loaded + enabled status
-    cogs = sorted(
-        (
-            {
-                "name": info["name"],
-                "module": info["module"],
-                "loaded": info["module"] in loaded_set,
-                "enabled": state_by_name.get(info["name"].lower(), True),
-                "description": info.get("description", ""),
-                "category": info.get("category", ""),
-                "requires_admin": info.get("requires_admin", False),
-            }
-            for info in all_cog_infos
-        ),
-        key=lambda c: (c["category"], c["name"]),
-    )
+    # Build installed cog lookup
+    installed_map: dict[str, dict] = {}
+    for info in all_cog_infos:
+        installed_map[info["module"]] = {
+            "name": info["name"],
+            "module": info["module"],
+            "description": info.get("description", ""),
+            "category": info.get("category", ""),
+            "requires_admin": info.get("requires_admin", False),
+            "icon_url": info.get("icon_url"),
+            "version": info.get("version", ""),
+            "installed": True,
+            "loaded": info["module"] in loaded_set,
+            "enabled": state_by_name.get(info["name"].lower(), True),
+            "requirements": [],
+            "extra_files": [],
+            "verified": info.get("verified", False),
+            "permissions": info.get("permissions", []),
+        }
+
+    # Build store cog list (available to install)
+    store_cog_infos = get_store_cog_info()
+    installed_modules = {c["module"] for c in all_cog_infos}
+    store_map: dict[str, dict] = {}
+    for info in store_cog_infos:
+        store_map[info["module"]] = {
+            "name": info["name"],
+            "module": info["module"],
+            "description": info.get("description", ""),
+            "category": info.get("category", ""),
+            "requires_admin": info.get("requires_admin", False),
+            "icon_url": info.get("icon_url"),
+            "version": info.get("version", ""),
+            "installed": info["module"] in installed_modules,
+            "loaded": False,
+            "enabled": False,
+            "requirements": get_cog_requirements(info["module"]),
+            "extra_files": get_cog_files(info["module"]),
+            "verified": info.get("verified", False),
+            "permissions": info.get("permissions", []),
+        }
+
+    # Merge: all installed cogs + all store cogs (dedup by module)
+    all_cogs = list(installed_map.values())
+    for module, info in store_map.items():
+        if module not in installed_map:
+            all_cogs.append(info)
+
+    # Sort by category then name
+    all_cogs.sort(key=lambda c: (c["category"], c["name"]))
 
     # Per-server override data
     async with db_session() as s:
@@ -60,38 +115,44 @@ async def cogs_view(request: Request,
         per_server.setdefault(r.server_id, {})[r.cog_name] = r.enabled
 
     # Only show loaded cog names in per-server table
-    loaded_cog_names = [c["name"] for c in cogs if c["loaded"]]
+    loaded_cog_names = [c["name"] for c in all_cogs if c["loaded"]]
 
-    # Store cogs (available to install from cogs_store/)
-    store_cog_infos = get_store_cog_info()
-    installed_modules = {c["module"] for c in all_cog_infos}
-    store_cogs = sorted(
-        (
-            {
-                "name": info["name"],
-                "module": info["module"],
-                "description": info.get("description", ""),
-                "category": info.get("category", ""),
-                "requires_admin": info.get("requires_admin", False),
-                "installed": info["module"] in installed_modules,
-                "requirements": get_cog_requirements(info["module"]),
-                "extra_files": get_cog_files(info["module"]),
-            }
-            for info in store_cog_infos
-        ),
-        key=lambda c: (c["category"], c["name"]),
-    )
+    # Check for updates
+    cog_updates = get_cog_updates()
 
     return _render(
         request,
         "cogs/cogs.html",
         user=user,
-        cogs=cogs,
+        cogs=all_cogs,
         servers=servers,
         per_server=per_server,
         cog_names=loaded_cog_names,
-        store_cogs=store_cogs,
+        categories={k: v for k, v in COG_CATEGORIES.items() if k != "Core"},
+        category_all=COG_CATEGORY_ALL,
+        updates=cog_updates,
+        store_available=store_ok,
+        store_sync=store_sync,
     )
+
+
+@router.get("/cogs/icon/{cog_dir}/{filename}")
+async def cog_icon(cog_dir: str, filename: str) -> Response:
+    """Serve a cog icon from cogs/, cogs_store/, or the GitHub store cache."""
+    base = Path(__file__).resolve().parent.parent.parent.parent
+    roots = [base / "cogs", base / "cogs_store"]
+    try:
+        from bot.cogs.github_store import get_github_store_base
+
+        roots.append(get_github_store_base() / "cogs_store")
+    except Exception:  # noqa: BLE001
+        pass
+    for root in roots:
+        candidate = root / cog_dir / filename
+        if candidate.exists() and candidate.is_file():
+            if candidate.suffix in (".png", ".svg", ".jpg", ".jpeg", ".webp", ".gif"):
+                return FileResponse(str(candidate))
+    return Response(status_code=404)
 
 
 @router.post("/cogs/server/{server_id}/{cog_name}/toggle")
@@ -112,7 +173,7 @@ async def cogs_server_toggle(
             row = ServerCogState(
                 server_id=server_id,
                 cog_name=cog_name,
-                enabled=False,
+                enabled=True,
                 updated_at=_dt.now(tz=UTC),
             )
             s.add(row)
@@ -132,30 +193,37 @@ async def cogs_load(cog_name: str,
                     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     await _require_user(access_token)
     bot = get_bot()
-    if bot is not None:
-        await load_cog(bot, cog_name)
-    else:
-        from web.services.bot_ipc import get_ipc
-        try:
-            await get_ipc().call("cog.load", {"name": cog_name}, timeout=5.0)
-        except Exception:  # noqa: BLE001
-            pass
+    try:
+        if bot is not None:
+            await load_cog(bot, cog_name)
+        else:
+            from web.services.bot_ipc import get_ipc
+            try:
+                await get_ipc().call("cog.load", {"name": cog_name}, timeout=5.0)
+            except Exception:  # noqa: BLE001
+                pass
+    except Exception:  # noqa: BLE001
+        # Fallback for non-JS clients — never surface a raw 500.
+        pass
     return RedirectResponse("/cogs", status_code=303)
 
 
 @router.post("/cogs/{cog_name}/unload")
 async def cogs_unload(cog_name: str,
-                      access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
+                       access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     await _require_user(access_token)
     bot = get_bot()
-    if bot is not None:
-        await unload_cog(bot, cog_name)
-    else:
-        from web.services.bot_ipc import get_ipc
-        try:
-            await get_ipc().call("cog.unload", {"name": cog_name}, timeout=5.0)
-        except Exception:  # noqa: BLE001
-            pass
+    try:
+        if bot is not None:
+            await unload_cog(bot, cog_name)
+        else:
+            from web.services.bot_ipc import get_ipc
+            try:
+                await get_ipc().call("cog.unload", {"name": cog_name}, timeout=5.0)
+            except Exception:  # noqa: BLE001
+                pass
+    except Exception:  # noqa: BLE001
+        pass
     return RedirectResponse("/cogs", status_code=303)
 
 
@@ -171,23 +239,31 @@ async def cogs_toggle(cog_name: str,
             row = CogState(server_id=None, cog_name=cog_name, enabled=False)
             s.add(row)
         row.enabled = not row.enabled
+    try:
+        from bot.runtime import invalidate_cog_state_cache
+        invalidate_cog_state_cache(cog_name=cog_name)
+    except Exception:
+        pass
     return RedirectResponse("/cogs", status_code=303)
 
 
 @router.post("/cogs/{cog_name}/reload")
 async def cogs_reload(cog_name: str,
-                      access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
+                       access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     await _require_user(access_token)
     bot = get_bot()
-    if bot is not None:
-        try:
-            await reload_cog(bot, cog_name)
-        except Exception:  # noqa: BLE001
-            pass
-    else:
-        from web.services.bot_ipc import get_ipc
-        try:
-            await get_ipc().call("cog.reload", {"name": cog_name}, timeout=5.0)
-        except Exception:  # noqa: BLE001
-            pass
+    try:
+        if bot is not None:
+            try:
+                await reload_cog(bot, cog_name)
+            except Exception:  # noqa: BLE001
+                pass
+        else:
+            from web.services.bot_ipc import get_ipc
+            try:
+                await get_ipc().call("cog.reload", {"name": cog_name}, timeout=5.0)
+            except Exception:  # noqa: BLE001
+                pass
+    except Exception:  # noqa: BLE001
+        pass
     return RedirectResponse("/cogs", status_code=303)

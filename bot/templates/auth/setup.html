@@ -1,35 +1,58 @@
 {% extends "base.html" %}
 {% block title %}Setup · CogniX{% endblock %}
 {% block content %}
-<div class="max-w-2xl mx-auto">
-  <h1 class="text-2xl font-semibold mb-2">First-run setup</h1>
-  <p class="text-slate-400 mb-6">Configure the bot token and create the initial admin user.</p>
-  <form method="post" action="/setup" class="space-y-4 bg-slate-900 border border-slate-800 rounded-xl p-6">
-    <div>
-      <label class="block text-xs uppercase text-slate-400 mb-1">Discord Bot Token</label>
-      <input name="bot_token" required class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2" />
+<div class="min-h-screen w-full -m-6 flex items-center justify-center">
+  <div class="w-full max-w-lg gradient-border p-8 shadow-2xl">
+    <div class="text-center mb-8">
+      <img src="/static/text.png" alt="CogniX" class="mx-auto h-12 w-auto mb-3" />
+      <h1 class="text-2xl font-semibold">First-run setup</h1>
+      <p class="text-sm mt-1" style="color: var(--color-muted-foreground);">Configure the bot token and create the initial admin user.</p>
     </div>
-    <div>
-      <label class="block text-xs uppercase text-slate-400 mb-1">Application ID</label>
-      <input name="application_id" class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2" />
+
+    {% if error %}
+    <div class="mb-6 text-sm rounded-lg px-4 py-3 flex items-center gap-2"
+         style="background: color-mix(in oklch, var(--color-destructive) 15%, transparent); border: 1px solid var(--color-destructive); color: var(--color-destructive-foreground);">
+      <i class="ph ph-warning-circle"></i> {{ error }}
     </div>
-    <div class="grid grid-cols-2 gap-3">
+    {% endif %}
+
+    <form method="post" action="/setup" class="space-y-5">
       <div>
-        <label class="block text-xs uppercase text-slate-400 mb-1">Admin Username</label>
-        <input name="admin_username" required class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2" />
+        <label class="block text-xs uppercase tracking-wider mb-1.5" style="color: var(--color-muted-foreground);">Discord Bot Token</label>
+        <input name="bot_token" required placeholder="MTIz.NDU2.xxx..."
+               class="w-full px-3 py-2.5 outline-none focus:border-[var(--color-ring)] transition-colors" />
       </div>
       <div>
-        <label class="block text-xs uppercase text-slate-400 mb-1">Admin Email</label>
-        <input name="admin_email" type="email" required class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2" />
+        <label class="block text-xs uppercase tracking-wider mb-1.5" style="color: var(--color-muted-foreground);">Application ID <span class="opacity-60 normal-case">(optional)</span></label>
+        <input name="application_id" placeholder="123456789012345678"
+               class="w-full px-3 py-2.5 outline-none focus:border-[var(--color-ring)] transition-colors" />
       </div>
-    </div>
-    <div>
-      <label class="block text-xs uppercase text-slate-400 mb-1">Admin Password</label>
-      <input name="admin_password" type="password" required minlength="12"
-             class="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2" />
-    </div>
-    {% if error %}<div class="text-rose-300 text-sm">{{ error }}</div>{% endif %}
-    <button class="bg-brand-600 hover:bg-brand-700 rounded-md px-4 py-2 font-medium">Initialize</button>
-  </form>
+
+      <div class="border-t pt-5" style="border-color: var(--color-border);">
+        <p class="text-xs uppercase tracking-wider mb-4" style="color: var(--color-muted-foreground);">Admin Account</p>
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label class="block text-xs mb-1.5" style="color: var(--color-muted-foreground);">Username</label>
+            <input name="admin_username" required minlength="3" placeholder="admin"
+                   class="w-full px-3 py-2.5 outline-none focus:border-[var(--color-ring)] transition-colors" />
+          </div>
+          <div>
+            <label class="block text-xs mb-1.5" style="color: var(--color-muted-foreground);">Email <span class="opacity-60 normal-case">(optional)</span></label>
+            <input name="admin_email" type="email" placeholder="admin@example.com"
+                   class="w-full px-3 py-2.5 outline-none focus:border-[var(--color-ring)] transition-colors" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs mb-1.5" style="color: var(--color-muted-foreground);">Password <span class="opacity-60">(min 10 chars)</span></label>
+          <input name="admin_password" type="password" required minlength="10" placeholder="************"
+                 class="w-full px-3 py-2.5 outline-none focus:border-[var(--color-ring)] transition-colors" />
+        </div>
+      </div>
+
+      <button class="btn btn-primary w-full justify-center py-2.5 text-base">
+        <i class="ph-fill ph-rocket-launch"></i> Initialize CogniX
+      </button>
+    </form>
+  </div>
 </div>
 {% endblock %}

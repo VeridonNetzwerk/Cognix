@@ -82,7 +82,7 @@ async def setup_submit(request: Request,
                        bot_token: str = Form(...),
                        application_id: str = Form(default=""),
                        admin_username: str = Form(...),
-                       admin_email: str = Form(...),
+                       admin_email: str = Form(default=""),
                        admin_password: str = Form(...)) -> Response:
     from web.schemas.auth import SetupRequest
     from web.services.setup_service import SetupError, perform_setup
@@ -93,7 +93,7 @@ async def setup_submit(request: Request,
                 bot_token=bot_token,
                 bot_application_id=application_id,
                 admin_username=admin_username,
-                admin_email=admin_email,
+                admin_email=admin_email or None,
                 admin_password=admin_password,
             ))
     except SetupError as exc:

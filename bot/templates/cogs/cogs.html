@@ -1,150 +1,1092 @@
 {% extends "base.html" %}
 {% block title %}Cog Marketplace · {{ bot_info.name }}{% endblock %}
 {% block content %}
-<div class="flex items-center justify-between mb-6">
-  <h1 class="text-2xl font-semibold">Cog Marketplace</h1>
-  <span class="text-sm text-slate-400">{{ cogs | selectattr('loaded') | list | length }} active · {{ cogs | length }} installed · {{ store_cogs | rejectattr('installed') | list | length }} in store</span>
-</div>
+<div x-data='cogMarketplace({{ {
+  "categories": categories,
+  "categoryAll": category_all,
+  "cogs": cogs,
+  "updates": updates,
+  "storeAvailable": store_available,
+  "storeSync": store_sync,
+} | tojson }})' x-cloak>
 
-<!-- Cog Store — available to install -->
-{% set uninstalled_store = store_cogs | rejectattr('installed') | list %}
-{% if uninstalled_store %}
-<h2 class="text-lg font-medium mb-3 text-slate-300">Cog Store</h2>
-<p class="text-xs text-slate-500 mb-3">Install cogs from the store with one click. They'll be activated immediately after installation.</p>
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8" x-data="{ busy: null }">
-  {% for s in store_cogs if not s.installed %}
-  <div class="bg-slate-900 border border-indigo-900/40 rounded-xl p-4 flex flex-col gap-3">
-    <div class="flex items-start justify-between gap-2">
-      <div class="min-w-0">
-        <div class="font-medium">{{ s.name }}</div>
-        {% if s.category %}
-        <div class="text-xs text-slate-500 mt-0.5">{{ s.category }}</div>
-        {% endif %}
-      </div>
-      {% if s.requires_admin %}
-      <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-300 shrink-0">Admin</span>
-      {% endif %}
+  {# ---- Slim page title ---- #}
+  <div class="mb-4 flex items-start justify-between gap-4">
+    <div>
+      <h1 class="text-xl font-bold tracking-tight">Cog Marketplace</h1>
+      <span class="text-xs" style="color: var(--color-muted-foreground);">
+        <span x-text="cogs.filter(c => c.loaded).length"></span> active ·
+        <span x-text="cogs.filter(c => c.installed).length"></span> installed ·
+        <span x-text="cogs.filter(c => !c.installed).length"></span> in store ·
+        <span x-text="updates.length" style="color: var(--color-warning);"></span> update(s)
+      </span>
     </div>
-    <p class="text-sm text-slate-400 flex-1">{{ s.description or 'No description' }}</p>
-    {% if s.requirements %}
-    <div class="text-xs text-slate-500">
-      <span class="text-slate-400">pip:</span>
-      {% for r in s.requirements %}<code class="px-1 py-0.5 bg-slate-800 rounded mr-1">{{ r }}</code>{% endfor %}
-    </div>
-    {% endif %}
-    {% if s.extra_files %}
-    <div class="text-xs text-slate-500">
-      <span class="text-slate-400">files:</span>
-      {% for f in s.extra_files %}<code class="px-1 py-0.5 bg-slate-800 rounded mr-1">{{ f.path }}</code>{% endfor %}
-    </div>
-    {% endif %}
-    <button :disabled="busy === '{{ s.module }}'"
-            @click="busy = '{{ s.module }}'; fetch('/api/v1/cogs/store/install', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({module: '{{ s.module }}'})}).then(r => r.json()).then(j => { if (j.ok) { if (j.warning) alert('Installed with warning: ' + j.warning); window.location.reload(); } else alert(j.detail || 'Install failed'); }).finally(() => busy = null)"
-            class="px-3 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded disabled:opacity-50 flex items-center gap-2 w-fit">
-      <i class="ph ph-download-simple"></i> Install
-    </button>
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
-
-<!-- Installed cogs -->
-<h2 class="text-lg font-medium mb-3 text-slate-300">Installed Cogs</h2>
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-  {% for c in cogs %}
-  <div class="bg-slate-900 border {% if c.loaded %}border-emerald-800/50{% else %}border-slate-800{% endif %} rounded-xl p-4 flex flex-col gap-3">
-    <div class="flex items-start justify-between gap-2">
-      <div class="min-w-0">
-        <div class="font-medium flex items-center gap-2">
-          {{ c.name }}
-          {% if c.loaded %}
-            <span class="text-[10px] uppercase tracking-wider text-emerald-400">● Active</span>
-          {% else %}
-            <span class="text-[10px] uppercase tracking-wider text-slate-500">○ Inactive</span>
-          {% endif %}
-        </div>
-        {% if c.category %}
-        <div class="text-xs text-slate-500 mt-0.5">{{ c.category }}</div>
-        {% endif %}
-      </div>
-      {% if c.requires_admin %}
-      <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-300 shrink-0">Admin</span>
-      {% endif %}
-    </div>
-    <p class="text-sm text-slate-400 flex-1">{{ c.description or 'No description' }}</p>
-    <div class="flex items-center gap-2 flex-wrap">
-      {% if c.loaded %}
-        <form method="post" action="/cogs/{{ c.name }}/unload">
-          <button class="px-3 py-1.5 text-sm bg-rose-900/40 hover:bg-rose-800/60 text-rose-300 rounded">Deactivate</button>
-        </form>
-        <form method="post" action="/cogs/{{ c.name }}/reload">
-          <button class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 rounded">Reload</button>
-        </form>
-        <span class="px-2 py-0.5 rounded text-xs {% if c.enabled %}bg-emerald-900/40 text-emerald-300{% else %}bg-slate-800 text-slate-400{% endif %}">
-          {{ 'Enabled' if c.enabled else 'Disabled' }}
+    {# Sync status indicator #}
+    <div class="flex items-center gap-2 text-xs shrink-0" style="color: var(--color-muted-foreground);">
+      <template x-if="storeSync.last_sync">
+        <span class="flex items-center gap-1">
+          <i class="ph ph-clock text-xs"></i>
+          Synced <span x-text="storeSync.last_sync"></span>
         </span>
-        {% if c.enabled %}
-        <form method="post" action="/cogs/{{ c.name }}/toggle">
-          <button class="px-2 py-1 text-xs bg-slate-800 hover:bg-slate-700 rounded">Disable globally</button>
-        </form>
-        {% else %}
-        <form method="post" action="/cogs/{{ c.name }}/toggle">
-          <button class="px-2 py-1 text-xs bg-emerald-900/40 hover:bg-emerald-800/60 text-emerald-300 rounded">Enable globally</button>
-        </form>
-        {% endif %}
-      {% else %}
-        <form method="post" action="/cogs/{{ c.name }}/load">
-          <button class="px-3 py-1.5 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded">Activate</button>
-        </form>
-      {% endif %}
-      <button onclick="if(confirm('Uninstall {{ c.name }}? This will remove it from cogs/ but keep it in the store. Pip packages not needed by other cogs will also be uninstalled.')) fetch('/api/v1/cogs/store/uninstall', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({module: '{{ c.module }}'})}).then(r => r.json()).then(j => { if (j.ok) { if (j.warning) alert('Uninstalled with warning: ' + j.warning); window.location.reload(); } else alert(j.detail || 'Uninstall failed'); })"
-              class="px-2 py-1 text-xs bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-300 rounded ml-auto">
-        Uninstall
+      </template>
+      <button @click="refreshStore()" :disabled="syncing"
+              class="flex items-center gap-1 px-2 py-1 rounded-lg transition-colors disabled:opacity-50"
+              style="background: var(--color-muted);">
+        <i class="ph text-xs" :class="syncing ? 'ph-spinner animate-spin' : 'ph-arrow-clockwise'"></i>
+        <span x-text="syncing ? 'Syncing…' : 'Refresh'"></span>
+      </button>
+      <button @click="showDevInstall = !showDevInstall"
+              class="flex items-center gap-1 px-2 py-1 rounded-lg transition-colors"
+              style="background: var(--color-muted);"
+              title="Install from local path">
+        <i class="ph ph-code text-xs"></i>
+        <span>Dev</span>
       </button>
     </div>
   </div>
-  {% endfor %}
-</div>
 
-{% if cogs | length == 0 %}
-<div class="bg-slate-900 border border-slate-800 rounded-xl mb-8 p-8 text-center text-slate-500">
-  <p class="mb-1 text-lg">No cogs installed</p>
-  <p class="text-sm">Install cogs from the store above, or add cog modules to the <code class="text-slate-400">cogs/</code> directory.</p>
-</div>
-{% endif %}
+  {# ---- Offline / error banner ---- #}
+  <template x-if="!storeAvailable">
+    <div class="rounded-2xl border p-4 mb-6 flex items-center gap-3"
+         style="background: color-mix(in oklch, var(--color-destructive) 8%, var(--color-card)); border-color: color-mix(in oklch, var(--color-destructive) 25%, var(--color-border));">
+      <i class="ph ph-warning-circle text-2xl shrink-0" style="color: var(--color-destructive);"></i>
+      <div class="flex-1">
+        <p class="text-sm font-medium" style="color: var(--color-foreground);">Store not reachable</p>
+        <p class="text-xs mt-0.5" style="color: var(--color-muted-foreground);">
+          Could not connect to GitHub. <template x-if="storeSync.has_cache"><span>Showing cached cogs — some may be outdated.</span></template><template x-if="!storeSync.has_cache"><span>No cached cogs available.</span></template>
+        </p>
+      </div>
+      <button @click="refreshStore()" :disabled="syncing"
+              class="px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 shrink-0 disabled:opacity-50"
+              style="background: var(--color-destructive); color: var(--color-destructive-foreground);">
+        <i class="ph" :class="syncing ? 'ph-spinner animate-spin' : 'ph-arrow-clockwise'"></i>
+        Retry
+      </button>
+    </div>
+  </template>
 
-<!-- Per-server overrides (only for loaded cogs) -->
-{% if cog_names %}
-<h2 class="text-lg font-medium mb-3 text-slate-300">Per-server overrides</h2>
-<p class="text-xs text-slate-500 mb-3">Enable or disable active cogs for individual servers. Defaults to enabled.</p>
-<div class="overflow-x-auto bg-slate-900 border border-slate-800 rounded-xl">
-  <table class="min-w-full text-sm">
-    <thead class="bg-slate-800/50 text-xs uppercase text-slate-400">
-      <tr>
-        <th class="px-3 py-2 text-left">Server</th>
-        {% for n in cog_names %}<th class="px-3 py-2 text-center">{{ n }}</th>{% endfor %}
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-slate-800">
-      {% for sv in servers %}
-      <tr>
-        <td class="px-3 py-2 truncate max-w-[200px]">{{ sv.name }}</td>
-        {% for n in cog_names %}
-        {% set state = per_server.get(sv.id, {}).get(n, true) %}
-        <td class="px-3 py-2 text-center">
-          <form method="post" action="/cogs/server/{{ sv.id }}/{{ n }}/toggle">
-            <button class="px-2 py-1 rounded text-xs {% if state %}bg-emerald-900/40 text-emerald-300{% else %}bg-rose-900/40 text-rose-300{% endif %}">
-              {{ 'on' if state else 'off' }}
+  {# ---- Dev install panel ---- #}
+  <template x-if="showDevInstall">
+    <div class="rounded-2xl border p-4 mb-6" style="background: var(--color-card); border-color: var(--color-border);">
+      <div class="flex items-center gap-2 mb-3">
+        <i class="ph ph-code text-lg" style="color: var(--color-primary);"></i>
+        <h3 class="text-sm font-bold">Dev Install — from local path</h3>
+      </div>
+      <div class="flex gap-2 items-end">
+        <div class="flex-1">
+          <label class="text-xs font-medium mb-1 block" style="color: var(--color-muted-foreground);">Local directory path</label>
+          <input type="text" x-model="devInstallPath" placeholder="/path/to/your/cog"
+                 class="w-full px-3 py-2 rounded-lg border text-sm outline-none"
+                 style="background: var(--color-muted); border-color: var(--color-border); color: var(--color-foreground);">
+        </div>
+        <div class="w-40">
+          <label class="text-xs font-medium mb-1 block" style="color: var(--color-muted-foreground);">Module name (optional)</label>
+          <input type="text" x-model="devInstallModule" placeholder="auto"
+                 class="w-full px-3 py-2 rounded-lg border text-sm outline-none"
+                 style="background: var(--color-muted); border-color: var(--color-border); color: var(--color-foreground);">
+        </div>
+        <button @click="devInstall()" :disabled="busy === '__dev_install__'"
+                class="px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 shrink-0 disabled:opacity-50"
+                style="background: var(--color-primary); color: var(--color-primary-foreground);">
+          <i class="ph ph-download-simple"></i> Install
+        </button>
+        <button @click="showDevInstall = false"
+                class="px-3 py-2 rounded-xl text-sm shrink-0"
+                style="background: var(--color-muted); color: var(--color-muted-foreground);">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </template>
+
+  {# ---- Sort controls ---- #}
+  <template x-if="activeTab === 'explore' && !(searchOpen && searchQuery)">
+    <div class="flex items-center gap-2 mb-4 text-xs">
+      <span style="color: var(--color-muted-foreground);">Sort by:</span>
+      <button @click="toggleSort('name')" class="px-2 py-1 rounded-md transition-colors"
+              :style="sortBy === 'name' ? 'background: var(--color-primary); color: var(--color-primary-foreground);' : 'background: var(--color-muted); color: var(--color-muted-foreground);'">
+        Name <i class="ph text-[10px]" :class="sortBy === 'name' ? (sortDir === 'asc' ? 'ph-caret-up' : 'ph-caret-down') : ''"></i>
+      </button>
+      <button @click="toggleSort('category')" class="px-2 py-1 rounded-md transition-colors"
+              :style="sortBy === 'category' ? 'background: var(--color-primary); color: var(--color-primary-foreground);' : 'background: var(--color-muted); color: var(--color-muted-foreground);'">
+        Category <i class="ph text-[10px]" :class="sortBy === 'category' ? (sortDir === 'asc' ? 'ph-caret-up' : 'ph-caret-down') : ''"></i>
+      </button>
+      <button @click="toggleSort('version')" class="px-2 py-1 rounded-md transition-colors"
+              :style="sortBy === 'version' ? 'background: var(--color-primary); color: var(--color-primary-foreground);' : 'background: var(--color-muted); color: var(--color-muted-foreground);'">
+        Version <i class="ph text-[10px]" :class="sortBy === 'version' ? (sortDir === 'asc' ? 'ph-caret-up' : 'ph-caret-down') : ''"></i>
+      </button>
+    </div>
+  </template>
+
+  {# ---- Top control bar: search icon + Explore/Installed segmented tabs (Ubuntu App Center header) ---- #}
+  <div class="flex items-center gap-3 mb-6">
+    <button @click="toggleSearch()"
+            class="w-10 h-10 rounded-full flex items-center justify-center border shrink-0 transition-colors"
+            :class="searchOpen ? 'bg-[var(--color-primary)]' : ''"
+            style="border-color: var(--color-border); background: var(--color-card);">
+      <i class="ph text-base" :class="searchOpen ? 'ph-x' : 'ph-magnifying-glass'"
+         :style="searchOpen ? 'color: var(--color-primary-foreground)' : 'color: var(--color-foreground)'"></i>
+    </button>
+
+    <template x-if="!searchOpen">
+      <div class="inline-flex p-1 rounded-full" style="background: var(--color-muted);">
+        <button @click="activeTab = 'explore'"
+                class="px-5 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5"
+                :style="activeTab === 'explore' ? 'background: var(--color-card); color: var(--color-foreground); box-shadow: 0 1px 3px rgba(0,0,0,0.15)' : 'color: var(--color-muted-foreground)'">
+          <i class="ph ph-compass"></i> Explore
+        </button>
+        <button @click="activeTab = 'installed'"
+                class="px-5 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5"
+                :style="activeTab === 'installed' ? 'background: var(--color-card); color: var(--color-foreground); box-shadow: 0 1px 3px rgba(0,0,0,0.15)' : 'color: var(--color-muted-foreground)'">
+          <i class="ph ph-check-circle"></i> Installed
+        </button>
+        <button @click="activeTab = 'updates'"
+                class="px-5 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 relative"
+                :style="activeTab === 'updates' ? 'background: var(--color-card); color: var(--color-foreground); box-shadow: 0 1px 3px rgba(0,0,0,0.15)' : 'color: var(--color-muted-foreground)'">
+          <i class="ph ph-arrow-counter-clockwise"></i> Updates
+          <template x-if="updates.length > 0">
+            <span class="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center"
+                  style="background: var(--color-warning); color: var(--color-warning-foreground);" x-text="updates.length"></span>
+          </template>
+        </button>
+      </div>
+    </template>
+
+    <template x-if="searchOpen">
+      <div class="relative flex-1 max-w-md">
+        <i class="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-sm"
+           style="color: var(--color-muted-foreground);"></i>
+        <input type="text" x-model="searchQuery" x-ref="searchInput"
+               placeholder="Search cogs…"
+               class="w-full pl-10 pr-4 py-2 rounded-full border text-sm outline-none"
+               style="background: var(--color-card); border-color: var(--color-border); color: var(--color-foreground);">
+      </div>
+    </template>
+
+    <template x-if="searchOpen && searchQuery">
+      <span class="text-xs" style="color: var(--color-muted-foreground);">
+        <span x-text="searchResults().length"></span> result(s)
+      </span>
+    </template>
+  </div>
+
+  {# ================= EXPLORE TAB ================= #}
+  <template x-if="activeTab === 'explore'">
+    <div>
+
+      {# ---- Search results (flat grid) ---- #}
+      <template x-if="searchOpen && searchQuery">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          <template x-for="cog in searchResults()" :key="cog.module">
+            <div x-html="cardTemplate(cog)" @click="openDetail(cog)"></div>
+          </template>
+          <template x-if="searchResults().length === 0">
+            <div class="col-span-full rounded-2xl border p-12 text-center" style="background: var(--color-card); border-color: var(--color-border);">
+              <i class="ph ph-magnifying-glass text-3xl mb-2" style="color: var(--color-muted-foreground);"></i>
+              <p class="text-sm" style="color: var(--color-muted-foreground);">No cogs match "<span x-text="searchQuery"></span>"</p>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      {# ---- Magazine view: hero banner + per-category sections ---- #}
+      <template x-if="!(searchOpen && searchQuery)">
+        <div>
+          {# Hero banner — featured cogs, Ubuntu-style gradient + dotted texture #}
+          <div class="rounded-[28px] overflow-hidden mb-8 relative h-48 flex items-center"
+               :style="`background-image: radial-gradient(rgba(255,255,255,0.14) 1.5px, transparent 1.5px), linear-gradient(135deg, ${categoryAll.gradient_from}, ${categoryAll.gradient_to}); background-size: 18px 18px, cover;`">
+            <div class="pl-9 pr-4 py-6 flex-1 z-10">
+              <h2 class="text-[28px] leading-tight font-bold text-white tracking-tight">Discover Cogs</h2>
+              <p class="text-white/85 text-sm mt-1.5 max-w-xs">Extend your bot with powerful, ready-to-install modules</p>
+            </div>
+            <div class="flex items-center pr-10 shrink-0 relative" style="height: 100%;">
+              <template x-for="(cog, idx) in featuredCogs()" :key="cog.module">
+                <div class="rounded-[22px] bg-white shadow-xl flex items-center justify-center shrink-0 overflow-hidden"
+                     :style="`width: ${idx===1 ? 88 : 68}px; height: ${idx===1 ? 88 : 68}px; margin-left: -14px; z-index: ${idx===1 ? 3 : 1};`">
+                  <template x-if="cog.icon_url">
+                    <img :src="cog.icon_url" :alt="cog.name" class="w-full h-full object-cover" />
+                  </template>
+                  <template x-if="!cog.icon_url">
+                    <i :class="'ph-fill ' + (categories[cog.category]?.icon || 'ph-package')"
+                       :style="`font-size: ${idx===1 ? 34 : 26}px; color: ${(categories[cog.category] || categoryAll).gradient_to};`"></i>
+                  </template>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          {# Category sections — "magazine" rhythm like App Center's Explore feed #}
+          <template x-for="section in sectionsList()" :key="section.name">
+            <div class="mb-9">
+              <div class="flex items-center gap-2.5 mb-3.5">
+                <div class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                     :style="`background: linear-gradient(135deg, ${section.meta.gradient_from}, ${section.meta.gradient_to})`">
+                  <i :class="'ph-fill ' + section.meta.icon + ' text-white text-sm'"></i>
+                </div>
+                <h3 class="text-base font-bold" x-text="section.name"></h3>
+                <span class="text-xs px-1.5 py-0.5 rounded-full" style="background: var(--color-muted); color: var(--color-muted-foreground);" x-text="section.cogs.length"></span>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                <template x-for="cog in section.cogs" :key="cog.module">
+                  <div x-html="cardTemplate(cog)" @click="openDetail(cog)"></div>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+      </template>
+    </div>
+  </template>
+
+  {# ================= INSTALLED TAB ================= #}
+  <template x-if="activeTab === 'installed'">
+    <div>
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mb-8">
+        <template x-for="cog in installedResults()" :key="cog.module">
+          <div x-html="cardTemplate(cog)" @click="openDetail(cog)"></div>
+        </template>
+      </div>
+      <template x-if="installedResults().length === 0">
+        <div class="rounded-2xl border p-12 text-center mb-8" style="background: var(--color-card); border-color: var(--color-border);">
+          <i class="ph ph-package text-3xl mb-2" style="color: var(--color-muted-foreground);"></i>
+          <p class="text-sm" style="color: var(--color-muted-foreground);">No cogs installed yet — head to Explore.</p>
+        </div>
+      </template>
+
+      {% if cog_names %}
+      <div class="mt-8" x-data="{ openServer: null }">
+        <div class="flex items-center gap-2.5 mb-3.5">
+          <div class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+               style="background: color-mix(in oklch, var(--color-primary) 15%, transparent);">
+            <i class="ph-fill ph-servers text-sm" style="color: var(--color-primary);"></i>
+          </div>
+          <h3 class="text-base font-bold">Per-server overrides</h3>
+        </div>
+        <div class="space-y-2">
+          {% for sv in servers %}
+          <div class="rounded-xl border overflow-hidden" style="background: var(--color-card); border-color: var(--color-border);">
+            <button @click="openServer === {{ sv.id }} ? openServer = null : openServer = {{ sv.id }}"
+                    class="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[color-mix(in_oklch,var(--color-primary)_5%,transparent)]">
+              <i class="ph ph-server text-sm" style="color: var(--color-muted-foreground);"></i>
+              <span class="font-medium text-sm flex-1 truncate">{{ sv.name }}</span>
+              {% set sv_overrides = per_server.get(sv.id, {}) %}
+              {% set disabled_count = sv_overrides.values() | list | select('equalto', false) | list | length %}
+              {% set enabled_count = cog_names | length - disabled_count %}
+              <span class="text-xs flex items-center gap-2" style="color: var(--color-muted-foreground);">
+                <span class="flex items-center gap-1" style="color: var(--color-success);">
+                  <i class="ph-fill ph-check-circle text-xs"></i>{{ enabled_count }}
+                </span>
+                {% if disabled_count > 0 %}
+                <span class="flex items-center gap-1" style="color: var(--color-destructive);">
+                  <i class="ph-fill ph-x-circle text-xs"></i>{{ disabled_count }}
+                </span>
+                {% endif %}
+              </span>
+              <i class="ph ph-caret-down text-sm transition-transform"
+                 :class="openServer === {{ sv.id }} ? 'rotate-180' : ''"
+                 style="color: var(--color-muted-foreground);"></i>
             </button>
-          </form>
-        </td>
-        {% endfor %}
-      </tr>
-      {% else %}
-      <tr><td colspan="{{ cog_names|length + 1 }}" class="px-3 py-6 text-center text-slate-500">No servers known yet.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+            <div x-show="openServer === {{ sv.id }}" x-collapse>
+              <div class="border-t px-4 py-3 space-y-1" style="border-color: var(--color-border);">
+                {% for n in cog_names %}
+                {% set state = per_server.get(sv.id, {}).get(n, true) %}
+                <div class="flex items-center justify-between py-1.5">
+                  <span class="text-sm" style="color: var(--color-foreground);">{{ n }}</span>
+                  <form method="post" action="/cogs/server/{{ sv.id }}/{{ n }}/toggle" class="inline" @submit.prevent="serverToggle({{ sv.id }}, '{{ n }}', {{ 'false' if state else 'true' }})">
+                    <button type="submit" class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
+                            style="background: {% if state %}var(--color-success){% else %}var(--color-muted){% endif %};">
+                      <span class="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform {% if state %}translate-x-4{% else %}translate-x-1{% endif %}"></span>
+                    </button>
+                  </form>
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+          {% else %}
+          <div class="rounded-xl border p-8 text-center" style="background: var(--color-card); border-color: var(--color-border);">
+            <p class="text-sm" style="color: var(--color-muted-foreground);">No servers known yet.</p>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </template>
+
+  {# ================= UPDATES TAB ================= #}
+  <template x-if="activeTab === 'updates'">
+    <div>
+      <template x-if="updates.length > 0">
+        <div class="rounded-2xl border p-4 mb-6 flex items-center gap-3"
+             style="background: color-mix(in oklch, var(--color-warning) 8%, var(--color-card)); border-color: color-mix(in oklch, var(--color-warning) 25%, var(--color-border));">
+          <i class="ph ph-arrow-counter-clockwise text-2xl" style="color: var(--color-warning);"></i>
+          <div class="flex-1">
+            <p class="text-sm font-medium" style="color: var(--color-foreground);">
+              <span x-text="updates.length"></span> cog(s) have a newer version available
+            </p>
+            <p class="text-xs mt-0.5" style="color: var(--color-muted-foreground);">Click update to re-install from the store.</p>
+          </div>
+          <button @click="updateAll()"
+                  class="px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 shrink-0"
+                  style="background: var(--color-warning); color: var(--color-warning-foreground);">
+            <i class="ph ph-arrow-counter-clockwise"></i> Update All
+          </button>
+        </div>
+      </template>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mb-8">
+        <template x-for="upd in updates" :key="upd.module">
+          <div class="flex items-center gap-3 p-3 rounded-2xl border cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5"
+               style="background: var(--color-card); border-color: var(--color-border);"
+               @click="openUpdateDetail(upd)">
+            <div class="relative shrink-0">
+              <div class="w-14 h-14 rounded-2xl flex items-center justify-center overflow-hidden"
+                   :style="`background: color-mix(in oklch, ${(categories[upd.category] || categoryAll).gradient_from} 12%, var(--color-muted));`">
+                <template x-if="upd.icon_url">
+                  <img :src="upd.icon_url" :alt="upd.name" class="w-full h-full object-cover" />
+                </template>
+                <template x-if="!upd.icon_url">
+                  <i :class="'ph-fill ' + (categories[upd.category]?.icon || 'ph-package')"
+                     :style="`font-size: 26px; color: ${(categories[upd.category] || categoryAll).gradient_to};`"></i>
+                </template>
+              </div>
+              <div class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[11px]"
+                   style="background: var(--color-card); box-shadow: 0 0 0 2px var(--color-card);">
+                <span style="color: var(--color-warning);" class="ph-fill ph-arrow-counter-clockwise"></span>
+              </div>
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="font-semibold text-sm truncate" x-text="upd.name"></div>
+              <div class="text-xs mt-1 flex items-center gap-1.5">
+                <span class="px-1.5 py-0.5 rounded-md" style="background: var(--color-muted); color: var(--color-muted-foreground);" x-text="upd.installed_version || 'unknown'"></span>
+                <i class="ph ph-arrow-right text-xs" style="color: var(--color-muted-foreground);"></i>
+                <span class="px-1.5 py-0.5 rounded-md font-medium" style="background: color-mix(in oklch, var(--color-warning) 15%, transparent); color: var(--color-warning);" x-text="upd.store_version"></span>
+              </div>
+            </div>
+            <button @click.stop="updateCog(upd)"
+                    :disabled="busy === upd.module"
+                    class="px-3 py-2 rounded-xl text-xs font-medium flex items-center gap-1.5 shrink-0 disabled:opacity-50"
+                    style="background: var(--color-warning); color: var(--color-warning-foreground);">
+              <i class="ph ph-arrow-counter-clockwise"></i> Update
+            </button>
+          </div>
+        </template>
+      </div>
+
+      <template x-if="updates.length === 0">
+        <div class="rounded-2xl border p-12 text-center mb-8" style="background: var(--color-card); border-color: var(--color-border);">
+          <i class="ph ph-check-circle text-3xl mb-2" style="color: var(--color-success);"></i>
+          <p class="text-sm" style="color: var(--color-muted-foreground);">All cogs are up to date!</p>
+        </div>
+      </template>
+    </div>
+  </template>
+
+  {# ================= TOAST NOTIFICATIONS ================= #}
+  <div class="fixed bottom-4 right-4 z-[60] flex flex-col gap-2" style="pointer-events: none;">
+    <template x-for="toast in toasts" :key="toast.id">
+      <div x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-x-8" x-transition:enter-end="opacity-100 translate-x-0"
+           x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+           class="flex items-start gap-3 px-4 py-3 rounded-xl border shadow-lg max-w-sm"
+           style="pointer-events: auto; background: var(--color-card); border-color: var(--color-border);">
+        <i class="ph text-lg shrink-0 mt-0.5"
+           :class="toast.type === 'error' ? 'ph-warning-circle' : (toast.type === 'warning' ? 'ph-warning' : 'ph-check-circle')"
+           :style="toast.type === 'error' ? 'color: var(--color-destructive)' : (toast.type === 'warning' ? 'color: var(--color-warning)' : 'color: var(--color-success)')"></i>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium" style="color: var(--color-foreground);" x-text="toast.type === 'error' ? 'Error' : (toast.type === 'warning' ? 'Warning' : 'Success')"></p>
+          <p class="text-xs mt-0.5" style="color: var(--color-muted-foreground);" x-text="toast.msg"></p>
+        </div>
+        <button @click="toasts = toasts.filter(t => t.id !== toast.id)" class="shrink-0">
+          <i class="ph ph-x text-sm" style="color: var(--color-muted-foreground);"></i>
+        </button>
+      </div>
+    </template>
+  </div>
+
+  {# ================= PROGRESS BAR OVERLAY ================= #}
+  <div x-show="progress > 0" style="display: none;" class="fixed bottom-0 left-0 right-0 z-[55]">
+    <div class="h-1 w-full" style="background: var(--color-muted);">
+      <div class="h-full transition-all duration-300 ease-out rounded-full"
+           :style="`width: ${progress}%; background: linear-gradient(90deg, var(--color-primary), var(--color-accent));`"></div>
+    </div>
+    <div class="px-4 py-1.5 text-xs flex items-center gap-2" style="background: var(--color-card); color: var(--color-muted-foreground);">
+      <i class="ph ph-spinner animate-spin"></i>
+      <span x-text="progressStep"></span>
+      <span class="font-mono ml-auto" x-text="Math.round(progress) + '%'"></span>
+    </div>
+  </div>
+
+  {# ================= DETAIL DRAWER ================= #}
+  <div x-show="selectedCog !== null" style="display: none;" class="fixed inset-0 z-50 flex justify-end">
+    <div class="absolute inset-0 bg-black/60" x-transition.opacity @click="closeDetail()"></div>
+    <div class="relative w-full max-w-md h-full overflow-y-auto scroll-thin"
+         style="background: var(--color-card);"
+         x-transition:enter="transition ease-out duration-250" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
+         x-transition:leave="transition ease-in duration-150" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full">
+      <template x-if="selectedCog">
+        <div>
+          {# Drawer header banner #}
+          <div class="h-28 relative"
+               :style="`background: linear-gradient(135deg, ${(categories[selectedCog.category] || categoryAll).gradient_from}, ${(categories[selectedCog.category] || categoryAll).gradient_to})`">
+            <button @click="closeDetail()" class="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center bg-black/20 hover:bg-black/30">
+              <i class="ph ph-x text-white text-sm"></i>
+            </button>
+            <div class="absolute -bottom-8 left-6 w-20 h-20 rounded-[22px] bg-white shadow-lg flex items-center justify-center overflow-hidden">
+              <template x-if="selectedCog.icon_url">
+                <img :src="selectedCog.icon_url" :alt="selectedCog.name" class="w-full h-full object-cover" />
+              </template>
+              <template x-if="!selectedCog.icon_url">
+                <i :class="'ph-fill ' + (categories[selectedCog.category]?.icon || 'ph-package')"
+                   class="text-4xl" :style="`color: ${(categories[selectedCog.category] || categoryAll).gradient_to}`"></i>
+              </template>
+            </div>
+          </div>
+
+          <div class="pt-11 px-6 pb-6">
+            <div class="flex items-center gap-2 flex-wrap">
+              <h2 class="text-xl font-bold" x-text="selectedCog.name"></h2>
+              <template x-if="selectedCog.version">
+                <span class="text-[10px] px-1.5 py-0.5 rounded font-medium" style="background: var(--color-muted); color: var(--color-muted-foreground);" x-text="'v' + selectedCog.version"></span>
+              </template>
+              <template x-if="selectedCog.requires_admin">
+                <span class="text-[10px] px-1.5 py-0.5 rounded font-medium" style="background: color-mix(in oklch, var(--color-warning) 15%, transparent); color: var(--color-warning);">Admin</span>
+              </template>
+              <template x-if="selectedCog.verified">
+                <span class="text-[10px] px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5" style="background: color-mix(in oklch, var(--color-success) 15%, transparent); color: var(--color-success);"><i class="ph-fill ph-seal-check"></i> Verified</span>
+              </template>
+            </div>
+            <p class="text-xs mt-1" style="color: var(--color-muted-foreground);" x-text="selectedCog.category"></p>
+
+            <div class="flex items-center gap-1.5 mt-3 text-xs font-medium">
+              <template x-if="selectedCog.installed && selectedCog.loaded && selectedCog.enabled">
+                <span class="flex items-center gap-1" style="color: var(--color-success);"><i class="ph-fill ph-check-circle"></i> Active</span>
+              </template>
+              <template x-if="selectedCog.installed && selectedCog.loaded && !selectedCog.enabled">
+                <span class="flex items-center gap-1" style="color: var(--color-muted-foreground);"><i class="ph ph-circle"></i> Disabled</span>
+              </template>
+              <template x-if="selectedCog.installed && !selectedCog.loaded">
+                <span class="flex items-center gap-1" style="color: var(--color-muted-foreground);"><i class="ph ph-circle"></i> Inactive</span>
+              </template>
+              <template x-if="!selectedCog.installed">
+                <span class="flex items-center gap-1" style="color: var(--color-primary);"><i class="ph ph-cloud"></i> Available in store</span>
+              </template>
+            </div>
+
+            <div class="my-4 border-t" style="border-color: var(--color-border);"></div>
+
+            <p class="text-sm leading-relaxed" style="color: var(--color-foreground);" x-text="selectedCog.description || 'No description provided.'"></p>
+
+            <template x-if="selectedCog.permissions && selectedCog.permissions.length > 0">
+              <div class="mt-3 rounded-lg border p-3" style="background: color-mix(in oklch, var(--color-warning) 5%, var(--color-card)); border-color: color-mix(in oklch, var(--color-warning) 20%, var(--color-border));">
+                <div class="flex items-center gap-1.5 mb-1">
+                  <i class="ph ph-shield-warning text-sm" style="color: var(--color-warning);"></i>
+                  <span class="text-xs font-semibold" style="color: var(--color-warning);">PERMISSIONS REQUIRED</span>
+                </div>
+                <div class="flex flex-wrap gap-1">
+                  <template x-for="perm in selectedCog.permissions" :key="perm">
+                    <code class="text-[11px] px-1.5 py-0.5 rounded" style="background: var(--color-muted); color: var(--color-muted-foreground);" x-text="perm"></code>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+            <template x-if="selectedCog.requirements && selectedCog.requirements.length > 0">
+              <div class="mt-4">
+                <p class="text-xs font-semibold mb-1.5" style="color: var(--color-muted-foreground);">REQUIRES</p>
+                <div class="flex flex-wrap gap-1.5">
+                  <template x-for="req in selectedCog.requirements" :key="req">
+                    <code class="text-[11px] px-2 py-1 rounded-md" style="background: var(--color-muted); color: var(--color-muted-foreground);" x-text="req"></code>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+            <template x-if="selectedCog.extra_files && selectedCog.extra_files.length > 0">
+              <div class="mt-4">
+                <p class="text-xs font-semibold mb-1.5" style="color: var(--color-muted-foreground);">BUNDLED FILES</p>
+                <div class="space-y-1">
+                  <template x-for="f in selectedCog.extra_files" :key="f.path">
+                    <div class="flex items-center justify-between text-xs">
+                      <span style="color: var(--color-foreground);" x-text="f.path"></span>
+                      <span style="color: var(--color-muted-foreground);" x-text="Math.round(f.size/1024) + ' KB'"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+            <div class="my-5 border-t" style="border-color: var(--color-border);"></div>
+
+            {# Actions #}
+            <template x-if="busy === selectedCog.module">
+              <div class="flex flex-col items-center gap-3 py-4">
+                <div class="w-full h-1.5 rounded-full overflow-hidden" style="background: var(--color-muted);">
+                  <div class="h-full transition-all duration-300 ease-out rounded-full"
+                       :style="`width: ${progress}%; background: linear-gradient(90deg, var(--color-primary), var(--color-accent));`"></div>
+                </div>
+                <p class="text-xs flex items-center gap-2" style="color: var(--color-muted-foreground);">
+                  <i class="ph ph-spinner animate-spin"></i>
+                  <span x-text="progressStep || (selectedCog.installed ? 'Uninstalling…' : 'Installing…')"></span>
+                  <span class="font-mono" x-text="Math.round(progress) + '%'"></span>
+                </p>
+              </div>
+            </template>
+
+            <div class="flex flex-col gap-2" x-show="busy !== selectedCog.module">
+              <template x-if="!selectedCog.installed">
+                <button :disabled="busy === selectedCog.module" @click="installCog(selectedCog)"
+                        class="w-full px-4 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                        style="background: var(--color-primary); color: var(--color-primary-foreground);">
+                  <i class="ph ph-download-simple"></i> Install
+                </button>
+              </template>
+
+              <template x-if="selectedCog.installed && !selectedCog.loaded">
+                <div class="flex flex-col gap-2">
+                  <button @click="activateCog(selectedCog)" :disabled="busy === selectedCog.module"
+                          class="w-full px-4 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                          style="background: var(--color-success); color: var(--color-primary-foreground);">
+                    <i class="ph ph-play"></i> Activate
+                  </button>
+                  <button @click="uninstallCog(selectedCog)" :disabled="busy === selectedCog.module"
+                          class="w-full px-4 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                          style="background: color-mix(in oklch, var(--color-destructive) 10%, transparent); color: var(--color-destructive);">
+                    <i class="ph ph-trash"></i> Uninstall
+                  </button>
+                </div>
+              </template>
+
+              <template x-if="selectedCog.installed && selectedCog.loaded">
+                <div class="flex flex-col gap-2">
+                  <div class="grid grid-cols-2 gap-2">
+                    <button @click="deactivateCog(selectedCog)" :disabled="busy === selectedCog.module"
+                            class="w-full px-3 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-50"
+                            style="background: color-mix(in oklch, var(--color-destructive) 10%, transparent); color: var(--color-destructive);">
+                      <i class="ph ph-stop"></i> Deactivate
+                    </button>
+                    <button @click="reloadCogAction(selectedCog)" :disabled="busy === selectedCog.module"
+                            class="w-full px-3 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-50"
+                            style="background: var(--color-muted); color: var(--color-muted-foreground);">
+                      <i class="ph ph-arrows-clockwise"></i> Reload
+                    </button>
+                  </div>
+                  <button @click="toggleCog(selectedCog)" :disabled="busy === selectedCog.module"
+                          class="w-full px-4 py-2.5 rounded-xl text-sm font-medium disabled:opacity-50"
+                          :style="selectedCog.enabled ? 'background: var(--color-muted); color: var(--color-muted-foreground);' : 'background: color-mix(in oklch, var(--color-success) 12%, transparent); color: var(--color-success);'"
+                          x-text="selectedCog.enabled ? 'Disable' : 'Enable'"></button>
+                  <button @click="uninstallCog(selectedCog)" :disabled="busy === selectedCog.module"
+                          class="w-full px-4 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                          style="background: transparent; color: var(--color-destructive); border: 1px solid color-mix(in oklch, var(--color-destructive) 30%, transparent);">
+                    <i class="ph ph-trash"></i> Uninstall
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
 </div>
-{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function cogMarketplace(data) {
+  return {
+    cogs: data.cogs,
+    categories: data.categories,
+    categoryAll: data.categoryAll,
+    updates: data.updates || [],
+    storeAvailable: data.storeAvailable !== false,
+    storeSync: data.storeSync || { available: false, last_sync: null, has_cache: false },
+    syncing: false,
+    sortBy: 'name',
+    sortDir: 'asc',
+    showDevInstall: false,
+    devInstallPath: '',
+    devInstallModule: '',
+    activeTab: 'explore',
+    searchOpen: false,
+    searchQuery: '',
+    selectedCog: null,
+    busy: null,
+    progress: 0,
+    progressStep: '',
+    toasts: [],
+
+    toggleSearch() {
+      this.searchOpen = !this.searchOpen;
+      if (this.searchOpen) {
+        this.$nextTick(() => this.$refs.searchInput?.focus());
+      } else {
+        this.searchQuery = '';
+      }
+    },
+
+    async refreshStore() {
+      this.syncing = true;
+      try {
+        const resp = await fetch('/api/v1/cogs/store/refresh', { method: 'POST', credentials: 'same-origin' });
+        const data = await resp.json();
+        if (data.ok) {
+          this.storeAvailable = true;
+          this.showToast('Store synced successfully', 'success');
+          setTimeout(() => window.location.reload(), 600);
+        } else {
+          this.storeAvailable = false;
+          this.showToast('Could not reach GitHub store', 'error');
+        }
+        if (data.sync) {
+          this.storeSync = data.sync;
+        }
+      } catch (e) {
+        this.showToast('Network error during refresh', 'error');
+      } finally {
+        this.syncing = false;
+      }
+    },
+
+    sortedCogs(cogs) {
+      const sorted = [...cogs];
+      const dir = this.sortDir === 'asc' ? 1 : -1;
+      sorted.sort((a, b) => {
+        let va, vb;
+        if (this.sortBy === 'name') {
+          va = (a.name || '').toLowerCase(); vb = (b.name || '').toLowerCase();
+          return va < vb ? -dir : va > vb ? dir : 0;
+        } else if (this.sortBy === 'category') {
+          va = (a.category || '').toLowerCase(); vb = (b.category || '').toLowerCase();
+          return va < vb ? -dir : va > vb ? dir : 0;
+        } else if (this.sortBy === 'version') {
+          va = a.version || ''; vb = b.version || '';
+          return va < vb ? -dir : va > vb ? dir : 0;
+        }
+        return 0;
+      });
+      return sorted;
+    },
+
+    toggleSort(col) {
+      if (this.sortBy === col) {
+        this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        this.sortBy = col;
+        this.sortDir = 'asc';
+      }
+    },
+
+    async devInstall() {
+      if (!this.devInstallPath) {
+        this.showToast('Please enter a local path', 'error');
+        return;
+      }
+      this.busy = '__dev_install__';
+      this.startProgress();
+      try {
+        const body = { path: this.devInstallPath };
+        if (this.devInstallModule) body.module = this.devInstallModule;
+        const resp = await fetch('/api/v1/cogs/store/dev-install', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify(body),
+        });
+        const data = await resp.json();
+        this.stopProgress();
+        this.busy = null;
+        if (resp.ok && data.ok) {
+          if (data.warning) {
+            this.showToast(data.warning, 'warning');
+          } else {
+            this.showToast('Dev cog installed successfully', 'success');
+          }
+          this.showDevInstall = false;
+          this.devInstallPath = '';
+          this.devInstallModule = '';
+          setTimeout(() => window.location.reload(), 800);
+        } else {
+          this.showToast(data.detail || data.error || 'Dev install failed', 'error');
+        }
+      } catch (e) {
+        this.stopProgress();
+        this.busy = null;
+        this.showToast('Network error during dev install', 'error');
+      }
+    },
+
+    featuredCogs() {
+      const withIcon = this.cogs.filter(c => c.icon_url);
+      const pool = withIcon.length >= 3 ? withIcon : this.cogs;
+      return pool.slice(0, 3);
+    },
+
+    sectionsList() {
+      const order = Object.keys(this.categories);
+      return order.map(name => ({
+        name,
+        meta: this.categories[name],
+        cogs: this.sortedCogs(this.cogs.filter(c => c.category === name)),
+      })).filter(s => s.cogs.length > 0);
+    },
+
+    searchResults() {
+      if (!this.searchQuery) return [];
+      const q = this.searchQuery.toLowerCase();
+      const pool = this.activeTab === 'installed' ? this.cogs.filter(c => c.installed) : this.cogs;
+      return pool.filter(c =>
+        c.name.toLowerCase().includes(q) ||
+        (c.description || '').toLowerCase().includes(q) ||
+        (c.category || '').toLowerCase().includes(q)
+      );
+    },
+
+    installedResults() {
+      if (this.searchOpen && this.searchQuery) return this.searchResults();
+      return this.cogs.filter(c => c.installed);
+    },
+
+    categoryMeta(cog) {
+      return this.categories[cog.category] || this.categoryAll;
+    },
+
+    escapeHtml(str) {
+      return (str || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    },
+
+    statusBadge(cog) {
+      if (cog.installed && cog.loaded && cog.enabled) {
+        return '<span style="color: var(--color-success);" class="ph-fill ph-check-circle"></span>';
+      }
+      if (!cog.installed) {
+        return '<span style="color: var(--color-primary);" class="ph ph-download-simple"></span>';
+      }
+      return '<span style="color: var(--color-muted-foreground);" class="ph ph-circle"></span>';
+    },
+
+    cardTemplate(cog) {
+      const meta = this.categoryMeta(cog);
+      const iconInner = cog.icon_url
+        ? `<img src="${cog.icon_url}" alt="" class="w-full h-full object-cover" />`
+        : `<i class="ph-fill ${meta.icon}" style="font-size: 26px; color: ${meta.gradient_to};"></i>`;
+      const badge = this.statusBadge(cog);
+      const desc = this.escapeHtml(cog.description || 'No description').slice(0, 90);
+      const ver = cog.version ? `<span class="text-[10px] px-1 py-0.5 rounded" style="background: var(--color-muted); color: var(--color-muted-foreground);">v${this.escapeHtml(cog.version)}</span>` : '';
+      const verified = cog.verified ? `<span class="text-[10px] px-1 py-0.5 rounded flex items-center gap-0.5" style="background: color-mix(in oklch, var(--color-success) 15%, transparent); color: var(--color-success);"><i class="ph-fill ph-seal-check text-[10px]"></i>Verified</span>` : '';
+      return `
+        <div class="flex items-center gap-3 p-3 rounded-2xl border cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5"
+             style="background: var(--color-card); border-color: var(--color-border);">
+          <div class="relative shrink-0">
+            <div class="w-14 h-14 rounded-2xl flex items-center justify-center overflow-hidden" style="background: color-mix(in oklch, ${meta.gradient_from} 12%, var(--color-muted));">
+              ${iconInner}
+            </div>
+            <div class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[11px]" style="background: var(--color-card); box-shadow: 0 0 0 2px var(--color-card);">
+              ${badge}
+            </div>
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5">
+              <span class="font-semibold text-sm truncate">${this.escapeHtml(cog.name)}</span>
+              ${ver}
+              ${verified}
+            </div>
+            <div class="text-xs mt-0.5 line-clamp-2" style="color: var(--color-muted-foreground);">${desc}</div>
+          </div>
+        </div>
+      `;
+    },
+
+    openDetail(cog) {
+      this.selectedCog = cog;
+    },
+
+    closeDetail() {
+      this.selectedCog = null;
+    },
+
+    startProgress() {
+      this.progress = 0;
+      this.progressStep = '';
+    },
+
+    stopProgress() {
+      this.progress = 100;
+      setTimeout(() => { this.progress = 0; this.progressStep = ''; }, 600);
+    },
+
+    showToast(msg, type = 'error') {
+      const id = Date.now() + Math.random();
+      this.toasts.push({ id, msg, type });
+      setTimeout(() => {
+        this.toasts = this.toasts.filter(t => t.id !== id);
+      }, 5000);
+    },
+
+    installCog(cog) {
+      this.busy = cog.module;
+      this.startProgress();
+      fetch('/api/v1/cogs/store/install-stream', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        credentials: 'same-origin',
+        body: JSON.stringify({module: cog.module}),
+      }).then(response => {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        const processChunk = (chunk) => {
+          buffer += chunk;
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+          let currentEvent = '';
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              currentEvent = line.slice(7).trim();
+            } else if (line.startsWith('data: ')) {
+              const data = JSON.parse(line.slice(6));
+              if (currentEvent === 'progress') {
+                this.progress = data.percent;
+                this.progressStep = data.step || '';
+              } else if (currentEvent === 'error') {
+                this.showToast(data.detail || 'Install failed', 'error');
+                this.stopProgress();
+                this.busy = null;
+              } else if (currentEvent === 'done') {
+                if (data.warning) this.showToast(data.warning, 'warning');
+                this.stopProgress();
+                setTimeout(() => window.location.reload(), 600);
+              }
+              currentEvent = '';
+            }
+          }
+        };
+        const read = () => {
+          reader.read().then(({done, value}) => {
+            if (done) { this.busy = null; return; }
+            processChunk(decoder.decode(value, {stream: true}));
+            read();
+          }).catch(() => {
+            this.showToast('Network error during install', 'error');
+            this.stopProgress();
+            this.busy = null;
+          });
+        };
+        read();
+      }).catch(() => {
+        this.showToast('Network error during install', 'error');
+        this.stopProgress();
+        this.busy = null;
+      });
+    },
+
+    updateCog(upd) {
+      this.busy = upd.module;
+      this.startProgress();
+      fetch('/api/v1/cogs/store/update', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        credentials: 'same-origin',
+        body: JSON.stringify({module: upd.module}),
+      }).then(r => r.json()).then(data => {
+        this.stopProgress();
+        this.busy = null;
+        if (data.ok) {
+          if (data.warning) {
+            this.showToast(data.warning, 'warning');
+          } else {
+            this.showToast(upd.name + ' updated to v' + upd.store_version, 'success');
+          }
+          setTimeout(() => window.location.reload(), 800);
+        } else {
+          this.showToast(data.detail || data.error || 'Update failed', 'error');
+        }
+      }).catch(() => {
+        this.showToast('Network error during update', 'error');
+        this.stopProgress();
+        this.busy = null;
+      });
+    },
+
+    async updateAll() {
+      for (const upd of this.updates) {
+        await new Promise(resolve => {
+          this.busy = upd.module;
+          this.startProgress();
+          fetch('/api/v1/cogs/store/update', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            credentials: 'same-origin',
+            body: JSON.stringify({module: upd.module}),
+          }).then(r => r.json()).then(data => {
+            this.stopProgress();
+            this.busy = null;
+            if (data.ok) {
+              if (data.warning) {
+                this.showToast(upd.name + ': ' + data.warning, 'warning');
+              } else {
+                this.showToast(upd.name + ' updated to v' + upd.store_version, 'success');
+              }
+            } else {
+              this.showToast(upd.name + ': ' + (data.detail || data.error || 'Update failed'), 'error');
+            }
+            resolve();
+          }).catch(() => {
+            this.showToast(upd.name + ': Network error', 'error');
+            this.stopProgress();
+            this.busy = null;
+            resolve();
+          });
+        });
+      }
+      setTimeout(() => window.location.reload(), 800);
+    },
+
+    openUpdateDetail(upd) {
+      const cog = this.cogs.find(c => c.module === upd.module);
+      if (cog) {
+        this.selectedCog = cog;
+      }
+    },
+
+    async _postJSON(url, body, method = 'POST') {
+      const opts = { method, credentials: 'same-origin', headers: {} };
+      if (body !== undefined) {
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(body);
+      }
+      const r = await fetch(url, opts);
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) {
+        throw new Error(j.detail || j.error || ('HTTP ' + r.status));
+      }
+      return j;
+    },
+
+    async activateCog(cog) {
+      this.busy = cog.module;
+      try {
+        await this._postJSON(`/api/v1/cogs/${encodeURIComponent(cog.name)}/load`);
+        this.showToast(cog.name + ' aktiviert', 'success');
+        setTimeout(() => window.location.reload(), 500);
+      } catch (e) {
+        this.showToast('Aktivierung fehlgeschlagen: ' + e.message, 'error');
+      } finally {
+        this.busy = null;
+      }
+    },
+
+    async deactivateCog(cog) {
+      this.busy = cog.module;
+      try {
+        await this._postJSON(`/api/v1/cogs/${encodeURIComponent(cog.name)}/unload`);
+        this.showToast(cog.name + ' deaktiviert', 'success');
+        setTimeout(() => window.location.reload(), 500);
+      } catch (e) {
+        this.showToast('Deaktivierung fehlgeschlagen: ' + e.message, 'error');
+      } finally {
+        this.busy = null;
+      }
+    },
+
+    async reloadCogAction(cog) {
+      this.busy = cog.module;
+      try {
+        await this._postJSON(`/api/v1/cogs/${encodeURIComponent(cog.name)}/reload`);
+        this.showToast(cog.name + ' neu geladen', 'success');
+        setTimeout(() => window.location.reload(), 500);
+      } catch (e) {
+        this.showToast('Reload fehlgeschlagen: ' + e.message, 'error');
+      } finally {
+        this.busy = null;
+      }
+    },
+
+    async toggleCog(cog) {
+      this.busy = cog.module;
+      try {
+        const j = await this._postJSON(`/api/v1/cogs/${encodeURIComponent(cog.name)}/toggle`);
+        this.showToast(cog.name + (j.enabled ? ' aktiviert' : ' deaktiviert'), 'success');
+        setTimeout(() => window.location.reload(), 500);
+      } catch (e) {
+        this.showToast('Toggle fehlgeschlagen: ' + e.message, 'error');
+      } finally {
+        this.busy = null;
+      }
+    },
+
+    async serverToggle(serverId, cogName, newEnabled) {
+      try {
+        await this._postJSON(
+          `/api/v1/cogs/${serverId}/enabled-cogs/${encodeURIComponent(cogName)}`,
+          { enabled: newEnabled },
+          'PUT'
+        );
+        this.showToast('Server-Override gespeichert', 'success');
+        setTimeout(() => window.location.reload(), 400);
+      } catch (e) {
+        this.showToast('Server-Toggle fehlgeschlagen: ' + e.message, 'error');
+      }
+    },
+
+    uninstallCog(cog) {
+      if (!confirm('Uninstall ' + cog.name + '? This will remove it from cogs/ but keep it in the store.')) return;
+      this.busy = cog.module;
+      this.startProgress();
+      fetch('/api/v1/cogs/store/uninstall-stream', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        credentials: 'same-origin',
+        body: JSON.stringify({module: cog.module}),
+      }).then(response => {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        const processChunk = (chunk) => {
+          buffer += chunk;
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+          let currentEvent = '';
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              currentEvent = line.slice(7).trim();
+            } else if (line.startsWith('data: ')) {
+              const data = JSON.parse(line.slice(6));
+              if (currentEvent === 'progress') {
+                this.progress = data.percent;
+                this.progressStep = data.step || '';
+              } else if (currentEvent === 'error') {
+                this.showToast(data.detail || 'Uninstall failed', 'error');
+                this.stopProgress();
+                this.busy = null;
+              } else if (currentEvent === 'done') {
+                if (data.warning) this.showToast(data.warning, 'warning');
+                this.stopProgress();
+                setTimeout(() => window.location.reload(), 600);
+              }
+              currentEvent = '';
+            }
+          }
+        };
+        const read = () => {
+          reader.read().then(({done, value}) => {
+            if (done) { this.busy = null; return; }
+            processChunk(decoder.decode(value, {stream: true}));
+            read();
+          }).catch(() => {
+            this.showToast('Network error during uninstall', 'error');
+            this.stopProgress();
+            this.busy = null;
+          });
+        };
+        read();
+      }).catch(() => {
+        this.showToast('Network error during uninstall', 'error');
+        this.stopProgress();
+        this.busy = null;
+      });
+    },
+  };
+}
+</script>
 {% endblock %}

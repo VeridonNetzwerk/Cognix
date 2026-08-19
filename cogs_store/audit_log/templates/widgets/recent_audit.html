@@ -1,6 +1,6 @@
-{# Core widget: Recent audit events #}
+{# Audit Log cog widget: recent audit events #}
 <div class="space-y-2 max-h-72 overflow-y-auto pr-2 scroll-thin">
-  {% for ev in recent_audit %}
+  {% for ev in widget_data.recent_audit %}
   <div class="flex items-center justify-between p-3 rounded-lg gap-3 transition-colors"
        style="background: color-mix(in oklch, var(--color-secondary) 30%, transparent);"
        onmouseover="this.style.background='color-mix(in oklch, var(--color-secondary) 50%, transparent)'"

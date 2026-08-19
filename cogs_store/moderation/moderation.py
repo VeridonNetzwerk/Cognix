@@ -12,6 +12,7 @@ COG_INFO = {
     "description": "Ban, kick, mute, warn, purge commands for server moderation",
     "category": "Moderation",
     "requires_admin": True,
+    "version": "1.0.0",
 }
 
 WIDGETS = [

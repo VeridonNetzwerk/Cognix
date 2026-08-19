@@ -18,6 +18,7 @@ COG_INFO = {
     "description": "Custom embed messages on member join, leave, and boost",
     "category": "Utility",
     "requires_admin": False,
+    "version": "1.0.0",
 }
 
 WIDGETS = [

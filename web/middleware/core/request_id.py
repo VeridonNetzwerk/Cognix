@@ -16,7 +16,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         structlog.contextvars.bind_contextvars(request_id=rid, path=request.url.path)
         try:
             response: Response = await call_next(request)
+            response.headers["X-Request-ID"] = rid
+            return response
         finally:
             structlog.contextvars.clear_contextvars()
-        response.headers["X-Request-ID"] = rid
-        return response

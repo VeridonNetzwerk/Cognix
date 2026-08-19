@@ -17,6 +17,7 @@ COG_INFO = {
     "description": "Music playback with playlists, EQ, auto-play, lyrics (requires yt-dlp)",
     "category": "Fun",
     "requires_admin": True,
+    "version": "1.0.0",
 }
 
 WIDGETS = [

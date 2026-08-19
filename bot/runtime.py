@@ -8,6 +8,7 @@ client is constructed.
 
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -47,6 +48,62 @@ def get_bot_error() -> str | None:
     return _BOT_ERROR
 
 
+# --- live ping monitor (active Discord round-trip, non-overlapping) -------
+# The monitor performs an active REST round-trip to Discord every second and
+# stores the measured latency. Measurements never overlap: each iteration
+# awaits the probe to completion before sleeping, so a slow probe (>>1s) simply
+# delays the next one instead of piling up concurrent checks.
+_PING_MS: float | None = None
+_PING_AT: float = 0.0
+_PING_ERROR: str | None = None
+
+
+def get_ping_ms() -> float | None:
+    """Return the last measured active ping in ms, or None if never measured."""
+    return _PING_MS
+
+
+def get_ping_info() -> dict[str, Any]:
+    return {"ms": _PING_MS, "at": _PING_AT, "error": _PING_ERROR}
+
+
+async def run_ping_monitor(bot: "CogniXBot") -> None:
+    """Continuously measure Discord latency. Runs until the bot is closed.
+
+    Uses discord.py's REST client to time a lightweight round-trip to Discord
+    (the gateway metadata endpoint — read-only, no side effects). The loop is
+    intentionally self-scheduling: probe -> sleep(1s) -> probe, which guarantees
+    two measurements can never run concurrently.
+    """
+    from bot.config.logging import get_logger
+
+    log = get_logger("bot.ping")
+    log.info("ping_monitor_started")
+    while not bot.is_closed():
+        if bot.is_ready():
+            try:
+                start = time.monotonic()
+                # Lightweight, read-only REST call to Discord — a real network
+                # round-trip that reflects gateway/API latency from this host.
+                # `get_bot_gateway` is a cheap GET /gateway/bot round-trip.
+                await bot.http.get_bot_gateway()
+                elapsed_ms = (time.monotonic() - start) * 1000.0
+                global _PING_MS, _PING_AT, _PING_ERROR
+                _PING_MS = round(elapsed_ms, 1)
+                _PING_AT = time.time()
+                _PING_ERROR = None
+            except Exception as exc:  # noqa: BLE001
+                _PING_ERROR = str(exc)
+                log.warning("ping_measure_failed", error=str(exc))
+        # Non-overlapping cadence: only advance to the next measurement after
+        # the current one (and this sleep) fully complete.
+        try:
+            await asyncio.sleep(1.0)
+        except asyncio.CancelledError:
+            break
+    log.info("ping_monitor_stopped")
+
+
 def _format_uptime(seconds: float) -> str:
     """Format uptime to a human-readable string.
 
@@ -76,6 +133,11 @@ def get_bot_info() -> dict[str, Any]:
     templates never see ``None``.
     """
     bot = _BOT
+    # Prefer the live active-ping measurement; fall back to the passive
+    # gateway heartbeat latency if the monitor hasn't produced a sample yet.
+    ping = get_ping_ms()
+    latency_ms = ping if ping is not None else (round(bot.latency * 1000, 1) if bot.latency else 0.0)
+
     if bot is None or bot.user is None:
         return {
             "name": "CogniX",
@@ -85,12 +147,14 @@ def get_bot_info() -> dict[str, Any]:
             "online": False,
             "uptime": "\u2014",
             "uptime_seconds": 0,
-            "latency_ms": 0.0,
+            "latency_ms": latency_ms,
             "guild_count": 0,
             "user_count": 0,
             "version": "0.1.0",
+            "created_at": "",
             "footer": "\u00a9 2026 VeridonNetzwerk \u00b7 MIT License \u00b7 Built with AI \U0001F916",
             "error": _BOT_ERROR,
+            "ping_error": _PING_ERROR,
         }
     start = getattr(bot, "start_time", 0.0) or time.time()
     uptime_seconds = max(0.0, time.time() - start)
@@ -108,12 +172,14 @@ def get_bot_info() -> dict[str, Any]:
         "online": bot.is_ready(),
         "uptime": _format_uptime(uptime_seconds),
         "uptime_seconds": int(uptime_seconds),
-        "latency_ms": round(bot.latency * 1000, 1) if bot.latency else 0.0,
+        "latency_ms": latency_ms,
         "guild_count": len(bot.guilds),
         "user_count": user_count,
         "version": "0.1.0",
+        "created_at": bot.user.created_at.strftime("%d. %b. %Y"),
         "footer": "\u00a9 2026 VeridonNetzwerk \u00b7 MIT License \u00b7 Built with AI \U0001F916",
         "error": _BOT_ERROR,
+        "ping_error": _PING_ERROR,
     }
 
 
@@ -271,33 +337,3 @@ async def request_bot_restart() -> None:
 def request_bot_start() -> None:
     """Allow the supervisor loop to reconnect."""
     set_bot_paused(False)
-
-
-# --- per-server config cache (FEAT #10) -----------------------------------
-
-_GUILD_CFG_CACHE: dict[tuple[int, str], tuple[Any, float]] = {}
-_GUILD_CFG_TTL = 60.0
-
-
-def cache_guild_value(guild_id: int, key: str, value: Any) -> None:
-    _GUILD_CFG_CACHE[(guild_id, key)] = (value, time.time())
-
-
-def get_cached_guild_value(guild_id: int, key: str) -> Any | None:
-    item = _GUILD_CFG_CACHE.get((guild_id, key))
-    if item is None:
-        return None
-    value, ts = item
-    if (time.time() - ts) > _GUILD_CFG_TTL:
-        _GUILD_CFG_CACHE.pop((guild_id, key), None)
-        return None
-    return value
-
-
-def invalidate_guild_cache(guild_id: int | None = None) -> None:
-    if guild_id is None:
-        _GUILD_CFG_CACHE.clear()
-        return
-    for k in list(_GUILD_CFG_CACHE.keys()):
-        if k[0] == guild_id:
-            _GUILD_CFG_CACHE.pop(k, None)

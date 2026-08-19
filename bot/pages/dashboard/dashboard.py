@@ -10,11 +10,10 @@ from sqlalchemy import desc, func, select
 
 from bot.runtime import get_bot, get_bot_info
 from bot.cogs.registry import get_available_widgets
-from bot.dashboard.widgets import CORE_WIDGETS
+from bot.dashboard.widgets import CORE_WIDGETS, compute_metrics, default_widget_size, load_widget_data
 from bot.database.models.auth.audit_log import AuditLog
 from bot.database.models.auth.user_dashboard_widget import UserDashboardWidget
 from bot.database.models.cogs.cog_state import CogState
-from bot.database.models.auth.role_permission import RolePermission
 from bot.database.models.giveaways.giveaway import Giveaway, GiveawayStatus
 from bot.database.models.moderation.moderation import ModerationAction
 from bot.database.models.server.server import Server
@@ -42,47 +41,12 @@ async def index(request: Request,
         return RedirectResponse("/login", status_code=303)
 
     async with db_session() as s:
-        servers_count = (await s.scalar(select(func.count(Server.id)))) or 0
-        cogs_count = (await s.scalar(
-            select(func.count(CogState.id)).where(CogState.enabled.is_(True))
-        )) or 0
-        open_tickets = (await s.scalar(
-            select(func.count(Ticket.id)).where(Ticket.status == TicketStatus.OPEN)
-        )) or 0
+        metrics = await compute_metrics(s, user)
         recent = (await s.scalars(
             select(AuditLog).order_by(desc(AuditLog.created_at)).limit(8)
         )).all()
         from web.security.permissions import has_permission as _hp
         can_servers_write = await _hp(s, user, "servers", level="write")
-
-    bot = get_bot()
-    if bot is not None:
-        unique_ids: set[int] = set()
-        for g in bot.guilds:
-            for m in g.members:
-                unique_ids.add(m.id)
-        users_count = len(unique_ids)
-        if users_count == 0:
-            users_count = sum(g.member_count or 0 for g in bot.guilds)
-    else:
-        async with db_session() as s2:
-            users_count = (await s2.scalar(
-                select(func.coalesce(func.sum(Server.member_count), 0))
-            )) or 0
-
-    info = get_bot_info()
-    metrics = {
-        "servers": servers_count,
-        "users": users_count,
-        "cogs_loaded": cogs_count,
-        "open_tickets": open_tickets,
-        "bot_online": info["online"],
-        "uptime": info["uptime"],
-        "latency_ms": info["latency_ms"],
-        "guild_count": info["guild_count"],
-        "user_count": users_count,
-        "version": info["version"],
-    }
 
     # --- Widget system ---
     # 1. Collect available widgets: core + cog-provided
@@ -104,9 +68,44 @@ async def index(request: Request,
         if w.visible and any(aw["id"] == w.widget_id for aw in available_widgets)
     ]
 
-    # If no layout saved yet, show default widgets
+    # If no layout saved yet, create DB entries for default widgets
     if not active_widget_ids:
-        active_widget_ids = ["metrics_overview", "bot_status", "recent_audit"]
+        default_ids = ["metrics_overview", "bot_status"]
+        # Include recent_audit if the cog is loaded
+        available_widget_ids = {w["id"] for w in available_widgets}
+        if "recent_audit" in available_widget_ids:
+            default_ids.append("recent_audit")
+        async with db_session() as s:
+            for i, wid in enumerate(default_ids):
+                size_str = "medium"
+                for aw in available_widgets:
+                    if aw["id"] == wid:
+                        size_str = aw.get("size", "medium")
+                        break
+                dw, dh = default_widget_size(size_str)
+                s.add(UserDashboardWidget(
+                    user_id=user.id,
+                    widget_id=wid,
+                    position=i,
+                    visible=True,
+                    size_w=dw,
+                    size_h=dh,
+                    grid_col=0,
+                    grid_row=0,
+                    updated_at=datetime.now(tz=UTC),
+                ))
+            await s.commit()
+            # Re-query
+            user_widgets = (await s.scalars(
+                select(UserDashboardWidget)
+                .where(UserDashboardWidget.user_id == user.id)
+                .order_by(UserDashboardWidget.position)
+            )).all()
+        user_layout = {w.widget_id: w for w in user_widgets}
+        active_widget_ids = [
+            w.widget_id for w in user_widgets
+            if w.visible and any(aw["id"] == w.widget_id for aw in available_widgets)
+        ]
 
     # 4. Build ordered widget list with data
     widget_by_id = {w["id"]: w for w in available_widgets}
@@ -116,84 +115,72 @@ async def index(request: Request,
         if w_info is None:
             continue
         w_copy = dict(w_info)
-        # Attach user's size preferences
+        # Attach user's size preferences, or fall back to widget's default size
         uw = user_layout.get(wid)
-        if uw:
-            w_copy["size_w"] = uw.size_w or 1
-            w_copy["size_h"] = uw.size_h or 1
+        if uw and (uw.size_w or 0) > 0 and (uw.size_h or 0) > 0:
+            w_copy["size_w"] = uw.size_w
+            w_copy["size_h"] = uw.size_h
         else:
-            w_copy.setdefault("size_w", 1)
-            w_copy.setdefault("size_h", 1)
+            dw, dh = default_widget_size(w_info.get("size", "small"))
+            w_copy["size_w"] = dw
+            w_copy["size_h"] = dh
         active_widgets.append(w_copy)
 
+    # 4b. Auto-assign grid positions for widgets that have grid_col=0 (unplaced)
+    GRID_COLS = 4
+    GRID_ROWS = 3
+    occupied = set()  # set of (col, row) tuples
+    # First, register explicitly placed widgets
+    for w in active_widgets:
+        uw = user_layout.get(w["id"])
+        if uw and uw.grid_col > 0 and uw.grid_row > 0:
+            w["grid_col"] = uw.grid_col
+            w["grid_row"] = uw.grid_row
+            sw, sh = w.get("size_w", 1), w.get("size_h", 1)
+            for dc in range(sw):
+                for dr in range(sh):
+                    c, r = uw.grid_col + dc, uw.grid_row + dr
+                    if 1 <= c <= GRID_COLS and 1 <= r <= GRID_ROWS:
+                        occupied.add((c, r))
+        else:
+            w["grid_col"] = 0
+            w["grid_row"] = 0
+    # Auto-assign positions for unplaced widgets (greedy left-to-right, top-to-bottom)
+    for w in active_widgets:
+        if w["grid_col"] > 0:
+            continue
+        sw, sh = w.get("size_w", 1), w.get("size_h", 1)
+        placed = False
+        for row in range(1, GRID_ROWS + 1):
+            for col in range(1, GRID_COLS + 1):
+                # Check if widget fits at (col, row) without overlap
+                fits = True
+                for dc in range(sw):
+                    for dr in range(sh):
+                        c, r = col + dc, row + dr
+                        if c > GRID_COLS or r > GRID_ROWS or (c, r) in occupied:
+                            fits = False
+                            break
+                    if not fits:
+                        break
+                if fits:
+                    w["grid_col"] = col
+                    w["grid_row"] = row
+                    for dc in range(sw):
+                        for dr in range(sh):
+                            occupied.add((col + dc, row + dr))
+                    placed = True
+                    break
+            if placed:
+                break
+        if not placed:
+            # Fallback: place at (1,1) even if overlapping
+            w["grid_col"] = 1
+            w["grid_row"] = 1
+
     # 5. Load widget data (async queries per widget type)
-    widget_data: dict[str, dict] = {}
     async with db_session() as s:
-        for w in active_widgets:
-            wid = w["id"]
-            if wid == "moderation_recent":
-                rows = (await s.scalars(
-                    select(ModerationAction).order_by(desc(ModerationAction.created_at)).limit(10)
-                )).all()
-                widget_data[wid] = {"moderation_recent": rows}
-            elif wid == "tickets_open":
-                tickets = (await s.scalars(
-                    select(Ticket).where(Ticket.status == TicketStatus.OPEN).order_by(desc(Ticket.created_at)).limit(5)
-                )).all()
-                widget_data[wid] = {
-                    "tickets_open": tickets,
-                    "tickets_open_count": len(tickets),
-                }
-            elif wid == "giveaways_active":
-                giveaways = (await s.scalars(
-                    select(Giveaway).where(Giveaway.status == GiveawayStatus.ACTIVE).order_by(Giveaway.ends_at).limit(5)
-                )).all()
-                widget_data[wid] = {"giveaways_active": giveaways}
-            elif wid == "activity_recent":
-                events = (await s.scalars(
-                    select(DiscordEvent).order_by(desc(DiscordEvent.created_at)).limit(10)
-                )).all()
-                widget_data[wid] = {"activity_recent": events}
-            elif wid == "welcome_recent":
-                # Get recent member joins from DiscordEvent
-                join_events = (await s.scalars(
-                    select(DiscordEvent)
-                    .where(DiscordEvent.event_type == "member_join")
-                    .order_by(desc(DiscordEvent.created_at)).limit(10)
-                )).all()
-                members = [
-                    {
-                        "display_name": e.summary or "Unknown",
-                        "avatar_url": None,
-                        "joined_at": e.created_at,
-                    }
-                    for e in join_events
-                ]
-                widget_data[wid] = {"welcome_recent": members}
-            elif wid == "stats_overview":
-                from bot.database.models.stats.stats import StatEvent, StatEventType
-                msg_count = (await s.scalar(
-                    select(func.count(StatEvent.id)).where(StatEvent.event_type == StatEventType.MESSAGE)
-                )) or 0
-                cmd_count = (await s.scalar(
-                    select(func.count(StatEvent.id)).where(StatEvent.event_type == StatEventType.COMMAND)
-                )) or 0
-                join_count = (await s.scalar(
-                    select(func.count(StatEvent.id)).where(StatEvent.event_type == StatEventType.MEMBER_JOIN)
-                )) or 0
-                leave_count = (await s.scalar(
-                    select(func.count(StatEvent.id)).where(StatEvent.event_type == StatEventType.MEMBER_LEAVE)
-                )) or 0
-                widget_data[wid] = {
-                    "stats_messages": msg_count,
-                    "stats_commands": cmd_count,
-                    "stats_joins": join_count,
-                    "stats_leaves": leave_count,
-                }
-            elif wid == "music_now_playing":
-                widget_data[wid] = {"music_now_playing": None}
-            elif wid == "music_queue":
-                widget_data[wid] = {"music_queue": []}
+        widget_data = await load_widget_data(s, active_widget_ids, recent)
 
     # Available widgets not yet on dashboard (for add menu)
     available_to_add = [

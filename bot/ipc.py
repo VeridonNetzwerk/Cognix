@@ -54,13 +54,6 @@ class IpcConsumer:
         if self._redis:
             await self._redis.aclose()
 
-    async def publish_event(self, event: str, payload: dict[str, Any]) -> None:
-        if self._redis is None:
-            return
-        await self._redis.publish(
-            "cognix:events", json.dumps({"event": event, "payload": payload})
-        )
-
     async def _loop(self) -> None:
         assert self._redis is not None
         ps = self._redis.pubsub()

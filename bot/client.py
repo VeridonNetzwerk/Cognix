@@ -170,6 +170,16 @@ class CogniXBot(commands.Bot):
             asyncio.create_task(start_cleanup_timer(self))
         except Exception as exc:  # noqa: BLE001
             log.warning("audio_cleanup_timer_failed", error=str(exc))
+        # Start the live ping monitor (active Discord round-trip, every second,
+        # non-overlapping). Guarded so it is only launched once per connection.
+        if getattr(self, "_ping_task", None) is None or self._ping_task.done():
+            try:
+                from bot.runtime import run_ping_monitor
+                self._ping_task = asyncio.create_task(
+                    run_ping_monitor(self), name="ping-monitor"
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.warning("ping_monitor_failed", error=str(exc))
         # Backfill any guild that joined while the bot was offline so FK
         # constraints (stat_events.server_id, tickets.server_id, ...) hold.
         try:
@@ -291,9 +301,9 @@ async def run_bot() -> None:
 
     bot = CogniXBot()
     set_bot(bot)
+    clear_bot_error()
     try:
         await bot.start(token)
-        clear_bot_error()
     except discord.LoginFailure as exc:
         set_bot_error(f"Discord login failed: {exc}")
         log.error("bot_login_failed", error=str(exc))

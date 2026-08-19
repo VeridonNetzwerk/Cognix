@@ -37,7 +37,7 @@ def discord_obj_for(user_id: int) -> Any:
 async def embeds_view(request: Request,
                       access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
-    _require_cog("cogs.utility.embeds")
+    _require_cog("cogs.embeds.embeds")
     return _render(request, "features/embeds.html", user=user)
 
 
@@ -47,7 +47,7 @@ async def info_embed_save(server_id: int = Form(...), name: str = Form("info"),
                           color: str = Form(default="#60a5fa"),
                           access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     user = await _require_user(access_token)
-    _require_cog("cogs.utility.embeds")
+    _require_cog("cogs.embeds.embeds")
     try:
         color_int = int(color.lstrip("#"), 16)
     except ValueError:
@@ -332,7 +332,7 @@ async def invites_view(
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
 ) -> HTMLResponse:
     user = await _require_user(access_token)
-    _require_cog("cogs.welcome.invite_tracker")
+    _require_cog("cogs.invite_tracker.invite_tracker")
     rows = []
     recent = []
     servers = []

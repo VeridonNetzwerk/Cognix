@@ -1,0 +1,48 @@
+# =====================================================
+# CogniX — CORE dependencies (minimal footprint)
+#
+# Strictly necessary to run the bot + web dashboard.
+# Cog-specific or optional extras (yt-dlp for the Music
+# cog, MySQL/PostgreSQL drivers, Redis) are intentionally
+# omitted here and pulled in on demand:
+#   - per-cog deps install from cogs_store/<cog>/requirements.txt
+#   - optional DB drivers / Redis are listed in requirements.txt
+# Use `requirements.txt` for the full bundle (--profile full).
+# =====================================================
+
+# ---- Web framework & ASGI server ----
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+starlette>=0.37.0               # pulled by FastAPI, pinned for middleware compat
+jinja2>=3.1.4                   # server-rendered dashboard templates
+python-multipart>=0.0.9         # required by FastAPI Form() handlers
+
+# ---- Data validation & settings ----
+pydantic>=2.7.0
+pydantic-settings>=2.3.0
+email-validator>=2.2.0          # enables EmailStr in Pydantic
+
+# ---- Database (ORM + migrations) — SQLite default ----
+sqlalchemy>=2.0.30
+alembic>=1.13.0
+aiosqlite>=0.20.0               # SQLite async driver (default / dev)
+
+# ---- Discord bot (core, no voice) ----
+# Voice (PyNaCl/opus) is only needed by the Music cog, which
+# installs its own extras on demand.
+discord.py>=2.4.0
+psutil>=6.0.0                   # memory/CPU stats in bot status
+
+# ---- Security & auth ----
+cryptography>=42.0.0            # AES-256-GCM encryption
+PyJWT>=2.8.0                    # JWT access / refresh tokens
+bcrypt>=4.1.0                   # password hashing
+pyotp>=2.9.0                    # TOTP 2FA
+qrcode[pil]>=7.4.2              # QR codes for TOTP enrollment
+
+# ---- Google OAuth (imported by auth routes) ----
+authlib>=1.3.0
+httpx>=0.27.0                   # HTTP client used by Authlib
+
+# ---- Logging ----
+structlog>=24.2.0

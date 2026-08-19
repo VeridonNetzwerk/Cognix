@@ -24,6 +24,7 @@ COG_INFO = {
     "description": "Backup and restore server roles, channels, and permissions",
     "category": "Administration",
     "requires_admin": True,
+    "version": "1.0.0",
 }
 
 import json

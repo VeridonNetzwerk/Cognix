@@ -7,6 +7,7 @@ COG_INFO = {
     "description": "Manage bot display name, avatar, banner, and presence",
     "category": "Administration",
     "requires_admin": True,
+    "version": "1.0.0",
 }
 
 import discord

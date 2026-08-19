@@ -41,6 +41,7 @@ COG_INFO = {
     "description": "Cog management commands (load, unload, reload, enable, disable)",
     "category": "Administration",
     "requires_admin": True,
+    "version": "1.0.0",
 }
 
 

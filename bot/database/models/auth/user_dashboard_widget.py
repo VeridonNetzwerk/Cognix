@@ -24,6 +24,8 @@ class UserDashboardWidget(Base):
     visible: Mapped[bool] = mapped_column(default=True, nullable=False)
     size_w: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     size_h: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    grid_col: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    grid_row: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )

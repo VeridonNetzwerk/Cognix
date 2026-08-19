@@ -1,42 +1,45 @@
 {# Core widget: Bot status with lifecycle controls #}
-<div class="space-y-4">
+<div class="space-y-4" x-data="botStatusWidget({{ metrics.bot_online | tojson }}, {{ metrics.uptime | tojson }}, {{ metrics.latency_ms or 0 }})" x-init="start()">
   <div class="flex items-center justify-between">
     <h3 class="text-lg font-semibold">Bot status</h3>
-    <span class="status-pill {% if not metrics.bot_online %}offline{% endif %}">
-      <span class="status-dot {% if not metrics.bot_online %}offline{% endif %} {% if metrics.bot_online %}animate-pulse-glow{% endif %}"></span>
-      {{ 'online' if metrics.bot_online else 'offline' }}
+    <span class="status-pill" :class="online ? '' : 'offline'">
+      <span class="status-dot" :class="online ? 'animate-pulse-glow' : 'offline'"></span>
+      <span x-text="online ? 'online' : 'offline'"></span>
     </span>
   </div>
   <div class="border-t" style="border-color: var(--color-border);"></div>
   <div class="grid grid-cols-3 gap-4">
     <div>
       <p class="text-xs uppercase tracking-wider mb-1" style="color: var(--color-muted-foreground);">Uptime</p>
-      <p class="font-mono font-medium text-sm">{{ metrics.uptime }}</p>
+      <p class="font-mono font-medium text-sm" x-text="uptime">—</p>
     </div>
     <div>
       <p class="text-xs uppercase tracking-wider mb-1" style="color: var(--color-muted-foreground);">Latency</p>
-      <p class="font-mono font-medium text-sm"
-         style="color: {% if metrics.latency_ms < 100 %}var(--color-success){% elif metrics.latency_ms < 300 %}var(--color-warning){% else %}var(--color-destructive){% endif %};">
-        {{ metrics.latency_ms }} ms
-      </p>
+      <p class="font-mono font-medium text-sm" :style="latencyColor()" x-text="latency + ' ms'">0 ms</p>
     </div>
     <div>
       <p class="text-xs uppercase tracking-wider mb-1" style="color: var(--color-muted-foreground);">Version</p>
       <p class="font-mono font-medium text-sm">{{ metrics.version }}</p>
     </div>
   </div>
+  <template x-if="pingError">
+    <div class="flex items-center gap-2 text-xs" style="color: var(--color-destructive);">
+      <i class="ph ph-warning-circle"></i>
+      <span x-text="'Ping-Fehler: ' + pingError"></span>
+    </div>
+  </template>
   {% if can_servers_write %}
   <div class="border-t pt-4" style="border-color: var(--color-border);" x-data="{ busy: false, msg: '' }">
     <div class="flex gap-2">
-      <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/lifecycle/start',{method:'POST'}).then(r=>r.json()).then(j=>{msg='start: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
+      <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/start',{method:'POST'}).then(r=>r.json()).then(j=>{msg='start: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
               class="btn btn-success flex-1 justify-center disabled:opacity-50">
         <i class="ph-fill ph-play"></i> Start
       </button>
-      <button :disabled="busy" @click="if(!confirm('Stop the bot?'))return; busy=true; fetch('/api/v1/bot/lifecycle/stop',{method:'POST'}).then(r=>r.json()).then(j=>{msg='stop: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
+      <button :disabled="busy" @click="if(!confirm('Stop the bot?'))return; busy=true; fetch('/api/v1/bot/stop',{method:'POST'}).then(r=>r.json()).then(j=>{msg='stop: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
               class="btn btn-destructive flex-1 justify-center disabled:opacity-50">
         <i class="ph-fill ph-stop"></i> Stop
       </button>
-      <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/lifecycle/restart',{method:'POST'}).then(r=>r.json()).then(j=>{msg='restart: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
+      <button :disabled="busy" @click="busy=true; fetch('/api/v1/bot/restart',{method:'POST'}).then(r=>r.json()).then(j=>{msg='restart: '+(j.ok?'ok':'fail')}).finally(()=>busy=false)"
               class="btn btn-warning flex-1 justify-center disabled:opacity-50">
         <i class="ph ph-arrow-clockwise"></i> Restart
       </button>
@@ -45,3 +48,35 @@
   </div>
   {% endif %}
 </div>
+
+<script>
+  function botStatusWidget(initialOnline, initialUptime, initialLatency) {
+    return {
+      online: initialOnline,
+      uptime: initialUptime || '—',
+      latency: initialLatency || 0,
+      pingError: '',
+      latencyColor() {
+        const l = parseFloat(this.latency);
+        if (isNaN(l)) return 'color: var(--color-muted-foreground);';
+        if (l < 100) return 'color: var(--color-success);';
+        if (l < 300) return 'color: var(--color-warning);';
+        return 'color: var(--color-destructive);';
+      },
+      start() {
+        setInterval(() => {
+          fetch('/api/v1/bot/status', { credentials: 'same-origin' })
+            .then(r => (r.ok ? r.json() : null))
+            .then(j => {
+              if (!j) return;
+              if (typeof j.latency_ms === 'number') this.latency = j.latency_ms;
+              if (typeof j.uptime_seconds === 'number' && window.formatUptime) this.uptime = formatUptime(j.uptime_seconds);
+              this.pingError = j.ping_error ? j.ping_error : (j.error ? j.error : '');
+              this.online = !!j.online;
+            })
+            .catch(() => {});
+        }, 1000);
+      },
+    };
+  }
+</script>

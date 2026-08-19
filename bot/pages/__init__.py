@@ -16,7 +16,7 @@ from bot.pages._shared import router, templates
 
 # Dynamically load page modules from installed cogs
 # Each cog directory in cogs/ may have a pages/ subdirectory with route modules
-_COGS_DIR = Path(__file__).resolve().parent.parent / "cogs"
+_COGS_DIR = Path(__file__).resolve().parent.parent.parent / "cogs"
 
 if _COGS_DIR.exists():
     for cog_subdir in sorted(_COGS_DIR.iterdir()):

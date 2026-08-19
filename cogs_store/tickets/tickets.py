@@ -21,6 +21,7 @@ COG_INFO = {
     "description": "Thread-based support tickets with transcript export",
     "category": "Support",
     "requires_admin": True,
+    "version": "1.0.0",
 }
 
 WIDGETS = [

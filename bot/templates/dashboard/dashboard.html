@@ -2,67 +2,33 @@
 {% block title %}Dashboard · CogniX{% endblock %}
 {% block header %}Dashboard{% endblock %}
 {% block content %}
-<div x-data="dashboardWidgets()" x-init="init()">
-  {# === Widget grid (4 columns, fills container) === #}
-  <div class="grid grid-cols-4 gap-3 mb-6 auto-rows-[minmax(140px,1fr)]"
+<div x-data="dashboardWidgets()" x-init="init()" class="flex flex-col flex-1 min-h-0">
+  {# === Flat 4×3 grid with free widget positioning === #}
+  <div class="grid grid-cols-4 grid-rows-3 gap-3 flex-1 min-h-0 relative"
        id="widget-grid"
+       @dragover.prevent="gridDragOver($event)"
+       @drop.prevent="gridDrop($event)"
        :class="{ 'gap-4': editMode }">
 
+    {# Drop target cells — rendered in edit mode so user can drop widgets anywhere #}
+    <template x-if="editMode">
+      <template x-for="cell in gridCells" :key="'cell-' + cell.col + '-' + cell.row">
+        <div class="widget-drop-target"
+             :style="`grid-column: ${cell.col}; grid-row: ${cell.row};`"
+             :class="{
+               'drop-valid': dropTarget && dropTarget.col === cell.col && dropTarget.row === cell.row && dropCanFit,
+               'drop-invalid': dropTarget && dropTarget.col === cell.col && dropTarget.row === cell.row && !dropCanFit
+             }"
+             @dragover.prevent="cellDragOver($event, cell.col, cell.row)">
+        </div>
+      </template>
+    </template>
+
     {% for w in active_widgets %}
-    <div class="gradient-border p-4 flex flex-col gap-2.5 widget-card relative transition-all min-h-0"
-         data-widget-id="{{ w.id }}"
-         :style="`grid-column: span ${widgetSize('{{ w.id }}').w}; grid-row: span ${widgetSize('{{ w.id }}').h}`"
-         draggable="true"
-         @dragstart="dragStart($event, '{{ w.id }}')"
-         @dragover.prevent="dragOver($event, '{{ w.id }}')"
-         @drop="drop($event, '{{ w.id }}')"
-         @dragend="dragEnd()"
-         :class="{
-           'opacity-50': dragging === '{{ w.id }}',
-           'ring-2 ring-primary': dragOverId === '{{ w.id }}',
-           'cursor-move': editMode,
-           'scale-95': editMode && dragging !== '{{ w.id }}'
-         }">
-
-      {# Widget header #}
-      <div class="flex items-center justify-between gap-2">
-        <div class="flex items-center gap-2 min-w-0">
-          <i class="ph-fill {{ w.icon }} text-lg shrink-0" style="color: var(--color-primary);"></i>
-          <h3 class="text-sm font-semibold truncate">{{ w.title }}</h3>
-          {% if w.cog and w.cog != '__core__' %}
-          <span class="text-[10px] px-1.5 py-0.5 rounded shrink-0"
-                style="background: color-mix(in oklch, var(--color-primary) 15%, transparent); color: var(--color-primary);">
-            {{ w.cog.split('.')[-1] }}
-          </span>
-          {% endif %}
-        </div>
-        <div class="flex items-center gap-1 shrink-0" x-show="editMode" x-cloak>
-          <button @click="removeWidget('{{ w.id }}')"
-                  class="text-slate-500 hover:text-rose-400 transition" title="Remove widget">
-            <i class="ph ph-x-circle text-lg"></i>
-          </button>
-        </div>
-      </div>
-
-      <div class="border-t" style="border-color: var(--color-border);"></div>
-
-      {# Widget content — include the partial template #}
-      <div class="flex-1 overflow-hidden">
-        {% set w_data = widget_data.get(w.id, {}) %}
-        {% include w.template %}
-      </div>
-
-      {# Resize handle (bottom-right corner, only in edit mode) #}
-      <div x-show="editMode" x-cloak
-           class="absolute bottom-1 right-1 w-5 h-5 cursor-nwse-resize flex items-end justify-end"
-           @mousedown.prevent="startResize($event, '{{ w.id }}')"
-           title="Drag to resize">
-        <i class="ph ph-arrow-down-right text-slate-500 text-xs"></i>
-      </div>
-    </div>
+    {% include "widgets/_widget_card.html" %}
     {% endfor %}
 
-    {# Empty state #}
+    {# === Empty state === #}
     {% if not active_widgets %}
     <div class="col-span-full gradient-border p-12 text-center">
       <i class="ph ph-squares-four text-4xl mb-3" style="color: var(--color-muted-foreground);"></i>
@@ -133,6 +99,13 @@
       <i class="ph ph-check-circle"></i> Saved!
     </div>
   </div>
+  <div class="fixed bottom-6 left-6 z-50"
+       x-show="errorMsg" x-cloak
+       x-transition>
+    <div class="px-3 py-2 rounded-lg bg-rose-900/60 border border-rose-700 text-xs text-rose-300 flex items-center gap-2">
+      <i class="ph ph-warning-circle"></i> <span x-text="errorMsg"></span>
+    </div>
+  </div>
 
 </div>
 
@@ -141,23 +114,52 @@ function dashboardWidgets() {
   return {
     editMode: false,
     dragging: null,
-    dragOverId: null,
+    dropTarget: null,
+    dropCanFit: false,
     saving: false,
     saved: false,
+    errorMsg: null,
     resizing: null,
     resizeStart: null,
     _dirty: false,
-    widgetSizes: {
+    _refreshTimer: null,
+    widgetContents: {},
+    widgetPositions: {
       {% for w in active_widgets %}
-      '{{ w.id }}': { w: {{ w.size_w or 1 }}, h: {{ w.size_h or 1 }} },
+      '{{ w.id }}': { col: {{ w.grid_col or 1 }}, row: {{ w.grid_row or 1 }}, w: {{ w.size_w or 1 }}, h: {{ w.size_h or 1 }} },
       {% endfor %}
     },
 
     init() {
+      this._refreshTimer = setInterval(() => this.refreshWidgets(), 1000);
     },
 
-    widgetSize(id) {
-      return this.widgetSizes[id] || { w: 1, h: 1 };
+    async refreshWidgets() {
+      try {
+        const resp = await fetch('/api/v1/dashboard/widgets/refresh');
+        if (resp.ok) {
+          const data = await resp.json();
+          for (const [wid, html] of Object.entries(data.widgets || {})) {
+            this.widgetContents[wid] = html;
+          }
+        }
+      } catch (e) {
+        // silent fail — will retry next tick
+      }
+    },
+
+    get gridCells() {
+      const cells = [];
+      for (let row = 1; row <= 3; row++) {
+        for (let col = 1; col <= 4; col++) {
+          cells.push({ col, row });
+        }
+      }
+      return cells;
+    },
+
+    widgetPos(id) {
+      return this.widgetPositions[id] || { col: 1, row: 1, w: 1, h: 1 };
     },
 
     toggleEdit() {
@@ -167,6 +169,7 @@ function dashboardWidgets() {
       }
     },
 
+    // --- Drag & Drop (free positioning) ---
     dragStart(e, id) {
       if (!this.editMode) return;
       this.dragging = id;
@@ -174,44 +177,74 @@ function dashboardWidgets() {
       e.dataTransfer.setData('text/plain', id);
     },
 
-    dragOver(e, id) {
-      if (!this.editMode) return;
-      e.dataTransfer.dropEffect = 'move';
-      this.dragOverId = id;
-    },
-
-    drop(e, targetId) {
-      if (!this.editMode) return;
-      e.preventDefault();
-      const sourceId = e.dataTransfer.getData('text/plain');
-      if (sourceId && sourceId !== targetId) {
-        this.reorderWidget(sourceId, targetId);
-      }
-      this.dragging = null;
-      this.dragOverId = null;
-    },
-
     dragEnd() {
       this.dragging = null;
-      this.dragOverId = null;
+      this.dropTarget = null;
+      this.dropCanFit = false;
     },
 
+    cellDragOver(e, col, row) {
+      if (!this.editMode || !this.dragging) return;
+      e.dataTransfer.dropEffect = 'move';
+      this.dropTarget = { col, row };
+      this.dropCanFit = this.canPlace(this.dragging, col, row);
+    },
+
+    gridDragOver(e) {
+      if (!this.editMode || !this.dragging) return;
+      e.dataTransfer.dropEffect = 'move';
+    },
+
+    gridDrop(e) {
+      if (!this.editMode || !this.dragging) return;
+      const id = e.dataTransfer.getData('text/plain') || this.dragging;
+      if (!id) return;
+      if (this.dropTarget && this.dropCanFit) {
+        const { col, row } = this.dropTarget;
+        this.widgetPositions[id].col = col;
+        this.widgetPositions[id].row = row;
+        this.moveWidget(id, col, row);
+      }
+      this.dragging = null;
+      this.dropTarget = null;
+      this.dropCanFit = false;
+    },
+
+    canPlace(id, col, row) {
+      const pos = this.widgetPositions[id];
+      if (!pos) return false;
+      const w = pos.w, h = pos.h;
+      // Check bounds
+      if (col < 1 || row < 1 || col + w - 1 > 4 || row + h - 1 > 3) return false;
+      // Check overlap with other widgets
+      for (const [wid, p] of Object.entries(this.widgetPositions)) {
+        if (wid === id) continue;
+        const overlap = !(col + w - 1 < p.col || col > p.col + p.w - 1 ||
+                         row + h - 1 < p.row || row > p.row + p.h - 1);
+        if (overlap) return false;
+      }
+      return true;
+    },
+
+    // --- Resize ---
     startResize(e, id) {
       if (!this.editMode) return;
-      const grid = document.getElementById('widget-grid');
+      const card = e.currentTarget.closest('[data-widget-id]');
+      const grid = card ? card.parentElement : document.querySelector('.grid.grid-cols-4');
       const gridRect = grid.getBoundingClientRect();
       const cols = 4;
-      const gap = 12;
-      const colWidth = (gridRect.width - gap * (cols - 1)) / cols;
-      const rowHeight = 120 + gap;
+      const rows = 3;
+      const gap = this.editMode ? 16 : 12;
+      const colWidth = (gridRect.width - gap * (cols - 1)) / cols + gap;
+      const rowHeight = (gridRect.height - gap * (rows - 1)) / rows + gap;
 
       this.resizing = id;
       this.resizeStart = {
         id,
         startX: e.clientX,
         startY: e.clientY,
-        startW: this.widgetSizes[id].w,
-        startH: this.widgetSizes[id].h,
+        startW: this.widgetPositions[id].w,
+        startH: this.widgetPositions[id].h,
         colWidth,
         rowHeight,
       };
@@ -222,8 +255,9 @@ function dashboardWidgets() {
         const dy = ev.clientY - this.resizeStart.startY;
         const newW = Math.max(1, Math.min(4, Math.round(this.resizeStart.startW + dx / this.resizeStart.colWidth)));
         const newH = Math.max(1, Math.min(3, Math.round(this.resizeStart.startH + dy / this.resizeStart.rowHeight)));
-        if (this.widgetSizes[id].w !== newW || this.widgetSizes[id].h !== newH) {
-          this.widgetSizes[id] = { w: newW, h: newH };
+        if (this.widgetPositions[id].w !== newW || this.widgetPositions[id].h !== newH) {
+          this.widgetPositions[id].w = newW;
+          this.widgetPositions[id].h = newH;
         }
       };
 
@@ -231,7 +265,8 @@ function dashboardWidgets() {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
         if (this.resizing) {
-          this.resizeWidget(this.resizing, this.widgetSizes[this.resizing].w, this.widgetSizes[this.resizing].h);
+          const pos = this.widgetPositions[this.resizing];
+          this.resizeWidget(this.resizing, pos.w, pos.h);
           this.resizing = null;
           this.resizeStart = null;
         }
@@ -241,19 +276,27 @@ function dashboardWidgets() {
       document.addEventListener('mouseup', onUp);
     },
 
-    async reorderWidget(sourceId, targetId) {
+    // --- API calls ---
+    async moveWidget(widgetId, col, row) {
       this.saving = true;
       this._dirty = true;
+      this.errorMsg = null;
       try {
-        const resp = await fetch('/api/v1/dashboard/widgets/reorder', {
+        const resp = await fetch('/api/v1/dashboard/widgets/move', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ source_id: sourceId, target_id: targetId }),
+          body: JSON.stringify({ widget_id: widgetId, grid_col: col, grid_row: row }),
         });
         if (resp.ok) {
           this.saved = true;
           setTimeout(() => this.saved = false, 2000);
+        } else {
+          this.errorMsg = 'Failed to move widget';
+          setTimeout(() => this.errorMsg = null, 3000);
         }
+      } catch (e) {
+        this.errorMsg = 'Network error';
+        setTimeout(() => this.errorMsg = null, 3000);
       } finally {
         this.saving = false;
       }
@@ -262,6 +305,7 @@ function dashboardWidgets() {
     async resizeWidget(widgetId, w, h) {
       this.saving = true;
       this._dirty = true;
+      this.errorMsg = null;
       try {
         const resp = await fetch('/api/v1/dashboard/widgets/resize', {
           method: 'POST',
@@ -271,7 +315,13 @@ function dashboardWidgets() {
         if (resp.ok) {
           this.saved = true;
           setTimeout(() => this.saved = false, 2000);
+        } else {
+          this.errorMsg = 'Failed to resize widget';
+          setTimeout(() => this.errorMsg = null, 3000);
         }
+      } catch (e) {
+        this.errorMsg = 'Network error';
+        setTimeout(() => this.errorMsg = null, 3000);
       } finally {
         this.saving = false;
       }
@@ -280,6 +330,7 @@ function dashboardWidgets() {
     async addWidget(widgetId) {
       this.saving = true;
       this._dirty = true;
+      this.errorMsg = null;
       try {
         const resp = await fetch('/api/v1/dashboard/widgets/add', {
           method: 'POST',
@@ -288,7 +339,13 @@ function dashboardWidgets() {
         });
         if (resp.ok) {
           window.location.reload();
+        } else {
+          this.errorMsg = 'Failed to add widget';
+          setTimeout(() => this.errorMsg = null, 3000);
         }
+      } catch (e) {
+        this.errorMsg = 'Network error';
+        setTimeout(() => this.errorMsg = null, 3000);
       } finally {
         this.saving = false;
       }
@@ -297,6 +354,7 @@ function dashboardWidgets() {
     async removeWidget(widgetId) {
       this.saving = true;
       this._dirty = true;
+      this.errorMsg = null;
       try {
         const resp = await fetch('/api/v1/dashboard/widgets/remove', {
           method: 'POST',
@@ -305,7 +363,13 @@ function dashboardWidgets() {
         });
         if (resp.ok) {
           window.location.reload();
+        } else {
+          this.errorMsg = 'Failed to remove widget';
+          setTimeout(() => this.errorMsg = null, 3000);
         }
+      } catch (e) {
+        this.errorMsg = 'Network error';
+        setTimeout(() => this.errorMsg = null, 3000);
       } finally {
         this.saving = false;
       }

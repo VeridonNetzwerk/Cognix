@@ -91,18 +91,16 @@ async def _serve_api(stop: asyncio.Event) -> None:
 async def _serve_bot(stop: asyncio.Event) -> None:
     log = get_logger("main.bot")
     while not stop.is_set():
+        backoff = 0
         try:
             from bot.client import run_bot
             from bot.runtime import is_bot_paused, wait_for_resume
 
             if is_bot_paused():
                 # Block until start is requested or shutdown — no busy-poll.
-                resumed = await wait_for_resume(timeout=30.0)
+                await wait_for_resume(timeout=30.0)
                 if stop.is_set():
                     break
-                if not resumed and is_bot_paused():
-                    continue
-                # fall through and (re)start the bot
                 continue
 
             await run_bot()

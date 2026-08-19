@@ -14,6 +14,7 @@ COG_INFO = {
     "description": "Logs all Discord events (messages, members, channels, etc.)",
     "category": "Logging",
     "requires_admin": False,
+    "version": "1.0.0",
 }
 
 WIDGETS = [

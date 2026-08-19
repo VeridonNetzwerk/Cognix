@@ -81,12 +81,6 @@ async def db_session() -> AsyncIterator[AsyncSession]:
         await session.close()
 
 
-async def get_session() -> AsyncIterator[AsyncSession]:
-    """FastAPI dependency."""
-    async with db_session() as session:
-        yield session
-
-
 async def dispose_engine() -> None:
     global _engine, _sessionmaker
     if _engine is not None:

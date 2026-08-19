@@ -7,6 +7,7 @@ COG_INFO = {
     "description": "Create, manage, and send custom embed templates",
     "category": "Utility",
     "requires_admin": True,
+    "version": "1.0.0",
 }
 
 import discord

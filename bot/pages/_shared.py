@@ -19,7 +19,7 @@ from bot.database.session import db_session
 from web.security.tokens import TokenError, decode_token
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
-COGS_DIR = Path(__file__).resolve().parent.parent / "cogs"
+COGS_DIR = Path(__file__).resolve().parent.parent.parent / "cogs"
 
 
 def _get_template_loaders() -> list[FileSystemLoader]:
@@ -71,7 +71,21 @@ def _render(request: Request, template: str, **ctx: Any) -> HTMLResponse:
     ctx.setdefault("bot_info", get_bot_info())
     ctx.setdefault("user_settings", None)
     ctx.setdefault("loaded_cogs", _get_loaded_cogs_set())
+    ctx.setdefault("cog_module_categories", _get_cog_module_categories())
+    ctx.setdefault("cog_categories", _get_cog_categories())
     return templates.TemplateResponse(request, template, ctx)
+
+
+def _get_cog_module_categories() -> dict[str, str]:
+    """Map cog module names to their COG_INFO category."""
+    from bot.cogs.registry import get_all_cog_info
+    return {ci["module"]: ci.get("category", "") for ci in get_all_cog_info()}
+
+
+def _get_cog_categories() -> dict[str, dict[str, str]]:
+    """Return COG_CATEGORIES for nav group headers."""
+    from bot.cogs.registry import COG_CATEGORIES
+    return COG_CATEGORIES
 
 
 def _get_loaded_cogs_set() -> set[str]:
@@ -81,24 +95,6 @@ def _get_loaded_cogs_set() -> set[str]:
     bot = get_bot()
     if bot is not None:
         loaded |= set(bot.extensions.keys())
-    return loaded
-
-
-def _build_loaded_cog_list(live_cogs: set[str]) -> list[dict[str, Any]]:
-    """Build a list of cog info dicts for all loaded cogs.
-
-    Includes registry-known cogs and any extra loaded extensions.
-    """
-    from bot.cogs.registry import get_all_cog_info, _make_cog_info
-
-    all_cogs = get_all_cog_info()
-    loaded = [info for info in all_cogs if info["module"] in live_cogs]
-
-    registry_modules = {info["module"] for info in all_cogs}
-    for ext in live_cogs:
-        if ext not in registry_modules:
-            loaded.append(_make_cog_info(ext))
-
     return loaded
 
 

@@ -12,6 +12,7 @@ COG_INFO = {
     "description": "Time-limited giveaways with reaction-based entries",
     "category": "Fun",
     "requires_admin": True,
+    "version": "1.0.0",
 }
 
 WIDGETS = [

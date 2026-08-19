@@ -172,6 +172,34 @@
       }
       .gradient-border:hover::before { opacity: 0.60; }
 
+      /* Dashboard empty cell placeholder (edit mode) */
+      .widget-placeholder {
+        border: 2px dashed var(--color-border);
+        border-radius: var(--radius);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 140px;
+      }
+
+      /* Dashboard drop target cells (edit mode, free positioning) */
+      .widget-drop-target {
+        border: 2px dashed var(--color-border);
+        border-radius: var(--radius);
+        opacity: 0.3;
+        transition: all 0.15s ease;
+      }
+      .widget-drop-target.drop-valid {
+        border-color: var(--color-success);
+        background: color-mix(in oklch, var(--color-success) 10%, transparent);
+        opacity: 0.8;
+      }
+      .widget-drop-target.drop-invalid {
+        border-color: var(--color-destructive);
+        background: color-mix(in oklch, var(--color-destructive) 10%, transparent);
+        opacity: 0.8;
+      }
+
       /* Animations */
       @keyframes pulse-glow { 0%,100% { opacity: 1 } 50% { opacity: 0.6 } }
       .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
@@ -197,6 +225,15 @@
       .btn-warning:hover { background: color-mix(in oklch, var(--color-warning), black 8%); }
       .btn-ghost { background: transparent; color: var(--color-foreground); }
       .btn-ghost:hover { background: var(--color-secondary); }
+
+      /* Dashboard widget edit-mode outline (dashed) */
+      .widget-edit-outline {
+        border: 2px dashed var(--color-muted-foreground) !important;
+        border-radius: var(--radius) !important;
+      }
+      .widget-edit-outline::before {
+        display: none !important;
+      }
 
       /* Form controls */
       input, select, textarea {
@@ -302,6 +339,57 @@
         } catch (e) {}
       })();
     </script>
+    <script>
+      // Expose initial bot info so Alpine components can seed their state
+      // without a flash of empty values before the first poll.
+      window.__BOT_INFO__ = {
+        latency: {{ bot_info.latency_ms or 0 }},
+        uptime_seconds: {{ bot_info.uptime_seconds or 0 }},
+        online: {% if bot_info.online %}true{% else %}false{% endif %},
+      };
+      function formatUptime(secs) {
+        secs = Math.max(0, Math.floor(secs || 0));
+        const d = Math.floor(secs / 86400); secs %= 86400;
+        const h = Math.floor(secs / 3600); secs %= 3600;
+        const m = Math.floor(secs / 60); const s = secs % 60;
+        const p = [];
+        if (d) p.push(d + 'd');
+        if (p.length || h) p.push(h + 'h');
+        if (p.length || m) p.push(m + 'm');
+        p.push(s + 's');
+        return p.join(' ');
+      }
+      function cognixStatus() {
+        const init = window.__BOT_INFO__ || { latency: 0, uptime_seconds: 0, online: false };
+        return {
+          latency: init.latency,
+          uptime: formatUptime(init.uptime_seconds),
+          online: init.online,
+          pingError: '',
+          latencyColor() {
+            const l = parseFloat(this.latency);
+            if (isNaN(l)) return 'color: var(--color-muted-foreground);';
+            if (l < 100) return 'color: var(--color-success);';
+            if (l < 300) return 'color: var(--color-warning);';
+            return 'color: var(--color-destructive);';
+          },
+          start() {
+            setInterval(() => {
+              fetch('/api/v1/bot/status', { credentials: 'same-origin' })
+                .then(r => (r.ok ? r.json() : null))
+                .then(j => {
+                  if (!j) return;
+                  if (typeof j.latency_ms === 'number') this.latency = j.latency_ms;
+                  if (typeof j.uptime_seconds === 'number') this.uptime = formatUptime(j.uptime_seconds);
+                  this.pingError = j.ping_error ? j.ping_error : (j.error ? j.error : '');
+                  this.online = !!j.online;
+                })
+                .catch(() => {});
+            }, 1000);
+          },
+        };
+      }
+    </script>
   </head>
   <body class="min-h-full flex flex-col spark-bg">
     <div class="flex flex-1 min-h-0">
@@ -328,30 +416,102 @@
         </div>
 
         <!-- Nav -->
-        <nav class="flex-1 px-3 py-4 overflow-y-auto scroll-thin space-y-1">
+        <nav class="flex-1 px-3 py-4 overflow-y-auto scroll-thin space-y-1"
+             x-data="{ openGroups: {} }">
           {% set items = [
             ('/', 'Dashboard', 'ph-chart-bar', None),
             ('/servers', 'Servers', 'ph-hard-drives', None),
             ('/cogs', 'Cogs', 'ph-package', None),
-            ('/embeds', 'Embeds', 'ph-image', 'cogs.utility.embeds'),
+            ('/embeds', 'Embeds', 'ph-image', 'cogs.embeds.embeds'),
             ('/music', 'Music', 'ph-music-notes', 'cogs.music.music'),
             ('/tickets', 'Tickets', 'ph-ticket', 'cogs.tickets.tickets'),
             ('/backups', 'Backups', 'ph-database', 'cogs.backups.backups'),
             ('/giveaways', 'Giveaways', 'ph-gift', 'cogs.giveaways.giveaway'),
             ('/welcome', 'Welcome / Boost', 'ph-handshake', 'cogs.welcome.welcome'),
             ('/members', 'Members', 'ph-users', 'cogs.moderation.moderation'),
-            ('/invites', 'Invites', 'ph-envelope-simple', 'cogs.welcome.invite_tracker'),
+            ('/invites', 'Invites', 'ph-envelope-simple', 'cogs.invite_tracker.invite_tracker'),
             ('/log', 'Log', 'ph-list-bullets', 'cogs.logging.activity_log'),
             ('/users', 'Web Users', 'ph-globe', None),
-            ('/bot-profile', 'Bot Profile', 'ph-user-circle', 'cogs.utility.bot_profile'),
+            ('/bot-profile', 'Bot Profile', 'ph-user-circle', 'cogs.bot_profile.bot_profile'),
           ] %}
+
+          {# Build visible items list and group by category #}
+          {% set visible_items = [] %}
           {% for href, label, icon, cog_module in items %}
             {% if cog_module is none or (cog_module == '__any__' and loaded_cogs) or cog_module in loaded_cogs %}
-            {% set is_active = (request.url.path == href) or (href != '/' and request.url.path.startswith(href)) %}
-            <a href="{{ href }}" class="nav-link {% if is_active %}active{% endif %}">
-              <i class="{% if is_active %}ph-fill{% else %}ph{% endif %} {{ icon }}"></i>
-              <span class="truncate">{{ label }}</span>
+              {% set cat = cog_module_categories.get(cog_module, '') if cog_module else '' %}
+              {% set _ = visible_items.append({'href': href, 'label': label, 'icon': icon, 'cog_module': cog_module, 'category': cat}) %}
+            {% endif %}
+          {% endfor %}
+
+          {# Group visible items by category #}
+          {% set cat_groups = {} %}
+          {% set no_cat_items = [] %}
+          {% for item in visible_items %}
+            {% if item.category %}
+              {% if item.category not in cat_groups %}
+                {% set _ = cat_groups.update({item.category: []}) %}
+              {% endif %}
+              {% set _ = cat_groups[item.category].append(item) %}
+            {% else %}
+              {% set _ = no_cat_items.append(item) %}
+            {% endif %}
+          {% endfor %}
+
+          {# Render standalone items (no category or single-item categories) #}
+          {% for item in no_cat_items %}
+            {% set is_active = (request.url.path == item.href) or (item.href != '/' and request.url.path.startswith(item.href)) %}
+            <a href="{{ item.href }}" class="nav-link {% if is_active %}active{% endif %}">
+              <i class="{% if is_active %}ph-fill{% else %}ph{% endif %} {{ item.icon }}"></i>
+              <span class="truncate">{{ item.label }}</span>
             </a>
+          {% endfor %}
+
+          {% for cat, cat_items in cat_groups.items() %}
+            {% if cat_items | length >= 2 %}
+              {# Collapsible category group #}
+              {% set meta = cog_categories.get(cat, {'icon': 'ph-package', 'gradient_from': '#360050', 'gradient_to': '#e13b95'}) %}
+              {% set cat_active = namespace(val=false) %}
+              {% for item in cat_items %}
+                {% if (request.url.path == item.href) or (item.href != '/' and request.url.path.startswith(item.href)) %}
+                  {% set cat_active.val = true %}
+                {% endif %}
+              {% endfor %}
+              <button @click="openGroups['{{ cat }}'] = !openGroups['{{ cat }}']"
+                      class="nav-link w-full justify-between"
+                      :class="openGroups['{{ cat }}'] || {{ 'true' if cat_active.val else 'false' }} ? '' : ''">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
+                       style="background: linear-gradient(135deg, {{ meta.gradient_from }}, {{ meta.gradient_to }});">
+                    <i class="ph-fill {{ meta.icon }} text-white text-xs"></i>
+                  </div>
+                  <span class="truncate text-xs font-semibold uppercase tracking-wide" style="color: var(--color-muted-foreground);">{{ cat }}</span>
+                </div>
+                <i class="ph ph-caret-down text-xs transition-transform shrink-0"
+                   :class="openGroups['{{ cat }}'] ? 'rotate-180' : ''"
+                   x-show="{{ 'false' if cat_active.val else 'true' }}"></i>
+              </button>
+              <div x-show="openGroups['{{ cat }}'] || {{ 'true' if cat_active.val else 'false' }}"
+                   x-transition:enter="transition ease-out duration-150"
+                   x-transition:enter-start="opacity-0 -translate-y-1"
+                   x-transition:enter-end="opacity-100 translate-y-0"
+                   class="space-y-1 ml-4 pl-2 border-l" style="border-color: var(--color-border);">
+                {% for item in cat_items %}
+                  {% set is_active = (request.url.path == item.href) or (item.href != '/' and request.url.path.startswith(item.href)) %}
+                  <a href="{{ item.href }}" class="nav-link {% if is_active %}active{% endif %}" style="padding: 0.5rem 0.75rem; font-size: 0.8125rem;">
+                    <i class="{% if is_active %}ph-fill{% else %}ph{% endif %} {{ item.icon }}" style="font-size: 1.125rem;"></i>
+                    <span class="truncate">{{ item.label }}</span>
+                  </a>
+                {% endfor %}
+              </div>
+            {% else %}
+              {# Single-item category — render as standalone nav link #}
+              {% set item = cat_items[0] %}
+              {% set is_active = (request.url.path == item.href) or (item.href != '/' and request.url.path.startswith(item.href)) %}
+              <a href="{{ item.href }}" class="nav-link {% if is_active %}active{% endif %}">
+                <i class="{% if is_active %}ph-fill{% else %}ph{% endif %} {{ item.icon }}"></i>
+                <span class="truncate">{{ item.label }}</span>
+              </a>
             {% endif %}
           {% endfor %}
         </nav>
@@ -389,14 +549,17 @@
                 style="background: color-mix(in oklch, var(--color-background) 95%, transparent); border-color: var(--color-border);">
           <div class="flex items-center justify-between px-6 py-4 gap-4">
             <h1 class="text-2xl md:text-3xl font-bold tracking-tight truncate">{% block header %}{{ bot_info.name or 'CogniX' }}{% endblock %}</h1>
-            <div class="hidden sm:flex items-center gap-3 shrink-0">
+            <div class="hidden sm:flex items-center gap-3 shrink-0" x-data="cognixStatus()" x-init="start()">
               <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg" style="background: color-mix(in oklch, var(--color-secondary) 60%, transparent);">
                 <span class="text-xs uppercase tracking-wider" style="color: var(--color-muted-foreground);">Uptime:</span>
-                <span class="font-mono text-sm font-medium">{{ bot_info.uptime or '—' }}</span>
+                <span class="font-mono text-sm font-medium" x-text="uptime">—</span>
               </div>
               <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg" style="background: color-mix(in oklch, var(--color-secondary) 60%, transparent);">
                 <span class="text-xs uppercase tracking-wider" style="color: var(--color-muted-foreground);">Latency:</span>
-                <span class="font-mono text-sm font-medium" style="color: var(--color-success);">{{ bot_info.latency_ms or 0 }} ms</span>
+                <span class="font-mono text-sm font-medium" :style="latencyColor()" x-text="latency + ' ms'">0 ms</span>
+                <template x-if="pingError">
+                  <i class="ph ph-warning-circle text-xs" style="color: var(--color-destructive);" :title="'Ping-Fehler: ' + pingError"></i>
+                </template>
               </div>
             </div>
           </div>
@@ -404,7 +567,7 @@
         {% endif %}
 
         <main class="flex-1 min-w-0 overflow-y-auto scroll-thin">
-          <div class="p-6 max-w-7xl mx-auto">
+          <div class="p-6 min-h-full flex flex-col">
             {% if flash %}
               <div class="mb-4 px-4 py-3 rounded-lg border"
                    style="background: {% if flash.kind == 'error' %}color-mix(in oklch, var(--color-destructive) 15%, transparent); border-color: color-mix(in oklch, var(--color-destructive) 30%, transparent); color: var(--color-destructive){% else %}color-mix(in oklch, var(--color-success) 15%, transparent); border-color: color-mix(in oklch, var(--color-success) 30%, transparent); color: var(--color-success){% endif %};">

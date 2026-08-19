@@ -7,6 +7,7 @@ COG_INFO = {
     "description": "Message and command statistics tracking",
     "category": "Analytics",
     "requires_admin": False,
+    "version": "1.0.0",
 }
 
 WIDGETS = [

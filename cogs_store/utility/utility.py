@@ -7,6 +7,7 @@ COG_INFO = {
     "description": "Ping, info, userinfo, serverinfo, roll, flip utility commands",
     "category": "Utility",
     "requires_admin": False,
+    "version": "1.0.0",
 }
 
 import random

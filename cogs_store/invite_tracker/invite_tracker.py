@@ -12,6 +12,7 @@ COG_INFO = {
     "description": "Track who invited whom with invite statistics",
     "category": "Analytics",
     "requires_admin": False,
+    "version": "1.0.0",
 }
 
 from datetime import UTC, datetime
