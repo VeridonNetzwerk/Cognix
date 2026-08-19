@@ -31,33 +31,43 @@ async def status_endpoint() -> BotStatus:
     # Prefer in-process info (we share an event loop with the bot when running
     # under main.py). Fall back to IPC if the bot hasn't been registered yet.
     info = get_bot_info()
-    if get_bot() is None:
+    panel_mem = round(psutil.Process(os.getpid()).memory_info().rss / 1048576, 1)
+    bot = get_bot()
+    if bot is None:
         ipc = get_ipc()
         try:
             data = await ipc.call("status", {}, timeout=3.0)
             p = data.get("payload", {})
+            bot_mem = p.get("memory_mb", 0.0)
             return BotStatus(
                 online=p.get("online", False),
                 latency_ms=p.get("latency_ms"),
                 guild_count=p.get("guild_count", 0),
                 user_count=p.get("user_count", 0),
                 uptime_seconds=p.get("uptime_seconds", 0.0),
-                memory_mb=p.get("memory_mb", 0.0),
-                panel_memory_mb=round(psutil.Process(os.getpid()).memory_info().rss / 1048576, 1),
+                memory_mb=bot_mem,
+                panel_memory_mb=panel_mem,
                 version=p.get("version", "0.0.0"),
                 error=get_bot_error(),
                 ping_error=p.get("ping_error"),
             )
         except Exception:  # noqa: BLE001
             pass
+    # In-process mode: bot and panel share the same process, so
+    # memory_mb (from bot._proc) == panel_memory_mb.  Show the single
+    # RSS as the total and set panel to 0 to avoid confusing the user.
+    bot_mem = info.get("memory_mb", 0.0)
+    if bot is not None and bot_mem == panel_mem:
+        # Same process — don't double-count
+        panel_mem = 0.0
     return BotStatus(
         online=info["online"],
         latency_ms=info["latency_ms"],
         guild_count=info["guild_count"],
         user_count=info["user_count"],
         uptime_seconds=info["uptime_seconds"],
-        memory_mb=info.get("memory_mb", 0.0),
-        panel_memory_mb=round(psutil.Process(os.getpid()).memory_info().rss / 1048576, 1),
+        memory_mb=bot_mem,
+        panel_memory_mb=panel_mem,
         version=info["version"],
         error=get_bot_error(),
         ping_error=info.get("ping_error"),

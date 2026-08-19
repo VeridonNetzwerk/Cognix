@@ -398,8 +398,8 @@
                 .then(r => (r.ok ? r.json() : null))
                 .then(j => {
                   if (!j) return;
-                  if (typeof j.latency_ms === 'number') this.latency = j.latency_ms;
-                  if (typeof j.uptime_seconds === 'number') this.uptime = formatUptime(j.uptime_seconds);
+                  if (typeof j.latency_ms === 'number' && isFinite(j.latency_ms)) this.latency = j.latency_ms;
+                  if (typeof j.uptime_seconds === 'number' && isFinite(j.uptime_seconds)) this.uptime = formatUptime(j.uptime_seconds);
                   this.pingError = j.ping_error ? j.ping_error : (j.error ? j.error : '');
                   this.online = !!j.online;
                 })

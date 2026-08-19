@@ -58,6 +58,8 @@ async def compute_metrics(session, user) -> dict:
     info = get_bot_info()
     panel_mem = round(psutil.Process(os.getpid()).memory_info().rss / 1048576, 1)
     bot_mem = info.get("memory_mb", 0.0)
+    if bot_mem == panel_mem:
+        panel_mem = 0.0
     return {
         "servers": servers_count,
         "users": users_count,

@@ -71,7 +71,9 @@
         <p class="text-[10px] uppercase tracking-wider" style="color: var(--color-muted-foreground);">Memory</p>
         <p class="font-mono font-medium text-sm truncate">
           <span x-text="totalMemoryMb + ' MB'">0 MB</span>
-          <span class="text-[10px]" style="color: var(--color-muted-foreground);" x-text="'(bot ' + memoryMb + ' / panel ' + panelMemoryMb + ')'" ></span>
+          <template x-if="panelMemoryMb > 0">
+            <span class="text-[10px]" style="color: var(--color-muted-foreground);" x-text="'(bot ' + memoryMb + ' / panel ' + panelMemoryMb + ')'"></span>
+          </template>
         </p>
       </div>
     </div>
