@@ -9,8 +9,11 @@ client is constructed.
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from typing import TYPE_CHECKING, Any, Optional
+
+import psutil
 
 if TYPE_CHECKING:
     from bot.client import CogniXBot
@@ -166,6 +169,7 @@ def get_bot_info() -> dict[str, Any]:
         latency_ms = 0.0
 
     if bot is None or bot.user is None:
+        proc_mem = round(psutil.Process(os.getpid()).memory_info().rss / 1048576, 1)
         return {
             "name": "CogniX",
             "username": "CogniX",
@@ -178,7 +182,7 @@ def get_bot_info() -> dict[str, Any]:
             "guild_count": 0,
             "user_count": 0,
             "version": "0.1.0",
-            "memory_mb": 0.0,
+            "memory_mb": proc_mem,
             "created_at": "",
             "age_text": "",
             "footer": "\u00a9 2026 VeridonNetzwerk \u00b7 MIT License \u00b7 Built with AI \U0001F916",
@@ -353,6 +357,9 @@ async def request_bot_stop() -> None:
             await bot.close()
         except Exception:
             pass
+        # Ensure the bot reference is cleared immediately so the API
+        # reports offline status without waiting for run_bot's finally.
+        clear_bot()
 
 
 async def request_bot_restart() -> None:
@@ -364,6 +371,7 @@ async def request_bot_restart() -> None:
             await bot.close()
         except Exception:
             pass
+        clear_bot()
 
 
 def request_bot_start() -> None:
