@@ -1,5 +1,5 @@
 {# Core widget: Bot status with lifecycle controls #}
-<div class="space-y-3" x-data="botStatusWidget({
+<div class="space-y-3" x-data='botStatusWidget({
   online: {{ metrics.bot_online | tojson }},
   uptime: {{ metrics.uptime | tojson }},
   latency: {{ metrics.latency_ms or 0 }},
@@ -7,7 +7,7 @@
   userCount: {{ metrics.user_count or 0 }},
   memoryMb: {{ metrics.memory_mb or 0 }},
   version: {{ metrics.version | tojson }}
-})" x-init="start()">
+})' x-init="start()">
   <div class="flex items-center justify-between">
     <h3 class="text-lg font-semibold">Bot Status</h3>
     <span class="status-pill" :class="online ? '' : 'offline'">
