@@ -7,7 +7,6 @@
      @dragend="dragEnd()"
      :class="{
        'opacity-50': dragging === '{{ w.id }}',
-       'ring-2 ring-primary': dragOverId === '{{ w.id }}',
        'cursor-move': editMode,
        'scale-95': editMode && dragging !== '{{ w.id }}'
      }">
