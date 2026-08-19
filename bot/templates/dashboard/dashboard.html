@@ -165,7 +165,9 @@ function dashboardWidgets() {
     toggleEdit() {
       this.editMode = !this.editMode;
       if (!this.editMode && this._dirty) {
-        window.location.reload();
+        this._dirty = false;
+        this.refreshWidgets();
+        cognixToastSuccess('Dashboard gespeichert');
       }
     },
 
@@ -288,15 +290,12 @@ function dashboardWidgets() {
           body: JSON.stringify({ widget_id: widgetId, grid_col: col, grid_row: row }),
         });
         if (resp.ok) {
-          this.saved = true;
-          setTimeout(() => this.saved = false, 2000);
+          cognixToastSuccess('Widget verschoben');
         } else {
-          this.errorMsg = 'Failed to move widget';
-          setTimeout(() => this.errorMsg = null, 3000);
+          cognixToastError('Verschieben fehlgeschlagen');
         }
       } catch (e) {
-        this.errorMsg = 'Network error';
-        setTimeout(() => this.errorMsg = null, 3000);
+        cognixToastError('Netzwerkfehler');
       } finally {
         this.saving = false;
       }
@@ -313,15 +312,12 @@ function dashboardWidgets() {
           body: JSON.stringify({ widget_id: widgetId, size_w: w, size_h: h }),
         });
         if (resp.ok) {
-          this.saved = true;
-          setTimeout(() => this.saved = false, 2000);
+          cognixToastSuccess('Widget skaliert');
         } else {
-          this.errorMsg = 'Failed to resize widget';
-          setTimeout(() => this.errorMsg = null, 3000);
+          cognixToastError('Skalieren fehlgeschlagen');
         }
       } catch (e) {
-        this.errorMsg = 'Network error';
-        setTimeout(() => this.errorMsg = null, 3000);
+        cognixToastError('Netzwerkfehler');
       } finally {
         this.saving = false;
       }
@@ -338,14 +334,13 @@ function dashboardWidgets() {
           body: JSON.stringify({ widget_id: widgetId }),
         });
         if (resp.ok) {
-          window.location.reload();
+          cognixToastSuccess('Widget hinzugefügt');
+          this.refreshWidgets();
         } else {
-          this.errorMsg = 'Failed to add widget';
-          setTimeout(() => this.errorMsg = null, 3000);
+          cognixToastError('Widget konnte nicht hinzugefügt werden');
         }
       } catch (e) {
-        this.errorMsg = 'Network error';
-        setTimeout(() => this.errorMsg = null, 3000);
+        cognixToastError('Netzwerkfehler');
       } finally {
         this.saving = false;
       }
@@ -362,14 +357,13 @@ function dashboardWidgets() {
           body: JSON.stringify({ widget_id: widgetId }),
         });
         if (resp.ok) {
-          window.location.reload();
+          cognixToastSuccess('Widget entfernt');
+          this.refreshWidgets();
         } else {
-          this.errorMsg = 'Failed to remove widget';
-          setTimeout(() => this.errorMsg = null, 3000);
+          cognixToastError('Widget konnte nicht entfernt werden');
         }
       } catch (e) {
-        this.errorMsg = 'Network error';
-        setTimeout(() => this.errorMsg = null, 3000);
+        cognixToastError('Netzwerkfehler');
       } finally {
         this.saving = false;
       }

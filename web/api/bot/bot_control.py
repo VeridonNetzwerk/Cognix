@@ -52,7 +52,7 @@ async def status_endpoint() -> BotStatus:
         guild_count=info["guild_count"],
         user_count=info["user_count"],
         uptime_seconds=info["uptime_seconds"],
-        memory_mb=0.0,
+        memory_mb=info.get("memory_mb", 0.0),
         version=info["version"],
         error=get_bot_error(),
         ping_error=info.get("ping_error"),

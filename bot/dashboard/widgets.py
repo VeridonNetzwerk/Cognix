@@ -63,6 +63,7 @@ async def compute_metrics(session, user) -> dict:
         "latency_ms": info["latency_ms"],
         "guild_count": info["guild_count"],
         "user_count": users_count,
+        "memory_mb": info.get("memory_mb", 0.0),
         "version": info["version"],
     }
 

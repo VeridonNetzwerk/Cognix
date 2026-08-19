@@ -203,6 +203,7 @@
       /* Animations */
       @keyframes pulse-glow { 0%,100% { opacity: 1 } 50% { opacity: 0.6 } }
       .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
       @keyframes count-up { from { opacity:0; transform: translateY(10px) } to { opacity:1; transform: translateY(0) } }
       .animate-count-up { animation: count-up 0.6s ease-out both; }
 
@@ -322,6 +323,21 @@
     </style>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script>
+      // Global toast notification system — usable by any Alpine component
+      window.__cognixToasts = [];
+      window.cognixToast = function(msg, type = 'info', timeout = 4000) {
+        const id = Date.now() + Math.random();
+        window.__cognixToasts.push({ id, msg, type });
+        setTimeout(() => {
+          const idx = window.__cognixToasts.findIndex(t => t.id === id);
+          if (idx > -1) window.__cognixToasts.splice(idx, 1);
+        }, timeout);
+      };
+      window.cognixToastSuccess = (msg) => cognixToast(msg, 'success');
+      window.cognixToastError = (msg) => cognixToast(msg, 'error', 6000);
+      window.cognixToastInfo = (msg) => cognixToast(msg, 'info');
+    </script>
+    <script>
       (async () => {
         try {
           const r = await fetch('/api/v1/user-settings/me', { credentials: 'same-origin' });
@@ -385,7 +401,7 @@
                   this.online = !!j.online;
                 })
                 .catch(() => {});
-            }, 1000);
+            }, 3000);
           },
         };
       }
@@ -593,6 +609,55 @@
         </main>
       </div>
     </div>
+    {# === Bot starting overlay — shows when bot is offline === #}
+    {% if user and not bot_info.online %}
+    <div x-data="{ show: true, checking: false }"
+         x-init="setInterval(() => { checking = true; fetch('/api/v1/bot/status', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).then(j => { checking = false; if (j && j.online) { show = false; cognixToastSuccess('Bot ist jetzt online!'); } }).catch(() => checking = false) }, 2000)"
+         x-show="show" x-cloak
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-300"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         style="position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:oklch(0.12 0.03 260 / 0.85);backdrop-filter:blur(8px);">
+      <div style="text-align:center;padding:2.5rem 3rem;border-radius:1rem;background:var(--color-card);border:1px solid var(--color-border);box-shadow:0 10px 40px rgba(0,0,0,0.4);max-width:400px;">
+        <div style="width:48px;height:48px;margin:0 auto 1.25rem;border:4px solid var(--color-border);border-top-color:var(--color-primary);border-radius:50%;animation:spin 0.9s linear infinite;"></div>
+        <h2 style="font-size:1.15rem;font-weight:600;margin:0 0 0.5rem;">Bot startet…</h2>
+        <p style="font-size:0.85rem;color:var(--color-muted-foreground);margin:0;">
+          CogniX verbindet sich mit Discord — einen Moment bitte.
+        </p>
+        <div x-show="checking" style="margin-top:0.75rem;font-size:0.75rem;color:var(--color-muted-foreground);">
+          <i class="ph ph-spinner animate-spin"></i> Verbinde…
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# === Toast notifications === #}
+    <div x-data="{ toasts: window.__cognixToasts }"
+         style="position:fixed;top:1rem;right:1rem;z-index:10000;display:flex;flex-direction:column;gap:0.5rem;pointer-events:none;"
+         x-cloak>
+      <template x-for="t in toasts" :key="t.id">
+        <div x-show="true"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 translate-x-4"
+             x-transition:enter-end="opacity-100 translate-x-0"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="opacity-100 translate-x-0"
+             x-transition:leave-end="opacity-0 translate-x-4"
+             style="pointer-events:auto;padding:0.75rem 1rem;border-radius:0.5rem;font-size:0.875rem;font-weight:500;display:flex;align-items:center;gap:0.5rem;min-width:250px;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.3);"
+             :style="{
+               background: t.type === 'success' ? 'color-mix(in oklch, var(--color-success) 20%, var(--color-card))' : t.type === 'error' ? 'color-mix(in oklch, var(--color-destructive) 20%, var(--color-card))' : 'color-mix(in oklch, var(--color-primary) 20%, var(--color-card))',
+               border: '1px solid ' + (t.type === 'success' ? 'color-mix(in oklch, var(--color-success) 40%, transparent)' : t.type === 'error' ? 'color-mix(in oklch, var(--color-destructive) 40%, transparent)' : 'color-mix(in oklch, var(--color-primary) 40%, transparent)'),
+               color: t.type === 'success' ? 'var(--color-success)' : t.type === 'error' ? 'var(--color-destructive)' : 'var(--color-primary)'
+             }">
+          <i class="ph shrink-0" :class="t.type === 'success' ? 'ph-check-circle' : t.type === 'error' ? 'ph-warning-circle' : 'ph-info'"></i>
+          <span x-text="t.msg" style="flex:1;"></span>
+        </div>
+      </template>
+    </div>
+
     <div aria-hidden="true" style="position:fixed;bottom:8px;right:12px;opacity:0.07;font-size:11px;pointer-events:none;z-index:0;user-select:none;color:var(--color-foreground);">© 2026 VeridonNetzwerk · MIT License · Built with AI 🤖</div>
     {% block scripts %}{% endblock %}
   </body>
