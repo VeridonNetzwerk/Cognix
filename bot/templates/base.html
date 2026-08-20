@@ -637,7 +637,7 @@
               {% endif %}
               <div class="relative" x-data="{ open: false }">
                 <button @click="open = !open" @click.outside="open = false"
-                        class="flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-lg text-sm border transition-colors min-w-[180px]"
+                        class="flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-lg text-sm border transition-colors w-72"
                         :style="open ? 'border-color: var(--color-primary); box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-primary) 25%, transparent);' : 'border-color: var(--color-border);'"
                         style="background: var(--color-input);">
                   {% if ns.current %}
