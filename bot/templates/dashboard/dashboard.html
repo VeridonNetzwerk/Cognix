@@ -192,6 +192,37 @@ function dashboardWidgets() {
       this.dropCanFit = this.canPlace(this.dragging, col, row);
     },
 
+    findOverlapping(id, col, row) {
+      const pos = this.widgetPositions[id];
+      if (!pos) return [];
+      const w = pos.w, h = pos.h;
+      const result = [];
+      for (const [wid, p] of Object.entries(this.widgetPositions)) {
+        if (wid === id) continue;
+        const overlap = !(col + w - 1 < p.col || col > p.col + p.w - 1 ||
+                         row + h - 1 < p.row || row > p.row + p.h - 1);
+        if (overlap) result.push(wid);
+      }
+      return result;
+    },
+
+    canSwapWith(id, targetId, col, row) {
+      const myPos = this.widgetPositions[id];
+      const theirPos = this.widgetPositions[targetId];
+      if (!myPos || !theirPos) return false;
+      // The other widget goes to my current position — check it fits in bounds
+      const oldCol = myPos.col, oldRow = myPos.row;
+      if (oldCol < 1 || oldRow < 1 || oldCol + theirPos.w - 1 > 4 || oldRow + theirPos.h - 1 > 3) return false;
+      // Check no third widget overlaps the other widget's new position
+      for (const [wid, p] of Object.entries(this.widgetPositions)) {
+        if (wid === id || wid === targetId) continue;
+        const overlap = !(oldCol + theirPos.w - 1 < p.col || oldCol > p.col + p.w - 1 ||
+                         oldRow + theirPos.h - 1 < p.row || oldRow > p.row + p.h - 1);
+        if (overlap) return false;
+      }
+      return true;
+    },
+
     gridDragOver(e) {
       if (!this.editMode || !this.dragging) return;
       e.dataTransfer.dropEffect = 'move';
@@ -203,9 +234,23 @@ function dashboardWidgets() {
       if (!id) return;
       if (this.dropTarget && this.dropCanFit) {
         const { col, row } = this.dropTarget;
-        this.widgetPositions[id].col = col;
-        this.widgetPositions[id].row = row;
-        this.moveWidget(id, col, row);
+        const overlaps = this.findOverlapping(id, col, row);
+        if (overlaps.length === 1 && this.canSwapWith(id, overlaps[0], col, row)) {
+          // Swap: move other widget to my old position, move me to target
+          const oldCol = this.widgetPositions[id].col;
+          const oldRow = this.widgetPositions[id].row;
+          const otherId = overlaps[0];
+          this.widgetPositions[otherId].col = oldCol;
+          this.widgetPositions[otherId].row = oldRow;
+          this.widgetPositions[id].col = col;
+          this.widgetPositions[id].row = row;
+          this.moveWidget(otherId, oldCol, oldRow);
+          this.moveWidget(id, col, row);
+        } else if (overlaps.length === 0) {
+          this.widgetPositions[id].col = col;
+          this.widgetPositions[id].row = row;
+          this.moveWidget(id, col, row);
+        }
       }
       this.dragging = null;
       this.dropTarget = null;
@@ -218,14 +263,11 @@ function dashboardWidgets() {
       const w = pos.w, h = pos.h;
       // Check bounds
       if (col < 1 || row < 1 || col + w - 1 > 4 || row + h - 1 > 3) return false;
-      // Check overlap with other widgets
-      for (const [wid, p] of Object.entries(this.widgetPositions)) {
-        if (wid === id) continue;
-        const overlap = !(col + w - 1 < p.col || col > p.col + p.w - 1 ||
-                         row + h - 1 < p.row || row > p.row + p.h - 1);
-        if (overlap) return false;
-      }
-      return true;
+      // Check overlap — allow if we can swap with the single overlapping widget
+      const overlaps = this.findOverlapping(id, col, row);
+      if (overlaps.length === 0) return true;
+      if (overlaps.length === 1) return this.canSwapWith(id, overlaps[0], col, row);
+      return false;
     },
 
     // --- Resize ---
