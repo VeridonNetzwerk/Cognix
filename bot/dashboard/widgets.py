@@ -43,13 +43,9 @@ async def compute_metrics(session, user) -> dict:
 
     bot = get_bot()
     if bot is not None:
-        unique_ids: set[int] = set()
-        for g in bot.guilds:
-            for m in g.members:
-                unique_ids.add(m.id)
-        users_count = len(unique_ids)
+        users_count = sum(g.member_count or 0 for g in bot.guilds)
         if users_count == 0:
-            users_count = sum(g.member_count or 0 for g in bot.guilds)
+            users_count = len({m.id for g in bot.guilds for m in g.members})
     else:
         users_count = (await session.scalar(
             select(func.coalesce(func.sum(Server.member_count), 0))

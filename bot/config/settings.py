@@ -110,12 +110,6 @@ class Settings(BaseSettings):
             return "mysql+aiomysql://" + value[len("mysql+pymysql://") :]
         return value
 
-    @field_validator("master_key")
-    @classmethod
-    def _validate_master_key(cls, v: str) -> str:
-        # In dev / first-run we tolerate empty; the setup wizard fills it.
-        return v
-
     def ensure_data_dirs(self) -> None:
         """Create local data directories needed for SQLite / logs."""
         if self.database_url.startswith("sqlite"):

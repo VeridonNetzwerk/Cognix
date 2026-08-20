@@ -391,23 +391,7 @@ async def list_cogs(session: SessionDep) -> dict:
 @router.post("/{cog_name}")
 async def cog_action(cog_name: str, req: CogActionRequest) -> dict:
     """Load/unload/reload a cog globally (affects all servers)."""
-    bot = get_bot()
-    if bot is not None:
-        actions = {"load": load_cog, "unload": unload_cog, "reload": reload_cog}
-        result = await actions[req.action](bot, cog_name)
-        if not result.get("ok"):
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, result.get("error", "failed"))
-        return {"ok": True}
-
-    # Fall back to IPC (Redis mode)
-    ipc = get_ipc()
-    try:
-        result = await ipc.call(f"cog.{req.action}", {"name": cog_name}, timeout=5.0)
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "bot offline") from exc
-    if result.get("status") != "ok":
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, result.get("error", "failed"))
-    return {"ok": True}
+    return await _apply_cog_action(cog_name, req.action)
 
 
 # ---------------------------------------------------------------------------
@@ -457,11 +441,12 @@ async def api_cog_global_toggle(cog_name: str, session: SessionDep) -> dict:
     """Enable/disable a cog globally (server_id=None CogState row)."""
     from bot.database.models.cogs.cog_state import CogState
 
+    cog_name_lower = cog_name.lower()
     row = await session.scalar(
-        select(CogState).where(CogState.server_id.is_(None), CogState.cog_name == cog_name)
+        select(CogState).where(CogState.server_id.is_(None), CogState.cog_name == cog_name_lower)
     )
     if row is None:
-        row = CogState(server_id=None, cog_name=cog_name, enabled=False)
+        row = CogState(server_id=None, cog_name=cog_name_lower, enabled=False)
         session.add(row)
     else:
         row.enabled = not row.enabled
@@ -482,16 +467,26 @@ async def api_cog_global_toggle(cog_name: str, session: SessionDep) -> dict:
 @router.get("/{server_id}/enabled-cogs")
 async def get_server_enabled_cogs(server_id: int, session: SessionDep) -> dict:
     """Get which cogs are enabled on a specific server."""
+    from bot.database.models.server.server_cog_state import ServerCogState
+
+    # Read from ServerCogState (what the UI uses for per-server toggles)
+    sv_rows = (await session.scalars(
+        select(ServerCogState).where(ServerCogState.server_id == server_id)
+    )).all()
+    sv_enabled = [r.cog_name for r in sv_rows if r.enabled]
+    sv_disabled = [r.cog_name for r in sv_rows if not r.enabled]
+
+    # Also check ServerConfig for backward compat
     cfg = await session.scalar(
         select(ServerConfig).where(ServerConfig.server_id == server_id)
     )
-    if not cfg:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "server not found")
+    cfg_enabled = cfg.enabled_cogs if cfg else []
 
-    enabled = cfg.enabled_cogs or []
     return {
         "server_id": str(server_id),
-        "enabled_cogs": enabled,
+        "enabled_cogs": sv_enabled,
+        "disabled_cogs": sv_disabled,
+        "config_enabled_cogs": cfg_enabled,
         "available": [c["name"] for c in get_all_cog_info()],
     }
 
@@ -501,11 +496,8 @@ async def update_server_enabled_cog(
     server_id: int, cog_name: str, req: ServerCogEnableRequest, session: SessionDep
 ) -> dict:
     """Enable or disable a specific cog on a server."""
-    cfg = await session.scalar(
-        select(ServerConfig).where(ServerConfig.server_id == server_id)
-    )
-    if not cfg:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "server not found")
+    from bot.database.models.server.server_cog_state import ServerCogState
+    from datetime import UTC, datetime
 
     # Validate the cog exists
     valid_names = [c["name"].lower() for c in get_all_cog_info()]
@@ -515,18 +507,44 @@ async def update_server_enabled_cog(
             f"Unknown cog '{cog_name}'. Available: {', '.join(valid_names)}",
         )
 
-    enabled = list(cfg.enabled_cogs or [])
-    if req.enabled:
-        if cog_name.lower() not in enabled:
-            enabled.append(cog_name.lower())
-    else:
-        if cog_name.lower() in enabled:
-            enabled = [c for c in enabled if c != cog_name.lower()]
+    cog_name_lower = cog_name.lower()
 
-    cfg.enabled_cogs = enabled
+    # Update ServerCogState — this is what the UI reads for per-server toggle state
+    sv_state = await session.scalar(
+        select(ServerCogState).where(
+            ServerCogState.server_id == server_id,
+            ServerCogState.cog_name == cog_name_lower,
+        )
+    )
+    if sv_state is None:
+        sv_state = ServerCogState(
+            server_id=server_id,
+            cog_name=cog_name_lower,
+            enabled=req.enabled,
+            updated_at=datetime.now(tz=UTC),
+        )
+        session.add(sv_state)
+    else:
+        sv_state.enabled = req.enabled
+        sv_state.updated_at = datetime.now(tz=UTC)
+
+    # Also update ServerConfig.enabled_cogs for backward compat
+    cfg = await session.scalar(
+        select(ServerConfig).where(ServerConfig.server_id == server_id)
+    )
+    if cfg:
+        enabled = list(cfg.enabled_cogs or [])
+        if req.enabled:
+            if cog_name_lower not in enabled:
+                enabled.append(cog_name_lower)
+        else:
+            if cog_name_lower in enabled:
+                enabled = [c for c in enabled if c != cog_name_lower]
+        cfg.enabled_cogs = enabled
+
     try:
         from bot.runtime import invalidate_cog_state_cache
         invalidate_cog_state_cache(server_id=server_id, cog_name=cog_name)
     except Exception:  # noqa: BLE001
         pass
-    return {"ok": True, "enabled_cogs": enabled}
+    return {"ok": True, "enabled": req.enabled}

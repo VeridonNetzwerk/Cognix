@@ -54,7 +54,7 @@ async def cogs_view(request: Request,
         rows = (await s.scalars(
             select(CogState).where(CogState.server_id.is_(None)).order_by(CogState.cog_name)
         )).all()
-    state_by_name = {r.cog_name: r.enabled for r in rows}
+    state_by_name = {r.cog_name.lower(): r.enabled for r in rows}
 
     # Per-server override for selected server
     server_state_by_name: dict[str, bool] = {}
@@ -63,7 +63,7 @@ async def cogs_view(request: Request,
             sv_rows = (await s.scalars(
                 select(ServerCogState).where(ServerCogState.server_id == selected_server_id)
             )).all()
-        server_state_by_name = {r.cog_name: r.enabled for r in sv_rows}
+        server_state_by_name = {r.cog_name.lower(): r.enabled for r in sv_rows}
 
     # Build installed cog lookup
     installed_map: dict[str, dict] = {}
@@ -121,16 +121,9 @@ async def cogs_view(request: Request,
     # Sort by category then name
     all_cogs.sort(key=lambda c: (c["category"], c["name"]))
 
-    # Per-server override data
+    # Fetch servers for the header selector
     async with db_session() as s:
         servers = (await s.scalars(select(Server).order_by(Server.name))).all()
-        per_server_rows = (await s.scalars(select(ServerCogState))).all()
-    per_server: dict[int, dict[str, bool]] = {}
-    for r in per_server_rows:
-        per_server.setdefault(r.server_id, {})[r.cog_name] = r.enabled
-
-    # Only show loaded cog names in per-server table
-    loaded_cog_names = [c["name"] for c in all_cogs if c["loaded"]]
 
     # Check for updates
     cog_updates = get_cog_updates()
@@ -141,8 +134,6 @@ async def cogs_view(request: Request,
         user=user,
         cogs=all_cogs,
         servers=servers,
-        per_server=per_server,
-        cog_names=loaded_cog_names,
         categories={k: v for k, v in COG_CATEGORIES.items() if k != "Core"},
         category_all=COG_CATEGORY_ALL,
         updates=cog_updates,
@@ -169,39 +160,6 @@ async def cog_icon(cog_dir: str, filename: str) -> Response:
             if candidate.suffix in (".png", ".svg", ".jpg", ".jpeg", ".webp", ".gif"):
                 return FileResponse(str(candidate))
     return Response(status_code=404)
-
-
-@router.post("/cogs/server/{server_id}/{cog_name}/toggle")
-async def cogs_server_toggle(
-    server_id: int,
-    cog_name: str,
-    access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
-) -> Response:
-    await _require_user(access_token)
-    async with db_session() as s:
-        row = await s.scalar(
-            select(ServerCogState).where(
-                ServerCogState.server_id == server_id,
-                ServerCogState.cog_name == cog_name,
-            )
-        )
-        if row is None:
-            row = ServerCogState(
-                server_id=server_id,
-                cog_name=cog_name,
-                enabled=True,
-                updated_at=_dt.now(tz=UTC),
-            )
-            s.add(row)
-        else:
-            row.enabled = not row.enabled
-            row.updated_at = _dt.now(tz=UTC)
-    try:
-        from bot.runtime import invalidate_cog_state_cache
-        invalidate_cog_state_cache(server_id=server_id, cog_name=cog_name)
-    except Exception:
-        pass
-    return RedirectResponse("/cogs", status_code=303)
 
 
 @router.post("/cogs/{cog_name}/load")
@@ -247,14 +205,16 @@ async def cogs_unload(cog_name: str,
 async def cogs_toggle(cog_name: str,
                       access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     await _require_user(access_token)
+    cog_name_lower = cog_name.lower()
     async with db_session() as s:
         row = await s.scalar(
-            select(CogState).where(CogState.server_id.is_(None), CogState.cog_name == cog_name)
+            select(CogState).where(CogState.server_id.is_(None), CogState.cog_name == cog_name_lower)
         )
         if row is None:
-            row = CogState(server_id=None, cog_name=cog_name, enabled=False)
+            row = CogState(server_id=None, cog_name=cog_name_lower, enabled=False)
             s.add(row)
-        row.enabled = not row.enabled
+        else:
+            row.enabled = not row.enabled
     try:
         from bot.runtime import invalidate_cog_state_cache
         invalidate_cog_state_cache(cog_name=cog_name)

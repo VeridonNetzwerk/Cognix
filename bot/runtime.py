@@ -64,10 +64,6 @@ def get_ping_ms() -> float | None:
     return _PING_MS
 
 
-def get_ping_info() -> dict[str, Any]:
-    return {"ms": _PING_MS, "at": _PING_AT, "error": _PING_ERROR}
-
-
 async def run_ping_monitor(bot: "CogniXBot") -> None:
     """Continuously measure Discord latency. Runs until the bot is closed.
 
@@ -192,11 +188,10 @@ def get_bot_info() -> dict[str, Any]:
     start = getattr(bot, "start_time", 0.0) or time.time()
     uptime_seconds = max(0.0, time.time() - start)
     avatar = bot.user.display_avatar.url if bot.user.display_avatar else ""
-    # Compute user count — try fast path first (unique member objects),
-    # then fall back to guild.member_count.
-    user_count = len({m.id for g in bot.guilds for m in g.members})
+    # Compute user count — prefer member_count (O(1)), fall back to unique member IDs
+    user_count = sum(g.member_count or 0 for g in bot.guilds)
     if user_count == 0:
-        user_count = sum(g.member_count or 0 for g in bot.guilds)
+        user_count = len({m.id for g in bot.guilds for m in g.members})
     return {
         "name": bot.user.name,
         "username": str(bot.user),
@@ -212,7 +207,6 @@ def get_bot_info() -> dict[str, Any]:
         "memory_mb": round(bot._proc.memory_info().rss / 1048576, 1) if hasattr(bot, '_proc') else 0.0,
         "created_at": bot.user.created_at.strftime("%d. %b. %Y"),
         "age_text": _format_age(bot.user.created_at),
-        "id": bot.user.id,
         "footer": "\u00a9 2026 VeridonNetzwerk \u00b7 MIT License \u00b7 Built with AI \U0001F916",
         "error": _BOT_ERROR,
         "ping_error": _PING_ERROR,
@@ -261,18 +255,31 @@ async def is_cog_enabled_for_server(server_id: int, cog_name: str) -> bool:
         return False
 
     try:
-        from sqlalchemy import select  # local import to avoid cycle at boot
+        from sqlalchemy import select, func  # local import to avoid cycle at boot
 
         from bot.database.models.server.server_config import ServerConfig
+        from bot.database.models.server.server_cog_state import ServerCogState
         from bot.database.session import db_session
 
+        cog_name_lower = cog_name.lower()
         async with db_session() as s:
+            # Check ServerCogState first — this is what the UI per-server toggle uses
+            sv_state = await s.scalar(
+                select(ServerCogState).where(
+                    ServerCogState.server_id == server_id,
+                    func.lower(ServerCogState.cog_name) == cog_name_lower,
+                )
+            )
+            if sv_state is not None and not sv_state.enabled:
+                _COG_STATE_CACHE[key] = (False, now)
+                return False
+
+            # Also check ServerConfig.enabled_cogs for backward compat
             cfg = await s.scalar(
                 select(ServerConfig).where(ServerConfig.server_id == server_id)
             )
-            # Check if cog is in enabled_cogs list (if the config exists)
             if cfg and cfg.enabled_cogs:
-                if cog_name.lower() not in [c.lower() for c in cfg.enabled_cogs]:
+                if cog_name_lower not in [c.lower() for c in cfg.enabled_cogs]:
                     _COG_STATE_CACHE[key] = (False, now)
                     return False
     except Exception:  # noqa: BLE001
@@ -306,14 +313,13 @@ _BOT_PAUSED: bool = False
 # Async event used by the supervisor loop in main._serve_bot to wake up
 # instantly when start/restart is requested. Lazily created on the running
 # event loop so this module stays import-safe at startup.
-_RESUME_EVENT: "asyncio.Event | None" = None  # noqa: F821 (asyncio imported below)
+_RESUME_EVENT: asyncio.Event | None = None
 
 
-def _resume_event() -> "asyncio.Event":  # noqa: F821
-    import asyncio as _asyncio
+def _resume_event() -> asyncio.Event:
     global _RESUME_EVENT
     if _RESUME_EVENT is None:
-        _RESUME_EVENT = _asyncio.Event()
+        _RESUME_EVENT = asyncio.Event()
     return _RESUME_EVENT
 
 
@@ -322,13 +328,12 @@ async def wait_for_resume(timeout: float) -> bool:
 
     Returns True if a resume was signalled, False on timeout.
     """
-    import asyncio as _asyncio
     ev = _resume_event()
     try:
-        await _asyncio.wait_for(ev.wait(), timeout=timeout)
+        await asyncio.wait_for(ev.wait(), timeout=timeout)
         ev.clear()
         return True
-    except _asyncio.TimeoutError:
+    except asyncio.TimeoutError:
         return False
 
 

@@ -104,12 +104,11 @@ def _get_sync_engine():
 
 def _get_servers() -> list:
     """Return all active servers for the header selector (sync query)."""
-    from sqlalchemy import select as _select
     from bot.database.models.server.server import Server
 
     engine = _get_sync_engine()
     with engine.connect() as conn:
-        result = conn.execute(_select(Server).where(Server.is_active.is_(True)).order_by(Server.name))
+        result = conn.execute(select(Server).where(Server.is_active.is_(True)).order_by(Server.name))
         return list(result.scalars().all())
 
 

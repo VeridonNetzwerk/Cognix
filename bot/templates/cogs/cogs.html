@@ -985,20 +985,6 @@ function cogMarketplace(data) {
       }
     },
 
-    async serverToggle(serverId, cogName, newEnabled) {
-      try {
-        await this._postJSON(
-          `/api/v1/cogs/${serverId}/enabled-cogs/${encodeURIComponent(cogName)}`,
-          { enabled: newEnabled },
-          'PUT'
-        );
-        this.showToast('Server-Override gespeichert', 'success');
-        setTimeout(() => this.refreshCogsData(), 400);
-      } catch (e) {
-        this.showToast('Server-Toggle fehlgeschlagen: ' + e.message, 'error');
-      }
-    },
-
     uninstallCog(cog) {
       if (!confirm('Uninstall ' + cog.name + '? This will remove it from cogs/ but keep it in the store.')) return;
       this.busy = cog.module;
