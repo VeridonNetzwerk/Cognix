@@ -123,6 +123,7 @@
         color: var(--color-foreground);
         transition: background 0.3s ease, color 0.3s ease;
       }
+      html { height: 100%; }
       .font-mono, code, pre, kbd { font-family: 'JetBrains Mono', monospace; }
 
       body.spark-bg {
@@ -410,7 +411,7 @@
       }
     </script>
   </head>
-  <body class="min-h-full flex flex-col spark-bg">
+  <body class="h-full overflow-hidden flex flex-col spark-bg">
     <div class="flex flex-1 min-h-0">
       {% if user %}
       <aside class="w-64 shrink-0 border-r flex flex-col"
