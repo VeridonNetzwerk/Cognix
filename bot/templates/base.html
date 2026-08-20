@@ -454,7 +454,7 @@
                   this.online = !!j.online;
                 })
                 .catch(() => {});
-            }, 1000);
+            }, window.__CognixRefreshInterval || 5000);
           },
         };
       }
