@@ -108,8 +108,12 @@ def _get_servers() -> list:
 
     engine = _get_sync_engine()
     with engine.connect() as conn:
-        result = conn.execute(select(Server).where(Server.is_active.is_(True)).order_by(Server.name))
-        return list(result.scalars().all())
+        result = conn.execute(
+            select(Server.id, Server.name, Server.icon_hash)
+            .where(Server.is_active.is_(True))
+            .order_by(Server.name)
+        )
+        return [{"id": r.id, "name": r.name, "icon_hash": r.icon_hash} for r in result]
 
 
 def _get_selected_server_id(request: Request) -> int | None:

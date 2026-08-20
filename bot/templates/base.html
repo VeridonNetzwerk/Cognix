@@ -666,7 +666,7 @@
                      x-transition:enter-end="opacity-100 translate-y-0"
                      class="absolute right-0 top-full mt-1.5 w-72 rounded-xl border shadow-2xl z-50 max-h-80 overflow-y-auto scroll-thin py-1.5"
                      style="background: var(--color-card); border-color: var(--color-border);">
-                  <a href="/servers/select/0" class="flex items-center gap-2.5 px-3 py-2 mx-1.5 rounded-lg text-sm hover:bg-white/5 transition-colors {% if not selected_server_id %}font-semibold{% endif %}">
+                  <a href="/select-server/0" class="flex items-center gap-2.5 px-3 py-2 mx-1.5 rounded-lg text-sm hover:bg-white/5 transition-colors {% if not selected_server_id %}font-semibold{% endif %}">
                     <div class="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style="background: var(--color-secondary);">
                       <i class="ph ph-squares-four text-xs" style="color: var(--color-muted-foreground);"></i>
                     </div>
@@ -674,7 +674,7 @@
                   </a>
                   <div class="border-t my-1" style="border-color: var(--color-border);"></div>
                   {% for s in servers %}
-                  <a href="/servers/select/{{ s.id }}" class="flex items-center gap-2.5 px-3 py-2 mx-1.5 rounded-lg text-sm hover:bg-white/5 transition-colors {% if selected_server_id == s.id %}font-semibold{% endif %}">
+                  <a href="/select-server/{{ s.id }}" class="flex items-center gap-2.5 px-3 py-2 mx-1.5 rounded-lg text-sm hover:bg-white/5 transition-colors {% if selected_server_id == s.id %}font-semibold{% endif %}">
                     {% if s.icon_hash %}
                     <img src="https://cdn.discordapp.com/icons/{{ s.id }}/{{ s.icon_hash }}.png?size=64" alt="" class="w-6 h-6 rounded-full shrink-0 object-cover">
                     {% else %}

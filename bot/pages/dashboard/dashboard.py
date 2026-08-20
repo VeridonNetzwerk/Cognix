@@ -202,7 +202,7 @@ async def index(request: Request,
     )
 
 
-@router.get("/servers/select/{server_id}")
+@router.get("/select-server/{server_id}")
 async def select_server(server_id: str, request: Request,
                         access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> RedirectResponse:
     await _require_user(access_token)
