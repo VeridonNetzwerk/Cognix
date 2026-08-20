@@ -629,10 +629,7 @@
             <h1 class="text-2xl md:text-3xl font-bold tracking-tight truncate">{% block header %}{{ bot_info.name or 'CogniX' }}{% endblock %}</h1>
             <div class="flex items-center gap-3 shrink-0">
               {% if user and servers %}
-              {% set current_server = None %}
-              {% if selected_server_id %}
-                {% for s in servers %}{% if s.id == selected_server_id %}{% set current_server = s %}{% endif %}{% endfor %}
-              {% endif %}
+              {% set current_server = servers | selectattr('id', 'equalto', selected_server_id) | first if selected_server_id else None %}
               <div class="relative" x-data="{ open: false }">
                 <button @click="open = !open" @click.outside="open = false"
                         class="flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-lg text-sm border transition-colors min-w-[180px]"
