@@ -85,7 +85,8 @@
 
   {# ===================== Appearance ===================== #}
   <section class="mb-6 rounded-xl border overflow-hidden"
-           style="background: var(--color-card); border-color: var(--color-border);">
+           style="background: var(--color-card); border-color: var(--color-border);"
+           x-data="appearanceSettings()">
     <div class="flex items-center gap-3 px-6 py-4 border-b"
          style="border-color: var(--color-border);">
       <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
@@ -94,46 +95,159 @@
       </div>
       <div>
         <h2 class="font-semibold text-base">Appearance</h2>
-        <p class="text-xs" style="color: var(--color-muted-foreground);">Customize the dashboard theme</p>
+        <p class="text-xs" style="color: var(--color-muted-foreground);">Customize the dashboard look &amp; feel</p>
       </div>
     </div>
 
-    <form method="post" action="/settings/appearance" class="p-6 grid sm:grid-cols-3 gap-5">
-      <label class="block">
-        <span class="text-xs font-medium uppercase tracking-wider block mb-1.5" style="color: var(--color-muted-foreground);">Theme</span>
-        <select name="theme"
-                class="w-full rounded-lg px-3.5 py-2.5 border text-sm focus:outline-none focus:ring-2 transition-colors"
-                style="background: var(--color-input); border-color: var(--color-border); color: var(--color-foreground); --tw-ring-color: var(--color-primary);">
-          {% for t in ["dark","light","custom"] %}
-          <option value="{{ t }}" {% if settings.theme == t %}selected{% endif %}>{{ t }}</option>
+    <div class="p-6 space-y-6">
+      {# ---- Theme selector cards ---- #}
+      <div>
+        <span class="text-xs font-medium uppercase tracking-wider block mb-2.5" style="color: var(--color-muted-foreground);">Theme</span>
+        <div class="grid grid-cols-3 gap-3">
+          {% set themes = [
+            ('dark', 'ph-moon-stars', 'Dark'),
+            ('light', 'ph-sun', 'Light'),
+            ('system', 'ph-monitor', 'System'),
+          ] %}
+          {% for t_val, t_icon, t_label in themes %}
+          <button type="button"
+                  @click="theme = '{{ t_val }}'; applyTheme()"
+                  :class="theme === '{{ t_val }}' ? 'ring-2' : ''"
+                  class="relative rounded-lg border p-3 flex flex-col items-center gap-2 transition-all hover:scale-[1.02]"
+                  style="background: var(--color-input); border-color: var(--color-border); --tw-ring-color: var(--color-primary);">
+            <i class="ph-fill {{ t_icon }} text-2xl" :style="theme === '{{ t_val }}' ? 'color: var(--color-primary)' : 'color: var(--color-muted-foreground)'"></i>
+            <span class="text-xs font-medium">{{ t_label }}</span>
+            <i x-show="theme === '{{ t_val }}'" class="ph-fill ph-check-circle absolute top-1.5 right-1.5 text-sm" style="color: var(--color-primary);"></i>
+          </button>
           {% endfor %}
-        </select>
-      </label>
-      <label class="block">
-        <span class="text-xs font-medium uppercase tracking-wider block mb-1.5" style="color: var(--color-muted-foreground);">Accent color</span>
-        <div class="relative">
-          <input type="color" name="accent_color" value="{{ settings.accent_color }}"
-                 class="w-full h-[42px] rounded-lg border cursor-pointer transition-colors focus:outline-none focus:ring-2"
-                 style="background: var(--color-input); border-color: var(--color-border); --tw-ring-color: var(--color-primary);" />
         </div>
-      </label>
-      <label class="block">
-        <span class="text-xs font-medium uppercase tracking-wider block mb-1.5" style="color: var(--color-muted-foreground);">Font size</span>
-        <select name="font_size"
-                class="w-full rounded-lg px-3.5 py-2.5 border text-sm focus:outline-none focus:ring-2 transition-colors"
-                style="background: var(--color-input); border-color: var(--color-border); color: var(--color-foreground); --tw-ring-color: var(--color-primary);">
-          {% for f in ["small","medium","large"] %}
-          <option value="{{ f }}" {% if settings.font_size == f %}selected{% endif %}>{{ f }}</option>
+      </div>
+
+      {# ---- Accent color picker ---- #}
+      <div>
+        <span class="text-xs font-medium uppercase tracking-wider block mb-2.5" style="color: var(--color-muted-foreground);">Accent Color</span>
+        <div class="flex flex-wrap items-center gap-2.5 mb-3">
+          {% set presets = [
+            '#8B5CF6', '#60A5FA', '#10B981', '#F59E0B',
+            '#EF4444', '#EC4899', '#06B6D4', '#F97316',
+            '#84CC16', '#A855F7',
+          ] %}
+          {% for color in presets %}
+          <button type="button"
+                  @click="accentColor = '{{ color }}'; applyAccent()"
+                  :class="accentColor.toLowerCase() === '{{ color|lower }}' ? 'ring-2 ring-offset-2' : ''"
+                  class="w-8 h-8 rounded-lg transition-all hover:scale-110 shrink-0"
+                  style="background: {{ color }}; --tw-ring-color: var(--color-primary); ring-offset-color: var(--color-card);">
+          </button>
           {% endfor %}
-        </select>
-      </label>
-      <div class="sm:col-span-3 pt-1">
-        <button class="px-5 py-2.5 rounded-lg font-medium text-sm transition-all hover:scale-[1.02] flex items-center gap-2"
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="relative">
+            <input type="color"
+                   x-model="accentColor"
+                   @input="applyAccent()"
+                   class="w-12 h-9 rounded-lg border cursor-pointer"
+                   style="background: var(--color-input); border-color: var(--color-border);" />
+          </div>
+          <input type="text"
+                 x-model="accentColor"
+                 @change="applyAccent()"
+                 maxlength="7"
+                 class="w-24 rounded-lg px-3 py-2 border text-sm font-mono uppercase"
+                 style="background: var(--color-input); border-color: var(--color-border); color: var(--color-foreground);"
+                 placeholder="#60A5FA" />
+          <span class="text-xs" style="color: var(--color-muted-foreground);">Click a preset or pick any color</span>
+        </div>
+      </div>
+
+      {# ---- Toggles row ---- #}
+      <div class="grid sm:grid-cols-2 gap-4">
+        {# Compact mode #}
+        <label class="flex items-center justify-between rounded-lg border p-3.5 cursor-pointer transition-colors hover:bg-opacity-50"
+               style="background: var(--color-input); border-color: var(--color-border);">
+          <div class="flex items-center gap-3">
+            <i class="ph ph-rectangle text-lg" style="color: var(--color-muted-foreground);"></i>
+            <div>
+              <p class="text-sm font-medium">Compact Mode</p>
+              <p class="text-xs" style="color: var(--color-muted-foreground);">Tighter spacing &amp; padding</p>
+            </div>
+          </div>
+          <input type="checkbox" x-model="compactMode" @change="save()" class="toggle-checkbox" />
+        </label>
+
+        {# Reduce motion #}
+        <label class="flex items-center justify-between rounded-lg border p-3.5 cursor-pointer transition-colors"
+               style="background: var(--color-input); border-color: var(--color-border);">
+          <div class="flex items-center gap-3">
+            <i class="ph ph-circle-dashed text-lg" style="color: var(--color-muted-foreground);"></i>
+            <div>
+              <p class="text-sm font-medium">Reduce Motion</p>
+              <p class="text-xs" style="color: var(--color-muted-foreground);">Disable animations</p>
+            </div>
+          </div>
+          <input type="checkbox" x-model="reduceMotion" @change="save()" class="toggle-checkbox" />
+        </label>
+
+        {# Notifications #}
+        <label class="flex items-center justify-between rounded-lg border p-3.5 cursor-pointer transition-colors"
+               style="background: var(--color-input); border-color: var(--color-border);">
+          <div class="flex items-center gap-3">
+            <i class="ph ph-bell text-lg" style="color: var(--color-muted-foreground);"></i>
+            <div>
+              <p class="text-sm font-medium">Notifications</p>
+              <p class="text-xs" style="color: var(--color-muted-foreground);">Show toast messages</p>
+            </div>
+          </div>
+          <input type="checkbox" x-model="notificationsEnabled" @change="save()" class="toggle-checkbox" />
+        </label>
+
+        {# Sidebar collapsed #}
+        <label class="flex items-center justify-between rounded-lg border p-3.5 cursor-pointer transition-colors"
+               style="background: var(--color-input); border-color: var(--color-border);">
+          <div class="flex items-center gap-3">
+            <i class="ph ph-sidebar-simple text-lg" style="color: var(--color-muted-foreground);"></i>
+            <div>
+              <p class="text-sm font-medium">Collapse Sidebar</p>
+              <p class="text-xs" style="color: var(--color-muted-foreground);">Default to collapsed nav</p>
+            </div>
+          </div>
+          <input type="checkbox" x-model="sidebarCollapsed" @change="save()" class="toggle-checkbox" />
+        </label>
+      </div>
+
+      {# ---- Refresh interval ---- #}
+      <div>
+        <span class="text-xs font-medium uppercase tracking-wider block mb-2.5" style="color: var(--color-muted-foreground);">Dashboard Refresh Interval</span>
+        <div class="flex items-center gap-3">
+          {% set intervals = [(1, '1s'), (5, '5s'), (10, '10s'), (30, '30s')] %}
+          {% for val, label in intervals %}
+          <button type="button"
+                  @click="refreshInterval = {{ val }}; save()"
+                  :class="refreshInterval === {{ val }} ? 'ring-2' : ''"
+                  class="px-4 py-2 rounded-lg border text-sm font-medium transition-all"
+                  style="background: var(--color-input); border-color: var(--color-border); --tw-ring-color: var(--color-primary);"
+                  :style="refreshInterval === {{ val }} ? 'color: var(--color-primary)' : 'color: var(--color-muted-foreground)'">
+            {{ label }}
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+
+      {# ---- Save button + status ---- #}
+      <div class="flex items-center gap-3 pt-1">
+        <button type="button" @click="save()"
+                class="px-5 py-2.5 rounded-lg font-medium text-sm transition-all hover:scale-[1.02] flex items-center gap-2"
                 style="background: var(--color-primary); color: var(--color-primary-foreground);">
           <i class="ph ph-check text-sm"></i>Save appearance
         </button>
+        <span x-show="saving" class="text-xs flex items-center gap-1.5" style="color: var(--color-muted-foreground);">
+          <i class="ph ph-spinner animate-spin text-sm"></i>Saving...
+        </span>
+        <span x-show="saved && !saving" class="text-xs flex items-center gap-1.5" style="color: var(--color-success);">
+          <i class="ph-fill ph-check-circle text-sm"></i>Saved
+        </span>
       </div>
-    </form>
+    </div>
   </section>
 
   {# ===================== Two-Factor Auth ===================== #}
@@ -201,6 +315,100 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+  .toggle-checkbox {
+    appearance: none;
+    width: 40px;
+    height: 22px;
+    border-radius: 9999px;
+    background: var(--color-border);
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    border: none;
+    flex-shrink: 0;
+  }
+  .toggle-checkbox::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: white;
+    transition: transform 0.2s ease;
+  }
+  .toggle-checkbox:checked {
+    background: var(--color-primary);
+  }
+  .toggle-checkbox:checked::after {
+    transform: translateX(18px);
+  }
+</style>
+<script>
+function appearanceSettings() {
+  return {
+    theme: '{{ settings.theme }}',
+    accentColor: '{{ settings.accent_color }}',
+    compactMode: {{ (settings.extras or {}).get('compact_mode', False) | tojson }},
+    reduceMotion: {{ (settings.extras or {}).get('reduce_motion', False) | tojson }},
+    refreshInterval: {{ (settings.extras or {}).get('refresh_interval', 5) | tojson }},
+    notificationsEnabled: {{ (settings.extras or {}).get('notifications_enabled', True) | tojson }},
+    sidebarCollapsed: {{ (settings.extras or {}).get('sidebar_collapsed', False) | tojson }},
+    saving: false,
+    saved: false,
+    _saveTimer: null,
+
+    applyTheme() {
+      const isLight = this.theme === 'light';
+      const isSystem = this.theme === 'system';
+      const prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+      const effectiveLight = isSystem ? prefersLight : isLight;
+      document.body.dataset.theme = effectiveLight ? 'light' : 'dark';
+      document.documentElement.classList.toggle('light', effectiveLight);
+      document.documentElement.classList.toggle('dark', !effectiveLight);
+    },
+
+    applyAccent() {
+      if (this.accentColor && /^#[0-9A-Fa-f]{6}$/.test(this.accentColor)) {
+        document.documentElement.style.setProperty('--color-primary', this.accentColor);
+        document.documentElement.style.setProperty('--color-ring', this.accentColor);
+      }
+    },
+
+    save() {
+      this.saving = true;
+      this.saved = false;
+      clearTimeout(this._saveTimer);
+      this._saveTimer = setTimeout(async () => {
+        try {
+          const body = new URLSearchParams();
+          body.set('theme', this.theme);
+          body.set('accent_color', this.accentColor);
+          body.set('compact_mode', this.compactMode ? 'on' : '');
+          body.set('reduce_motion', this.reduceMotion ? 'on' : '');
+          body.set('refresh_interval', String(this.refreshInterval));
+          body.set('notifications_enabled', this.notificationsEnabled ? 'on' : '');
+          body.set('sidebar_collapsed', this.sidebarCollapsed ? 'on' : '');
+          await fetch('/settings/appearance', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            credentials: 'same-origin',
+            body: body.toString(),
+          });
+          this.saved = true;
+          setTimeout(() => this.saved = false, 2500);
+        } catch (e) {
+          if (window.cognixToastError) window.cognixToastError('Failed to save settings');
+        } finally {
+          this.saving = false;
+        }
+      }, 400);
+    },
+  };
+}
+</script>
 <script>
 (function() {
   var form = document.getElementById('bot-config-form');

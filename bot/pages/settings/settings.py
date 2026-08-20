@@ -79,21 +79,37 @@ async def settings_view(
 
 @router.post("/settings/appearance")
 async def settings_appearance(
+    request: Request,
     theme: str = Form("dark"),
     accent_color: str = Form("#60A5FA"),
-    font_size: str = Form("medium"),
+    compact_mode: str = Form(""),
+    reduce_motion: str = Form(""),
+    refresh_interval: str = Form("5"),
+    notifications_enabled: str = Form(""),
+    sidebar_collapsed: str = Form(""),
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
 ) -> Response:
     user = await _require_user(access_token)
-    if theme not in ("dark", "light", "custom"):
+    if theme not in ("dark", "light", "system"):
         theme = "dark"
-    if font_size not in ("small", "medium", "large"):
-        font_size = "medium"
+    try:
+        ri = int(refresh_interval)
+    except (ValueError, TypeError):
+        ri = 5
+    if ri not in (1, 5, 10, 30):
+        ri = 5
     async with db_session() as s:
         row = await _get_or_create_settings(s, user)
         row.theme = theme
         row.accent_color = accent_color[:16]
-        row.font_size = font_size
+        row.font_size = "medium"  # kept for backward compat, no longer used
+        extras = dict(row.extras or {})
+        extras["compact_mode"] = compact_mode == "on"
+        extras["reduce_motion"] = reduce_motion == "on"
+        extras["refresh_interval"] = ri
+        extras["notifications_enabled"] = notifications_enabled == "on"
+        extras["sidebar_collapsed"] = sidebar_collapsed == "on"
+        row.extras = extras
         row.updated_at = _dt2.now(tz=UTC)
     return RedirectResponse("/settings", status_code=303)
 

@@ -131,7 +131,7 @@ function dashboardWidgets() {
     },
 
     init() {
-      this._refreshTimer = setInterval(() => this.refreshWidgets(), 5000);
+      this._refreshTimer = setInterval(() => this.refreshWidgets(), window.__CognixRefreshInterval || 5000);
     },
 
     async refreshWidgets() {

@@ -459,12 +459,26 @@ async def user_settings_me(
     from bot.pages._shared import _current_user
     user = await _current_user(access_token)
     if user is None:
-        return {"theme": "dark", "accent_color": "#60A5FA", "font_size": "medium"}
+        return {"theme": "dark", "accent_color": "#60A5FA", "font_size": "medium",
+                "compact_mode": False, "reduce_motion": False, "refresh_interval": 5,
+                "notifications_enabled": True, "sidebar_collapsed": False}
     async with db_session() as s:
         row = await s.get(WebUserSettings, user.id)
     if row is None:
-        return {"theme": "dark", "accent_color": "#60A5FA", "font_size": "medium"}
-    return {"theme": row.theme, "accent_color": row.accent_color, "font_size": row.font_size}
+        return {"theme": "dark", "accent_color": "#60A5FA", "font_size": "medium",
+                "compact_mode": False, "reduce_motion": False, "refresh_interval": 5,
+                "notifications_enabled": True, "sidebar_collapsed": False}
+    extras = row.extras or {}
+    return {
+        "theme": row.theme,
+        "accent_color": row.accent_color,
+        "font_size": row.font_size,
+        "compact_mode": extras.get("compact_mode", False),
+        "reduce_motion": extras.get("reduce_motion", False),
+        "refresh_interval": extras.get("refresh_interval", 5),
+        "notifications_enabled": extras.get("notifications_enabled", True),
+        "sidebar_collapsed": extras.get("sidebar_collapsed", False),
+    }
 
 
 # ---------- Channel/roles API ------------------------------------------------
