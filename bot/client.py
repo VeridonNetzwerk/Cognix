@@ -199,6 +199,7 @@ class CogniXBot(commands.Bot):
                     s.add(Server(
                         id=guild.id,
                         name=guild.name,
+                        icon_hash=guild.icon.key if guild.icon else None,
                         member_count=guild.member_count or 0,
                     ))
                     s.add(ServerConfig(server_id=guild.id))
@@ -206,6 +207,7 @@ class CogniXBot(commands.Bot):
                     existing.deleted_at = None
                     existing.is_active = True
                     existing.name = guild.name
+                    existing.icon_hash = guild.icon.key if guild.icon else None
                     if guild.member_count:
                         existing.member_count = guild.member_count
 
@@ -217,12 +219,13 @@ class CogniXBot(commands.Bot):
         async with db_session() as s:
             existing = await s.get(Server, guild.id)
             if existing is None:
-                s.add(Server(id=guild.id, name=guild.name, member_count=guild.member_count or 0))
+                s.add(Server(id=guild.id, name=guild.name, icon_hash=guild.icon.key if guild.icon else None, member_count=guild.member_count or 0))
                 s.add(ServerConfig(server_id=guild.id))
             else:
                 existing.deleted_at = None
                 existing.is_active = True
                 existing.name = guild.name
+                existing.icon_hash = guild.icon.key if guild.icon else None
 
     # ---- IPC handlers ----
     async def _register_ipc(self) -> None:
