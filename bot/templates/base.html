@@ -629,33 +629,57 @@
             <h1 class="text-2xl md:text-3xl font-bold tracking-tight truncate">{% block header %}{{ bot_info.name or 'CogniX' }}{% endblock %}</h1>
             <div class="flex items-center gap-3 shrink-0">
               {% if user and servers %}
+              {% set current_server = None %}
+              {% if selected_server_id %}
+                {% for s in servers %}{% if s.id == selected_server_id %}{% set current_server = s %}{% endif %}{% endfor %}
+              {% endif %}
               <div class="relative" x-data="{ open: false }">
                 <button @click="open = !open" @click.outside="open = false"
-                        class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors"
-                        style="background: color-mix(in oklch, var(--color-secondary) 60%, transparent);">
-                  <i class="ph ph-hard-drives text-xs" style="color: var(--color-muted-foreground);"></i>
-                  <span class="truncate max-w-[120px] font-medium">
-                    {% if selected_server_id %}
-                      {% for s in servers %}{% if s.id == selected_server_id %}{{ s.name }}{% endif %}{% endfor %}
-                    {% else %}All servers{% endif %}
+                        class="flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-lg text-sm border transition-colors min-w-[180px]"
+                        :style="open ? 'border-color: var(--color-primary); box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-primary) 25%, transparent);' : 'border-color: var(--color-border);'"
+                        style="background: var(--color-input);">
+                  {% if current_server %}
+                    {% if current_server.icon_hash %}
+                    <img src="https://cdn.discordapp.com/icons/{{ current_server.id }}/{{ current_server.icon_hash }}.png?size=64" alt="" class="w-6 h-6 rounded-full shrink-0 object-cover">
+                    {% else %}
+                    <div class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0"
+                         style="background: color-mix(in oklch, var(--color-primary) 25%, transparent); color: var(--color-primary);">
+                      {{ (current_server.name or '?')[0]|upper }}
+                    </div>
+                    {% endif %}
+                  {% else %}
+                    <div class="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style="background: var(--color-secondary);">
+                      <i class="ph ph-hard-drives text-xs" style="color: var(--color-muted-foreground);"></i>
+                    </div>
+                  {% endif %}
+                  <span class="truncate max-w-[140px] font-medium text-left flex-1"
+                        style="{% if not current_server %}color: var(--color-muted-foreground);{% endif %}">
+                    {{ current_server.name if current_server else 'Wähle einen Server' }}
                   </span>
-                  <i class="ph ph-caret-down text-[10px]" style="color: var(--color-muted-foreground);" :class="open ? 'rotate-180' : ''"></i>
+                  <i class="ph ph-caret-down text-xs transition-transform shrink-0" style="color: var(--color-muted-foreground);" :class="open ? 'rotate-180' : ''"></i>
                 </button>
                 <div x-show="open" x-cloak
                      x-transition:enter="transition ease-out duration-100"
                      x-transition:enter-start="opacity-0 -translate-y-1"
                      x-transition:enter-end="opacity-100 translate-y-0"
-                     class="absolute right-0 top-full mt-1 w-56 rounded-lg border shadow-xl z-50 max-h-64 overflow-y-auto scroll-thin"
+                     class="absolute right-0 top-full mt-1.5 w-72 rounded-xl border shadow-2xl z-50 max-h-80 overflow-y-auto scroll-thin py-1.5"
                      style="background: var(--color-card); border-color: var(--color-border);">
-                  <a href="/servers/select/0" class="flex items-center gap-2 px-3 py-2 text-sm hover:bg-white/5 transition-colors {% if not selected_server_id %}font-semibold{% endif %}">
-                    <i class="ph ph-squares-four text-xs"></i> All servers
+                  <a href="/servers/select/0" class="flex items-center gap-2.5 px-3 py-2 mx-1.5 rounded-lg text-sm hover:bg-white/5 transition-colors {% if not selected_server_id %}font-semibold{% endif %}">
+                    <div class="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style="background: var(--color-secondary);">
+                      <i class="ph ph-squares-four text-xs" style="color: var(--color-muted-foreground);"></i>
+                    </div>
+                    <span>All servers</span>
                   </a>
+                  <div class="border-t my-1" style="border-color: var(--color-border);"></div>
                   {% for s in servers %}
-                  <a href="/servers/select/{{ s.id }}" class="flex items-center gap-2 px-3 py-2 text-sm hover:bg-white/5 transition-colors {% if selected_server_id == s.id %}font-semibold{% endif %}">
+                  <a href="/servers/select/{{ s.id }}" class="flex items-center gap-2.5 px-3 py-2 mx-1.5 rounded-lg text-sm hover:bg-white/5 transition-colors {% if selected_server_id == s.id %}font-semibold{% endif %}">
                     {% if s.icon_hash %}
-                    <img src="https://cdn.discordapp.com/icons/{{ s.id }}/{{ s.icon_hash }}.png?size=32" alt="" class="w-4 h-4 rounded">
+                    <img src="https://cdn.discordapp.com/icons/{{ s.id }}/{{ s.icon_hash }}.png?size=64" alt="" class="w-6 h-6 rounded-full shrink-0 object-cover">
                     {% else %}
-                    <i class="ph ph-hard-drives text-xs"></i>
+                    <div class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0"
+                         style="background: color-mix(in oklch, var(--color-primary) 25%, transparent); color: var(--color-primary);">
+                      {{ (s.name or '?')[0]|upper }}
+                    </div>
                     {% endif %}
                     <span class="truncate">{{ s.name }}</span>
                   </a>
