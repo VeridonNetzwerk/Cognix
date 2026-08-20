@@ -629,19 +629,24 @@
             <h1 class="text-2xl md:text-3xl font-bold tracking-tight truncate">{% block header %}{{ bot_info.name or 'CogniX' }}{% endblock %}</h1>
             <div class="flex items-center gap-3 shrink-0">
               {% if user and servers %}
-              {% set current_server = servers | selectattr('id', 'equalto', selected_server_id) | first if selected_server_id else None %}
+              {% set ns = namespace(current=None) %}
+              {% if selected_server_id %}
+                {% for s in servers %}
+                  {% if s.id == selected_server_id %}{% set ns.current = s %}{% endif %}
+                {% endfor %}
+              {% endif %}
               <div class="relative" x-data="{ open: false }">
                 <button @click="open = !open" @click.outside="open = false"
                         class="flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-lg text-sm border transition-colors min-w-[180px]"
                         :style="open ? 'border-color: var(--color-primary); box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-primary) 25%, transparent);' : 'border-color: var(--color-border);'"
                         style="background: var(--color-input);">
-                  {% if current_server %}
-                    {% if current_server.icon_hash %}
-                    <img src="https://cdn.discordapp.com/icons/{{ current_server.id }}/{{ current_server.icon_hash }}.png?size=64" alt="" class="w-6 h-6 rounded-full shrink-0 object-cover">
+                  {% if ns.current %}
+                    {% if ns.current.icon_hash %}
+                    <img src="https://cdn.discordapp.com/icons/{{ ns.current.id }}/{{ ns.current.icon_hash }}.png?size=64" alt="" class="w-6 h-6 rounded-full shrink-0 object-cover">
                     {% else %}
                     <div class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0"
                          style="background: color-mix(in oklch, var(--color-primary) 25%, transparent); color: var(--color-primary);">
-                      {{ (current_server.name or '?')[0]|upper }}
+                      {{ (ns.current.name or '?')[0]|upper }}
                     </div>
                     {% endif %}
                   {% else %}
@@ -650,8 +655,8 @@
                     </div>
                   {% endif %}
                   <span class="truncate max-w-[140px] font-medium text-left flex-1"
-                        style="{% if not current_server %}color: var(--color-muted-foreground);{% endif %}">
-                    {{ current_server.name if current_server else 'Wähle einen Server' }}
+                        style="{% if not ns.current %}color: var(--color-muted-foreground);{% endif %}">
+                    {{ ns.current.name if ns.current else 'Wähle einen Server' }}
                   </span>
                   <i class="ph ph-caret-down text-xs transition-transform shrink-0" style="color: var(--color-muted-foreground);" :class="open ? 'rotate-180' : ''"></i>
                 </button>

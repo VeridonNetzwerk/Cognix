@@ -203,14 +203,18 @@ async def index(request: Request,
 
 
 @router.get("/servers/select/{server_id}")
-async def select_server(server_id: int, request: Request,
+async def select_server(server_id: str, request: Request,
                         access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> RedirectResponse:
     await _require_user(access_token)
     response = RedirectResponse(request.headers.get("referer", "/"), status_code=303)
-    if server_id == 0:
+    try:
+        sid = int(server_id)
+    except ValueError:
+        sid = 0
+    if sid == 0:
         response.delete_cookie("selected_server_id", path="/")
     else:
-        response.set_cookie("selected_server_id", str(server_id), path="/", max_age=60*60*24*365, httponly=True, samesite="lax")
+        response.set_cookie("selected_server_id", str(sid), path="/", max_age=60*60*24*365, httponly=True, samesite="lax")
     return response
 
 
