@@ -62,22 +62,9 @@ _LOADING_HTML = """<!doctype html>
         gap: 0;
       }
       @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-      .logo {
-        width: 64px; height: 64px; margin: 0 auto 1.5rem;
-        border-radius: 16px;
-        background: linear-gradient(135deg, #7c5cff, #5b8def);
-        display: flex; align-items: center; justify-content: center;
-        box-shadow: 0 8px 32px rgba(124, 92, 255, 0.35);
-        animation: pulseLogo 2s ease-in-out infinite;
-      }
-      @keyframes pulseLogo {
-        0%, 100% { transform: scale(1); box-shadow: 0 8px 32px rgba(124, 92, 255, 0.35); }
-        50% { transform: scale(1.05); box-shadow: 0 12px 40px rgba(124, 92, 255, 0.5); }
-      }
-      .logo svg { width: 34px; height: 34px; fill: white; }
       .text-logo {
-        font-size: 1.75rem; font-weight: 700; margin: 0 0 0.4rem;
-        letter-spacing: -0.02em;
+        font-size: 3.5rem; font-weight: 800; margin: 0 0 1rem;
+        letter-spacing: -0.03em;
         background: linear-gradient(135deg, #7c5cff, #5b8def);
         -webkit-background-clip: text;
         background-clip: text;
@@ -131,9 +118,6 @@ _LOADING_HTML = """<!doctype html>
   </head>
   <body>
     <div class="container">
-      <div class="logo">
-        <svg viewBox="0 0 24 24"><path d="M12 2L2 19h20L12 2zm0 4.5L18.5 17h-13L12 6.5z"/></svg>
-      </div>
       <div class="text-logo">CogniX</div>
       <p class="status" id="status">Initializing…</p>
       <div class="progress-track">
