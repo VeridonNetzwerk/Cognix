@@ -413,7 +413,7 @@ function dashboardWidgets() {
               if (typeof j.user_count === 'number') this.userCount = j.user_count;
               if (typeof j.memory_mb === 'number' && isFinite(j.memory_mb)) this.memoryMb = Math.round(j.memory_mb * 10) / 10;
               if (typeof j.panel_memory_mb === 'number' && isFinite(j.panel_memory_mb)) this.panelMemoryMb = Math.round(j.panel_memory_mb * 10) / 10;
-              this.totalMemoryMb = Math.round((this.memoryMb + this.panelMemoryMb) * 10) / 10;
+              this.totalMemoryMb = this.panelMemoryMb > 0 ? Math.round((this.memoryMb + this.panelMemoryMb) * 10) / 10 : this.memoryMb;
               this.pingError = j.ping_error ? j.ping_error : (j.error && !j.online ? j.error : '');
               this.online = !!j.online;
             })

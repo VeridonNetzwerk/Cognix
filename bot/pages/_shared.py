@@ -73,7 +73,55 @@ def _render(request: Request, template: str, **ctx: Any) -> HTMLResponse:
     ctx.setdefault("loaded_cogs", _get_loaded_cogs_set())
     ctx.setdefault("cog_module_categories", _get_cog_module_categories())
     ctx.setdefault("cog_categories", _get_cog_categories())
+    ctx.setdefault("servers", _get_servers())
+    ctx.setdefault("selected_server_id", _get_selected_server_id(request))
     return templates.TemplateResponse(request, template, ctx)
+
+
+_sync_engine = None
+_sync_engine_url = None
+
+
+def _get_sync_engine():
+    global _sync_engine, _sync_engine_url
+    from sqlalchemy import create_engine as _create_engine
+    from bot.config.settings import get_settings
+
+    settings = get_settings()
+    db_url = settings.database_url
+    if db_url.startswith("sqlite+aiosqlite"):
+        sync_url = db_url.replace("sqlite+aiosqlite", "sqlite")
+    elif db_url.startswith("postgresql+asyncpg"):
+        sync_url = db_url.replace("postgresql+asyncpg", "postgresql+psycopg2")
+    else:
+        sync_url = db_url
+
+    if _sync_engine is None or _sync_engine_url != sync_url:
+        _sync_engine = _create_engine(sync_url, echo=False, future=True, pool_pre_ping=True)
+        _sync_engine_url = sync_url
+    return _sync_engine
+
+
+def _get_servers() -> list:
+    """Return all active servers for the header selector (sync query)."""
+    from sqlalchemy import select as _select
+    from bot.database.models.server.server import Server
+
+    engine = _get_sync_engine()
+    with engine.connect() as conn:
+        result = conn.execute(_select(Server).where(Server.is_active.is_(True)).order_by(Server.name))
+        return list(result.scalars().all())
+
+
+def _get_selected_server_id(request: Request) -> int | None:
+    """Read the selected server ID from cookie."""
+    raw = request.cookies.get("selected_server_id")
+    if raw:
+        try:
+            return int(raw)
+        except ValueError:
+            pass
+    return None
 
 
 def _get_cog_module_categories() -> dict[str, str]:

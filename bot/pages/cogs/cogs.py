@@ -30,7 +30,7 @@ from bot.database.models.server.server import Server
 from bot.database.models.server.server_cog_state import ServerCogState
 from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE
-from bot.pages._shared import _get_loaded_cogs_set, _render, _require_user, router
+from bot.pages._shared import _get_loaded_cogs_set, _get_selected_server_id, _render, _require_user, router
 
 
 @router.get("/cogs", response_class=HTMLResponse)
@@ -49,15 +49,30 @@ async def cogs_view(request: Request,
     loaded_set = _get_loaded_cogs_set()
 
     # Global enable/disable state from CogState (server_id=None)
+    selected_server_id = _get_selected_server_id(request)
     async with db_session() as s:
         rows = (await s.scalars(
             select(CogState).where(CogState.server_id.is_(None)).order_by(CogState.cog_name)
         )).all()
     state_by_name = {r.cog_name: r.enabled for r in rows}
 
+    # Per-server override for selected server
+    server_state_by_name: dict[str, bool] = {}
+    if selected_server_id:
+        async with db_session() as s:
+            sv_rows = (await s.scalars(
+                select(ServerCogState).where(ServerCogState.server_id == selected_server_id)
+            )).all()
+        server_state_by_name = {r.cog_name: r.enabled for r in sv_rows}
+
     # Build installed cog lookup
     installed_map: dict[str, dict] = {}
     for info in all_cog_infos:
+        cog_name_lower = info["name"].lower()
+        if selected_server_id and cog_name_lower in server_state_by_name:
+            enabled = server_state_by_name[cog_name_lower]
+        else:
+            enabled = state_by_name.get(cog_name_lower, True)
         installed_map[info["module"]] = {
             "name": info["name"],
             "module": info["module"],
@@ -68,7 +83,7 @@ async def cogs_view(request: Request,
             "version": info.get("version", ""),
             "installed": True,
             "loaded": info["module"] in loaded_set,
-            "enabled": state_by_name.get(info["name"].lower(), True),
+            "enabled": enabled,
             "requirements": [],
             "extra_files": [],
             "verified": info.get("verified", False),
@@ -133,6 +148,7 @@ async def cogs_view(request: Request,
         updates=cog_updates,
         store_available=store_ok,
         store_sync=store_sync,
+        selected_server_id=_get_selected_server_id(request),
     )
 
 

@@ -8,6 +8,7 @@
   "updates": updates,
   "storeAvailable": store_available,
   "storeSync": store_sync,
+  "selectedServerId": selected_server_id or 0,
 } | tojson }})' x-cloak>
 
   {# ---- Slim page title ---- #}
@@ -151,25 +152,6 @@
     </template>
   </div>
 
-  {# ---- Sort controls (below the tab bar) ---- #}
-  <template x-if="activeTab === 'explore' && !(searchOpen && searchQuery)">
-    <div class="flex items-center gap-2 mb-4 text-xs">
-      <span style="color: var(--color-muted-foreground);">Sort by:</span>
-      <button @click="toggleSort('name')" class="px-2 py-1 rounded-md transition-colors"
-              :style="sortBy === 'name' ? 'background: var(--color-primary); color: var(--color-primary-foreground);' : 'background: var(--color-muted); color: var(--color-muted-foreground);'">
-        Name <i class="ph text-[10px]" :class="sortBy === 'name' ? (sortDir === 'asc' ? 'ph-caret-up' : 'ph-caret-down') : ''"></i>
-      </button>
-      <button @click="toggleSort('category')" class="px-2 py-1 rounded-md transition-colors"
-              :style="sortBy === 'category' ? 'background: var(--color-primary); color: var(--color-primary-foreground);' : 'background: var(--color-muted); color: var(--color-muted-foreground);'">
-        Category <i class="ph text-[10px]" :class="sortBy === 'category' ? (sortDir === 'asc' ? 'ph-caret-up' : 'ph-caret-down') : ''"></i>
-      </button>
-      <button @click="toggleSort('version')" class="px-2 py-1 rounded-md transition-colors"
-              :style="sortBy === 'version' ? 'background: var(--color-primary); color: var(--color-primary-foreground);' : 'background: var(--color-muted); color: var(--color-muted-foreground);'">
-        Version <i class="ph text-[10px]" :class="sortBy === 'version' ? (sortDir === 'asc' ? 'ph-caret-up' : 'ph-caret-down') : ''"></i>
-      </button>
-    </div>
-  </template>
-
   {# ================= EXPLORE TAB ================= #}
   <template x-if="activeTab === 'explore'">
     <div>
@@ -215,6 +197,25 @@
             </div>
           </div>
 
+          {# ---- Sort controls (below the Discover Cogs hero) ---- #}
+          <template x-if="!(searchOpen && searchQuery)">
+            <div class="flex items-center gap-2 mb-4 text-xs">
+              <span style="color: var(--color-muted-foreground);">Sort by:</span>
+              <button @click="toggleSort('name')" class="px-2 py-1 rounded-md transition-colors"
+                      :style="sortBy === 'name' ? 'background: var(--color-primary); color: var(--color-primary-foreground);' : 'background: var(--color-muted); color: var(--color-muted-foreground);'">
+                Name <i class="ph text-[10px]" :class="sortBy === 'name' ? (sortDir === 'asc' ? 'ph-caret-up' : 'ph-caret-down') : ''"></i>
+              </button>
+              <button @click="toggleSort('category')" class="px-2 py-1 rounded-md transition-colors"
+                      :style="sortBy === 'category' ? 'background: var(--color-primary); color: var(--color-primary-foreground);' : 'background: var(--color-muted); color: var(--color-muted-foreground);'">
+                Category <i class="ph text-[10px]" :class="sortBy === 'category' ? (sortDir === 'asc' ? 'ph-caret-up' : 'ph-caret-down') : ''"></i>
+              </button>
+              <button @click="toggleSort('version')" class="px-2 py-1 rounded-md transition-colors"
+                      :style="sortBy === 'version' ? 'background: var(--color-primary); color: var(--color-primary-foreground);' : 'background: var(--color-muted); color: var(--color-muted-foreground);'">
+                Version <i class="ph text-[10px]" :class="sortBy === 'version' ? (sortDir === 'asc' ? 'ph-caret-up' : 'ph-caret-down') : ''"></i>
+              </button>
+            </div>
+          </template>
+
           {# Category sections — "magazine" rhythm like App Center's Explore feed #}
           <template x-for="section in sectionsList()" :key="section.name">
             <div class="mb-9">
@@ -253,64 +254,6 @@
         </div>
       </template>
 
-      {% if cog_names %}
-      <div class="mt-8" x-data="{ openServer: null }">
-        <div class="flex items-center gap-2.5 mb-3.5">
-          <div class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-               style="background: color-mix(in oklch, var(--color-primary) 15%, transparent);">
-            <i class="ph-fill ph-servers text-sm" style="color: var(--color-primary);"></i>
-          </div>
-          <h3 class="text-base font-bold">Per-server overrides</h3>
-        </div>
-        <div class="space-y-2">
-          {% for sv in servers %}
-          <div class="rounded-xl border overflow-hidden" style="background: var(--color-card); border-color: var(--color-border);">
-            <button @click="openServer === {{ sv.id }} ? openServer = null : openServer = {{ sv.id }}"
-                    class="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[color-mix(in_oklch,var(--color-primary)_5%,transparent)]">
-              <i class="ph ph-server text-sm" style="color: var(--color-muted-foreground);"></i>
-              <span class="font-medium text-sm flex-1 truncate">{{ sv.name }}</span>
-              {% set sv_overrides = per_server.get(sv.id, {}) %}
-              {% set disabled_count = sv_overrides.values() | list | select('equalto', false) | list | length %}
-              {% set enabled_count = cog_names | length - disabled_count %}
-              <span class="text-xs flex items-center gap-2" style="color: var(--color-muted-foreground);">
-                <span class="flex items-center gap-1" style="color: var(--color-success);">
-                  <i class="ph-fill ph-check-circle text-xs"></i>{{ enabled_count }}
-                </span>
-                {% if disabled_count > 0 %}
-                <span class="flex items-center gap-1" style="color: var(--color-destructive);">
-                  <i class="ph-fill ph-x-circle text-xs"></i>{{ disabled_count }}
-                </span>
-                {% endif %}
-              </span>
-              <i class="ph ph-caret-down text-sm transition-transform"
-                 :class="openServer === {{ sv.id }} ? 'rotate-180' : ''"
-                 style="color: var(--color-muted-foreground);"></i>
-            </button>
-            <div x-show="openServer === {{ sv.id }}" x-collapse>
-              <div class="border-t px-4 py-3 space-y-1" style="border-color: var(--color-border);">
-                {% for n in cog_names %}
-                {% set state = per_server.get(sv.id, {}).get(n, true) %}
-                <div class="flex items-center justify-between py-1.5">
-                  <span class="text-sm" style="color: var(--color-foreground);">{{ n }}</span>
-                  <form method="post" action="/cogs/server/{{ sv.id }}/{{ n }}/toggle" class="inline" @submit.prevent="serverToggle({{ sv.id }}, '{{ n }}', {{ 'false' if state else 'true' }})">
-                    <button type="submit" class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
-                            style="background: {% if state %}var(--color-success){% else %}var(--color-muted){% endif %};">
-                      <span class="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform {% if state %}translate-x-4{% else %}translate-x-1{% endif %}"></span>
-                    </button>
-                  </form>
-                </div>
-                {% endfor %}
-              </div>
-            </div>
-          </div>
-          {% else %}
-          <div class="rounded-xl border p-8 text-center" style="background: var(--color-card); border-color: var(--color-border);">
-            <p class="text-sm" style="color: var(--color-muted-foreground);">No servers known yet.</p>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
     </div>
   </template>
 
@@ -574,7 +517,7 @@
                   <button @click="toggleCog(selectedCog)" :disabled="busy === selectedCog.module"
                           class="w-full px-4 py-2.5 rounded-xl text-sm font-medium disabled:opacity-50"
                           :style="selectedCog.enabled ? 'background: var(--color-muted); color: var(--color-muted-foreground);' : 'background: color-mix(in oklch, var(--color-success) 12%, transparent); color: var(--color-success);'"
-                          x-text="selectedCog.enabled ? 'Disable' : 'Enable'"></button>
+                          x-text="(selectedCog.enabled ? 'Disable' : 'Enable') + (selectedServerId ? ' (this server)' : ' (global)')"></button>
                   <button @click="uninstallCog(selectedCog)" :disabled="busy === selectedCog.module"
                           class="w-full px-4 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50"
                           style="background: transparent; color: var(--color-destructive); border: 1px solid color-mix(in oklch, var(--color-destructive) 30%, transparent);">
@@ -601,6 +544,7 @@ function cogMarketplace(data) {
     updates: data.updates || [],
     storeAvailable: data.storeAvailable !== false,
     storeSync: data.storeSync || { available: false, last_sync: null, has_cache: false },
+    selectedServerId: data.selectedServerId || 0,
     syncing: false,
     sortBy: 'name',
     sortDir: 'asc',
@@ -1018,11 +962,24 @@ function cogMarketplace(data) {
     async toggleCog(cog) {
       this.busy = cog.module;
       try {
-        const j = await this._postJSON(`/api/v1/cogs/${encodeURIComponent(cog.name)}/toggle`);
-        this.showToast(cog.name + (j.enabled ? ' aktiviert' : ' deaktiviert'), 'success');
-        setTimeout(() => this.refreshCogsData(), 500);
+        if (this.selectedServerId) {
+          const newEnabled = !cog.enabled;
+          await this._postJSON(
+            `/api/v1/cogs/${this.selectedServerId}/enabled-cogs/${encodeURIComponent(cog.name)}`,
+            { enabled: newEnabled },
+            'PUT'
+          );
+          cog.enabled = newEnabled;
+          if (this.selectedCog) this.selectedCog.enabled = newEnabled;
+          this.showToast(cog.name + (newEnabled ? ' enabled' : ' disabled') + ' for this server', 'success');
+        } else {
+          const j = await this._postJSON(`/api/v1/cogs/${encodeURIComponent(cog.name)}/toggle`);
+          cog.enabled = j.enabled;
+          if (this.selectedCog) this.selectedCog.enabled = j.enabled;
+          this.showToast(cog.name + (j.enabled ? ' enabled' : ' disabled') + ' globally', 'success');
+        }
       } catch (e) {
-        this.showToast('Toggle fehlgeschlagen: ' + e.message, 'error');
+        this.showToast('Toggle failed: ' + e.message, 'error');
       } finally {
         this.busy = null;
       }

@@ -54,11 +54,11 @@ async def status_endpoint() -> BotStatus:
         except Exception:  # noqa: BLE001
             pass
     # In-process mode: bot and panel share the same process, so
-    # memory_mb (from bot._proc) == panel_memory_mb.  Show the single
-    # RSS as the total and set panel to 0 to avoid confusing the user.
+    # memory_mb (from bot._proc or get_bot_info offline) == panel_memory_mb.
+    # Show the single RSS as the total and set panel to 0 to avoid
+    # double-counting.
     bot_mem = info.get("memory_mb", 0.0)
-    if bot is not None and bot_mem == panel_mem:
-        # Same process — don't double-count
+    if bot_mem == panel_mem:
         panel_mem = 0.0
     return BotStatus(
         online=info["online"],
