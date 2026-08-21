@@ -443,8 +443,14 @@
             if (l < 300) return 'color: var(--color-warning);';
             return 'color: var(--color-destructive);';
           },
+          _pollId: null,
           start() {
-            setInterval(() => {
+            this._startPolling();
+            window.addEventListener('cognix:refresh-interval', () => this._startPolling());
+          },
+          _startPolling() {
+            if (this._pollId) clearInterval(this._pollId);
+            this._pollId = setInterval(() => {
               fetch('/api/v1/bot/status', { credentials: 'same-origin' })
                 .then(r => (r.ok ? r.json() : null))
                 .then(j => {
