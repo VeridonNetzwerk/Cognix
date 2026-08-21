@@ -214,7 +214,6 @@ async def select_server(server_id: str, request: Request,
     else:
         response.set_cookie("selected_server_id", str(sid), path="/", max_age=60*60*24*365, httponly=True, samesite="lax")
     return response
-<<<<<<< HEAD
 
 
 @router.get("/servers", response_class=HTMLResponse)
