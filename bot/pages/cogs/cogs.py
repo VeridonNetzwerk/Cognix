@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC
-from datetime import datetime as _dt
-
 from pathlib import Path
 
 from fastapi import Cookie, Request, Response

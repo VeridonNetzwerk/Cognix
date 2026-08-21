@@ -28,7 +28,7 @@ from sqlalchemy import select
 from bot.config.logging import get_logger
 from bot.database import db_session
 from bot.database.models.server.server_config import ServerConfig
-from bot.utils.embeds import err_embed, ok_embed
+from bot.utils.embeds import ok_embed
 from bot.utils.time_parser import humanize_seconds, parse_duration
 
 log = get_logger("bot.cogs.automod")

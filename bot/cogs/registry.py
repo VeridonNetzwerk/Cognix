@@ -47,9 +47,6 @@ def set_dev_mode(enabled: bool) -> None:
     log.info("cog_store_mode", mode="dev" if enabled else "release")
 
 
-def is_dev_mode() -> bool:
-    return _DEV_MODE
-
 # ---------------------------------------------------------------------------
 # Category metadata — gradient colors, icons, slogans (Ubuntu App Center style)
 # ---------------------------------------------------------------------------
@@ -740,7 +737,6 @@ def install_cog(module_name: str) -> dict:
 
     cog_parts = parts if parts[0] == "cogs" else ["cogs"] + parts
     cog_dir = _COGS_DIR.parent / Path(*cog_parts[:-1]) if len(cog_parts) >= 3 else _COGS_DIR.parent / Path(*cog_parts)
-    cog_file = _COGS_DIR.parent / Path(*cog_parts).with_suffix(".py")
 
     if not store_file.exists():
         return {"error": f"Cog not found in store: {module_name}"}

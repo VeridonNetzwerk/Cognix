@@ -5,7 +5,6 @@ from __future__ import annotations
 from sqlalchemy import desc, func, select
 
 from bot.runtime import get_bot, get_bot_info
-from bot.database.models.auth.audit_log import AuditLog
 from bot.database.models.cogs.cog_state import CogState
 from bot.database.models.giveaways.giveaway import Giveaway, GiveawayStatus
 from bot.database.models.moderation.moderation import ModerationAction

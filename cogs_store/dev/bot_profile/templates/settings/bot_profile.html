@@ -469,9 +469,6 @@ function botProfilePanel() {
     statusColor() {
       return this.status==='online' ? '#23a55a' : this.status==='idle' ? '#f0b232' : this.status==='dnd' ? '#f23f43' : '#80848e';
     },
-    statusLabel() {
-      return this.status==='dnd' ? 'Nicht stören' : this.status==='idle' ? 'Abwesend' : this.status==='invisible' ? 'Offline' : 'Online';
-    },
     activityVerb() {
       if (this.activity_type === 'none') return '';
       return {playing:'Spielt', listening:'Hört', watching:'Schaut zu', competing:'Nimmt teil an', streaming:'Streamt'}[this.activity_type] || 'Spielt';

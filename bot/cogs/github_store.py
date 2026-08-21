@@ -86,7 +86,7 @@ async def ensure_store_cache(force: bool = False) -> bool:
     If a cache exists but is stale, returns True immediately and triggers a
     background refresh so the page doesn't block on a slow GitHub fetch.
     """
-    global _last_sync_ok, _last_sync_ts
+    global _last_sync_ok
 
     if not force and _marker_fresh():
         _last_sync_ok = True
