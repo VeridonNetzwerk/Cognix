@@ -479,6 +479,10 @@ function dashboardWidgets() {
         return 'color: var(--color-destructive);';
       },
       start() {
+        this._startPolling();
+        window.addEventListener('cognix:refresh-interval', () => this._startPolling());
+      },
+      _startPolling() {
         if (_intervalId) clearInterval(_intervalId);
         _intervalId = setInterval(() => {
           fetch('/api/v1/bot/status', { credentials: 'same-origin' })

@@ -23,7 +23,7 @@ from web.deps import require_admin
 from web.schemas.common import BotStatus
 from web.services.bot_ipc import get_ipc
 
-router = APIRouter(prefix="/bot", tags=["bot"], dependencies=[Depends(require_admin)])
+router = APIRouter(prefix="/bot", tags=["bot"])
 
 
 @router.get("/status", response_model=BotStatus)
@@ -74,7 +74,7 @@ async def status_endpoint() -> BotStatus:
     )
 
 
-@router.post("/restart")
+@router.post("/restart", dependencies=[Depends(require_admin)])
 async def restart() -> dict:
     # Prefer in-process control when the bot lives in this process.
     if get_bot() is not None or is_bot_paused():
@@ -88,19 +88,19 @@ async def restart() -> dict:
     return {"ok": True, "mode": "ipc"}
 
 
-@router.post("/start")
+@router.post("/start", dependencies=[Depends(require_admin)])
 async def bot_start() -> dict:
     request_bot_start()
     return {"ok": True}
 
 
-@router.post("/stop")
+@router.post("/stop", dependencies=[Depends(require_admin)])
 async def bot_stop() -> dict:
     await request_bot_stop()
     return {"ok": True}
 
 
-@router.post("/presence")
+@router.post("/presence", dependencies=[Depends(require_admin)])
 async def presence(payload: dict) -> dict:
     # Try in-process first
     bot = get_bot()
