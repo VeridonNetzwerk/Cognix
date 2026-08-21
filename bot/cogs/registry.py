@@ -747,7 +747,10 @@ def install_cog(module_name: str) -> dict:
         tmp_target = Path(tmpdir) / "cogs" / parts[1] if len(parts) >= 2 else Path(tmpdir) / "cogs"
         tmp_target.mkdir(parents=True, exist_ok=True)
         (Path(tmpdir) / "cogs" / "__init__.py").write_text("", encoding="utf-8")
+        _tmp_root = Path(tmpdir)
         for p in tmp_target.parents:
+            if p == _tmp_root:
+                break
             init = p / "__init__.py"
             if not init.exists():
                 init.write_text("", encoding="utf-8")
