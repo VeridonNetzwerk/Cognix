@@ -2,33 +2,76 @@
 
 from __future__ import annotations
 
-from datetime import UTC
-from datetime import datetime as _dt2
-from datetime import timedelta as _td2
+import discord
+from datetime import UTC, datetime as _dt2, timedelta as _td2
 from typing import Any
 
 from fastapi import Cookie, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import desc, func, select
 
+from bot.config.logging import get_logger
 from bot.runtime import get_bot
 from bot.database.models.auth.audit_log import AuditLog
+from bot.database.models.auth.role_permission import RolePermission
+from bot.database.models.auth.web_user import WebRole
+from bot.database.models.auth.web_user_settings import WebUserSettings
 from bot.database.models.content.embed_template import EmbedTemplate
 from bot.database.models.invites.invite_stats import InviteStats
 from bot.database.models.invites.invite_uses import InviteUse
-from bot.database.models.auth.role_permission import RolePermission
 from bot.database.models.server.server import Server
 from bot.database.models.server.server_event_config import ServerEventConfig
-from bot.database.models.auth.web_user import WebRole
-from bot.database.models.auth.web_user_settings import WebUserSettings
 from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE
 from bot.pages._shared import _render, _require_cog, _require_user, _get_selected_server_id, router
 
+log = get_logger("web.pages.features")
 
-def discord_obj_for(user_id: int) -> Any:
-    import discord as _d
-    return _d.Object(id=user_id)
+
+def _discord_obj(user_id: int) -> discord.Object:
+    """Create a discord.Object for a user ID (used for bans etc.)."""
+    return discord.Object(id=user_id)
+
+
+def _hex_to_int(h: str, fallback: int) -> int:
+    """Parse a hex color string, returning fallback on failure."""
+    try:
+        return int(h.lstrip("#"), 16)
+    except ValueError:
+        return fallback
+
+
+def _form_bool(v: str) -> bool:
+    """Interpret a form checkbox value as boolean."""
+    return v.lower() in ("on", "true", "1", "yes")
+
+
+def _form_channel_id(v: str) -> int | None:
+    """Parse a channel ID string, returning None if empty/invalid."""
+    return int(v) if v.strip().isdigit() else None
+
+
+_DEFAULT_USER_SETTINGS: dict[str, Any] = {
+    "theme": "system",
+    "accent_color": "#60A5FA",
+    "font_size": "medium",
+    "compact_mode": False,
+    "reduce_motion": False,
+    "refresh_interval": 5,
+    "notifications_enabled": True,
+    "sidebar_collapsed": False,
+}
+
+
+def _get_guild_member(server_id: int, member_id: int) -> tuple[discord.Guild | None, discord.Member | None]:
+    """Resolve a guild and member from the bot cache. Returns (None, None) if not found."""
+    bot = get_bot()
+    if bot is None:
+        return None, None
+    guild = bot.get_guild(server_id)
+    if guild is None:
+        return None, None
+    return guild, guild.get_member(member_id)
 
 
 # ---------- Embeds -----------------------------------------------------------
@@ -48,10 +91,7 @@ async def info_embed_save(server_id: int = Form(...), name: str = Form("info"),
                           access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     user = await _require_user(access_token)
     _require_cog("cogs.embeds.embeds")
-    try:
-        color_int = int(color.lstrip("#"), 16)
-    except ValueError:
-        color_int = 0x60A5FA
+    color_int = _hex_to_int(color, 0x60A5FA)
     async with db_session() as s:
         existing = await s.scalar(
             select(EmbedTemplate).where(
@@ -112,113 +152,95 @@ async def members_view(request: Request,
 
 
 @router.post("/members/{server_id}/{member_id}/kick")
-async def members_kick(server_id: str, member_id: str, reason: str = Form(default=""),
+async def members_kick(server_id: int, member_id: int, reason: str = Form(default=""),
                        access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     user = await _require_user(access_token)
     _require_cog("cogs.moderation.moderation")
-    bot = get_bot()
-    if bot is not None:
-        guild = bot.get_guild(int(server_id))
-        if guild is not None:
-            member = guild.get_member(int(member_id))
-            if member is not None:
-                try:
-                    await member.kick(reason=f"web by {user.username}: {reason}")
-                except Exception:
-                    pass
+    _, member = _get_guild_member(server_id, member_id)
+    if member is not None:
+        try:
+            await member.kick(reason=f"web by {user.username}: {reason}")
+        except discord.HTTPException:
+            log.warning("member_kick_failed", member_id=member_id, exc_info=True)
     async with db_session() as s:
-        s.add(AuditLog(actor_id=user.id, action="member.kick", target=member_id))
+        s.add(AuditLog(actor_id=user.id, action="member.kick", target=str(member_id)))
     return RedirectResponse("/members", status_code=303)
 
 
 @router.post("/members/{server_id}/{member_id}/ban")
-async def members_ban(server_id: str, member_id: str, reason: str = Form(default=""),
+async def members_ban(server_id: int, member_id: int, reason: str = Form(default=""),
                       access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     user = await _require_user(access_token)
     _require_cog("cogs.moderation.moderation")
-    bot = get_bot()
-    if bot is not None:
-        guild = bot.get_guild(int(server_id))
-        if guild is not None:
-            try:
-                await guild.ban(discord_obj_for(int(member_id)), reason=f"web by {user.username}: {reason}")
-            except Exception:
-                pass
+    guild, _ = _get_guild_member(server_id, member_id)
+    if guild is not None:
+        try:
+            await guild.ban(_discord_obj(member_id), reason=f"web by {user.username}: {reason}")
+        except discord.HTTPException:
+            log.warning("member_ban_failed", member_id=member_id, exc_info=True)
     async with db_session() as s:
-        s.add(AuditLog(actor_id=user.id, action="member.ban", target=member_id))
+        s.add(AuditLog(actor_id=user.id, action="member.ban", target=str(member_id)))
     return RedirectResponse("/members", status_code=303)
 
 
 @router.post("/members/{server_id}/{member_id}/timeout")
-async def members_timeout(server_id: str, member_id: str,
+async def members_timeout(server_id: int, member_id: int,
                            minutes: int = Form(default=10),
                            reason: str = Form(default=""),
                            access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     me = await _require_user(access_token)
     _require_cog("cogs.moderation.moderation")
-    bot = get_bot()
-    if bot is not None:
-        guild = bot.get_guild(int(server_id))
-        if guild is not None:
-            member = guild.get_member(int(member_id))
-            if member is not None:
-                try:
-                    until = _dt2.now(tz=UTC) + _td2(minutes=max(1, min(40320, minutes)))
-                    await member.edit(timed_out_until=until, reason=f"web by {me.username}: {reason}")
-                except Exception:
-                    pass
+    _, member = _get_guild_member(server_id, member_id)
+    if member is not None:
+        try:
+            until = _dt2.now(tz=UTC) + _td2(minutes=max(1, min(40320, minutes)))
+            await member.edit(timed_out_until=until, reason=f"web by {me.username}: {reason}")
+        except discord.HTTPException:
+            log.warning("member_timeout_failed", member_id=member_id, exc_info=True)
     async with db_session() as s:
-        s.add(AuditLog(actor_id=me.id, action="member.timeout", target=member_id,
+        s.add(AuditLog(actor_id=me.id, action="member.timeout", target=str(member_id),
                        details={"minutes": minutes, "reason": reason}))
     return RedirectResponse("/members", status_code=303)
 
 
 @router.post("/members/{server_id}/{member_id}/mute")
-async def members_mute(server_id: str, member_id: str,
+async def members_mute(server_id: int, member_id: int,
                         muted: str = Form(default="1"),
                         access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     me = await _require_user(access_token)
     _require_cog("cogs.moderation.moderation")
-    bot = get_bot()
-    flag = muted not in ("0", "false", "no", "")
-    if bot is not None:
-        guild = bot.get_guild(int(server_id))
-        if guild is not None:
-            member = guild.get_member(int(member_id))
-            if member is not None and member.voice is not None:
-                try:
-                    await member.edit(mute=flag, reason=f"web by {me.username}")
-                except Exception:
-                    pass
+    flag = _form_bool(muted)
+    _, member = _get_guild_member(server_id, member_id)
+    if member is not None and member.voice is not None:
+        try:
+            await member.edit(mute=flag, reason=f"web by {me.username}")
+        except discord.HTTPException:
+            log.warning("member_mute_failed", member_id=member_id, exc_info=True)
     async with db_session() as s:
-        s.add(AuditLog(actor_id=me.id, action="member.mute", target=member_id, details={"mute": flag}))
+        s.add(AuditLog(actor_id=me.id, action="member.mute", target=str(member_id), details={"mute": flag}))
     return RedirectResponse("/members", status_code=303)
 
 
 @router.post("/members/{server_id}/{member_id}/deafen")
-async def members_deafen(server_id: str, member_id: str,
+async def members_deafen(server_id: int, member_id: int,
                           deafened: str = Form(default="1"),
                           access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     me = await _require_user(access_token)
     _require_cog("cogs.moderation.moderation")
-    bot = get_bot()
-    flag = deafened not in ("0", "false", "no", "")
-    if bot is not None:
-        guild = bot.get_guild(int(server_id))
-        if guild is not None:
-            member = guild.get_member(int(member_id))
-            if member is not None and member.voice is not None:
-                try:
-                    await member.edit(deafen=flag, reason=f"web by {me.username}")
-                except Exception:
-                    pass
+    flag = _form_bool(deafened)
+    _, member = _get_guild_member(server_id, member_id)
+    if member is not None and member.voice is not None:
+        try:
+            await member.edit(deafen=flag, reason=f"web by {me.username}")
+        except discord.HTTPException:
+            log.warning("member_deafen_failed", member_id=member_id, exc_info=True)
     async with db_session() as s:
-        s.add(AuditLog(actor_id=me.id, action="member.deafen", target=member_id, details={"deafen": flag}))
+        s.add(AuditLog(actor_id=me.id, action="member.deafen", target=str(member_id), details={"deafen": flag}))
     return RedirectResponse("/members", status_code=303)
 
 
 @router.post("/members/{server_id}/{member_id}/dm")
-async def members_dm(server_id: str, member_id: str,
+async def members_dm(server_id: int, member_id: int,
                       message: str = Form(...),
                       access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     me = await _require_user(access_token)
@@ -226,13 +248,13 @@ async def members_dm(server_id: str, member_id: str,
     bot = get_bot()
     if bot is not None and message.strip():
         try:
-            user_obj = bot.get_user(int(member_id)) or await bot.fetch_user(int(member_id))
+            user_obj = bot.get_user(member_id) or await bot.fetch_user(member_id)
             if user_obj is not None:
                 await user_obj.send(message[:1900])
-        except Exception:
-            pass
+        except discord.HTTPException:
+            log.warning("member_dm_failed", member_id=member_id, exc_info=True)
     async with db_session() as s:
-        s.add(AuditLog(actor_id=me.id, action="member.dm", target=member_id,
+        s.add(AuditLog(actor_id=me.id, action="member.dm", target=str(member_id),
                        details={"length": len(message)}))
     return RedirectResponse("/members", status_code=303)
 
@@ -278,38 +300,26 @@ async def welcome_save(
     user = await _require_user(access_token)
     _require_cog("cogs.welcome.welcome")
 
-    def _hex_to_int(h: str, fallback: int) -> int:
-        try:
-            return int(h.lstrip("#"), 16)
-        except ValueError:
-            return fallback
-
-    def _bool(v: str) -> bool:
-        return v.lower() in ("on", "true", "1", "yes")
-
-    def _ch(v: str) -> int | None:
-        return int(v) if v.strip().isdigit() else None
-
     async with db_session() as s:
         cfg = await s.get(ServerEventConfig, int(server_id))
         if cfg is None:
             cfg = ServerEventConfig(server_id=int(server_id),
                                     join_embed={}, leave_embed={}, boost_embed={})
             s.add(cfg)
-        cfg.join_enabled = _bool(join_enabled)
-        cfg.join_channel_id = _ch(join_channel_id)
+        cfg.join_enabled = _form_bool(join_enabled)
+        cfg.join_channel_id = _form_channel_id(join_channel_id)
         cfg.join_embed = {
             "title": join_title, "description": join_description,
             "color": _hex_to_int(join_color, 0x60A5FA),
         }
-        cfg.leave_enabled = _bool(leave_enabled)
-        cfg.leave_channel_id = _ch(leave_channel_id)
+        cfg.leave_enabled = _form_bool(leave_enabled)
+        cfg.leave_channel_id = _form_channel_id(leave_channel_id)
         cfg.leave_embed = {
             "title": leave_title, "description": leave_description,
             "color": _hex_to_int(leave_color, 0xF43F5E),
         }
-        cfg.boost_enabled = _bool(boost_enabled)
-        cfg.boost_channel_id = _ch(boost_channel_id)
+        cfg.boost_enabled = _form_bool(boost_enabled)
+        cfg.boost_channel_id = _form_channel_id(boost_channel_id)
         cfg.boost_embed = {
             "title": boost_title, "description": boost_description,
             "color": _hex_to_int(boost_color, 0xA855F7),
@@ -415,21 +425,13 @@ async def bot_lifecycle(action: str,
     user = await _require_user(access_token)
     if user.role != WebRole.ADMIN:
         raise HTTPException(403)
-    from bot.runtime import (
-        request_bot_restart as _rr,
-    )
-    from bot.runtime import (
-        request_bot_start as _rs,
-    )
-    from bot.runtime import (
-        request_bot_stop as _rt,
-    )
+    from bot.runtime import request_bot_restart, request_bot_start, request_bot_stop
     if action == "start":
-        _rs()
+        request_bot_start()
     elif action == "stop":
-        await _rt()
+        await request_bot_stop()
     elif action == "restart":
-        await _rr()
+        await request_bot_restart()
     else:
         raise HTTPException(400, "unknown action")
     async with db_session() as s:
@@ -442,19 +444,15 @@ async def bot_lifecycle(action: str,
 @router.get("/api/v1/user-settings/me")
 async def user_settings_me(
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
-):
+) -> dict[str, Any]:
     from bot.pages._shared import _current_user
     user = await _current_user(access_token)
     if user is None:
-        return {"theme": "system", "accent_color": "#60A5FA", "font_size": "medium",
-                "compact_mode": False, "reduce_motion": False, "refresh_interval": 5,
-                "notifications_enabled": True, "sidebar_collapsed": False}
+        return dict(_DEFAULT_USER_SETTINGS)
     async with db_session() as s:
         row = await s.get(WebUserSettings, user.id)
     if row is None:
-        return {"theme": "system", "accent_color": "#60A5FA", "font_size": "medium",
-                "compact_mode": False, "reduce_motion": False, "refresh_interval": 5,
-                "notifications_enabled": True, "sidebar_collapsed": False}
+        return dict(_DEFAULT_USER_SETTINGS)
     extras = row.extras or {}
     return {
         "theme": row.theme,
@@ -476,7 +474,6 @@ async def api_server_channels(
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
 ) -> dict:
     await _require_user(access_token)
-    import discord as _d
     bot = get_bot()
     if bot is None:
         return {"channels": [], "error": "bot_offline"}
@@ -485,13 +482,13 @@ async def api_server_channels(
         raise HTTPException(404, "guild not found")
     out: list[dict[str, Any]] = []
     for ch in sorted(guild.channels, key=lambda c: (c.position, c.id)):
-        if isinstance(ch, _d.CategoryChannel):
+        if isinstance(ch, discord.CategoryChannel):
             kind = "category"
-        elif isinstance(ch, _d.VoiceChannel):
+        elif isinstance(ch, discord.VoiceChannel):
             kind = "voice"
-        elif isinstance(ch, _d.StageChannel):
+        elif isinstance(ch, discord.StageChannel):
             kind = "stage"
-        elif isinstance(ch, _d.ForumChannel):
+        elif isinstance(ch, discord.ForumChannel):
             kind = "forum"
         else:
             kind = "text"

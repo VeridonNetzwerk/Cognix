@@ -10,11 +10,14 @@ from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from jinja2 import ChoiceLoader, FileSystemLoader
-from sqlalchemy import select
+from sqlalchemy import Engine, select
+from sqlalchemy import create_engine as _create_engine
 
+from bot.config.settings import get_settings
 from bot.runtime import get_bot, get_bot_info
-from bot.database.models.system.system_config import SystemConfig
 from bot.database.models.auth.web_user import WebUser
+from bot.database.models.server.server import Server
+from bot.database.models.system.system_config import SystemConfig
 from bot.database.session import db_session
 from web.security.tokens import TokenError, decode_token
 
@@ -78,17 +81,14 @@ def _render(request: Request, template: str, **ctx: Any) -> HTMLResponse:
     return templates.TemplateResponse(request, template, ctx)
 
 
-_sync_engine = None
-_sync_engine_url = None
+_sync_engine: Engine | None = None
+_sync_engine_url: str | None = None
 
 
-def _get_sync_engine():
+def _get_sync_engine() -> Engine:
+    """Return a sync SQLAlchemy engine, creating one if needed."""
     global _sync_engine, _sync_engine_url
-    from sqlalchemy import create_engine as _create_engine
-    from bot.config.settings import get_settings
-
-    settings = get_settings()
-    db_url = settings.database_url
+    db_url = get_settings().database_url
     if db_url.startswith("sqlite+aiosqlite"):
         sync_url = db_url.replace("sqlite+aiosqlite", "sqlite")
     elif db_url.startswith("postgresql+asyncpg"):
@@ -102,10 +102,8 @@ def _get_sync_engine():
     return _sync_engine
 
 
-def _get_servers() -> list:
+def _get_servers() -> list[dict[str, Any]]:
     """Return all active servers for the header selector (sync query)."""
-    from bot.database.models.server.server import Server
-
     engine = _get_sync_engine()
     with engine.connect() as conn:
         result = conn.execute(

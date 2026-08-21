@@ -24,6 +24,95 @@ from bot.pages._shared import (
     router,
 )
 
+_GRID_COLS = 4
+_GRID_ROWS = 3
+_DEFAULT_WIDGET_IDS = ["metrics_overview", "bot_status"]
+
+
+def _assign_grid_positions(
+    active_widgets: list[dict],
+    user_layout: dict[str, UserDashboardWidget],
+) -> None:
+    """Assign grid positions to widgets. Explicitly placed widgets keep their spot;
+    unplaced widgets get greedy left-to-right, top-to-bottom placement."""
+    occupied: set[tuple[int, int]] = set()
+
+    # Register explicitly placed widgets first
+    for w in active_widgets:
+        uw = user_layout.get(w["id"])
+        if uw and uw.grid_col > 0 and uw.grid_row > 0:
+            w["grid_col"] = uw.grid_col
+            w["grid_row"] = uw.grid_row
+            sw, sh = w.get("size_w", 1), w.get("size_h", 1)
+            for dc in range(sw):
+                for dr in range(sh):
+                    c, r = uw.grid_col + dc, uw.grid_row + dr
+                    if 1 <= c <= _GRID_COLS and 1 <= r <= _GRID_ROWS:
+                        occupied.add((c, r))
+        else:
+            w["grid_col"] = 0
+            w["grid_row"] = 0
+
+    # Auto-assign positions for unplaced widgets
+    for w in active_widgets:
+        if w["grid_col"] > 0:
+            continue
+        sw, sh = w.get("size_w", 1), w.get("size_h", 1)
+        placed = False
+        for row in range(1, _GRID_ROWS + 1):
+            for col in range(1, _GRID_COLS + 1):
+                fits = all(
+                    col + dc <= _GRID_COLS and row + dr <= _GRID_ROWS and (col + dc, row + dr) not in occupied
+                    for dc in range(sw) for dr in range(sh)
+                )
+                if fits:
+                    w["grid_col"] = col
+                    w["grid_row"] = row
+                    for dc in range(sw):
+                        for dr in range(sh):
+                            occupied.add((col + dc, row + dr))
+                    placed = True
+                    break
+            if placed:
+                break
+        if not placed:
+            w["grid_col"] = 1
+            w["grid_row"] = 1
+
+
+def _build_active_widget_list(
+    active_widget_ids: list[str],
+    available_widgets: list[dict],
+    user_layout: dict[str, UserDashboardWidget],
+) -> list[dict]:
+    """Build ordered widget list with user size preferences applied."""
+    widget_by_id = {w["id"]: w for w in available_widgets}
+    result: list[dict] = []
+    for wid in active_widget_ids:
+        w_info = widget_by_id.get(wid)
+        if w_info is None:
+            continue
+        w_copy = dict(w_info)
+        uw = user_layout.get(wid)
+        if uw and (uw.size_w or 0) > 0 and (uw.size_h or 0) > 0:
+            w_copy["size_w"] = uw.size_w
+            w_copy["size_h"] = uw.size_h
+        else:
+            dw, dh = default_widget_size(w_info.get("size", "small"))
+            w_copy["size_w"] = dw
+            w_copy["size_h"] = dh
+        result.append(w_copy)
+    return result
+
+
+def _filter_active_widget_ids(
+    user_widgets: list[UserDashboardWidget],
+    available_widgets: list[dict],
+) -> list[str]:
+    """Return IDs of user widgets that are visible and still available."""
+    available_ids = {aw["id"] for aw in available_widgets}
+    return [w.widget_id for w in user_widgets if w.visible and w.widget_id in available_ids]
+
 
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request,
@@ -43,11 +132,9 @@ async def index(request: Request,
         can_servers_write = await _hp(s, user, "servers", level="write")
 
     # --- Widget system ---
-    # 1. Collect available widgets: core + cog-provided
-    available_widgets = list(CORE_WIDGETS)
-    available_widgets.extend(get_available_widgets())
+    available_widgets = [*CORE_WIDGETS, *get_available_widgets()]
 
-    # 2. Load user's widget layout from DB
+    # Load user's widget layout from DB
     async with db_session() as s:
         user_widgets = (await s.scalars(
             select(UserDashboardWidget)
@@ -55,27 +142,17 @@ async def index(request: Request,
             .order_by(UserDashboardWidget.position)
         )).all()
     user_layout = {w.widget_id: w for w in user_widgets}
-
-    # 3. Build active widget list: user's visible widgets in order, filtered by availability
-    active_widget_ids = [
-        w.widget_id for w in user_widgets
-        if w.visible and any(aw["id"] == w.widget_id for aw in available_widgets)
-    ]
+    active_widget_ids = _filter_active_widget_ids(user_widgets, available_widgets)
 
     # If no layout saved yet, create DB entries for default widgets
     if not active_widget_ids:
-        default_ids = ["metrics_overview", "bot_status"]
-        # Include recent_audit if the cog is loaded
+        default_ids = list(_DEFAULT_WIDGET_IDS)
         available_widget_ids = {w["id"] for w in available_widgets}
         if "recent_audit" in available_widget_ids:
             default_ids.append("recent_audit")
         async with db_session() as s:
             for i, wid in enumerate(default_ids):
-                size_str = "medium"
-                for aw in available_widgets:
-                    if aw["id"] == wid:
-                        size_str = aw.get("size", "medium")
-                        break
+                size_str = next((aw.get("size", "medium") for aw in available_widgets if aw["id"] == wid), "medium")
                 dw, dh = default_widget_size(size_str)
                 s.add(UserDashboardWidget(
                     user_id=user.id,
@@ -89,98 +166,21 @@ async def index(request: Request,
                     updated_at=datetime.now(tz=UTC),
                 ))
             await s.commit()
-            # Re-query
             user_widgets = (await s.scalars(
                 select(UserDashboardWidget)
                 .where(UserDashboardWidget.user_id == user.id)
                 .order_by(UserDashboardWidget.position)
             )).all()
         user_layout = {w.widget_id: w for w in user_widgets}
-        active_widget_ids = [
-            w.widget_id for w in user_widgets
-            if w.visible and any(aw["id"] == w.widget_id for aw in available_widgets)
-        ]
+        active_widget_ids = _filter_active_widget_ids(user_widgets, available_widgets)
 
-    # 4. Build ordered widget list with data
-    widget_by_id = {w["id"]: w for w in available_widgets}
-    active_widgets = []
-    for wid in active_widget_ids:
-        w_info = widget_by_id.get(wid)
-        if w_info is None:
-            continue
-        w_copy = dict(w_info)
-        # Attach user's size preferences, or fall back to widget's default size
-        uw = user_layout.get(wid)
-        if uw and (uw.size_w or 0) > 0 and (uw.size_h or 0) > 0:
-            w_copy["size_w"] = uw.size_w
-            w_copy["size_h"] = uw.size_h
-        else:
-            dw, dh = default_widget_size(w_info.get("size", "small"))
-            w_copy["size_w"] = dw
-            w_copy["size_h"] = dh
-        active_widgets.append(w_copy)
+    active_widgets = _build_active_widget_list(active_widget_ids, available_widgets, user_layout)
+    _assign_grid_positions(active_widgets, user_layout)
 
-    # 4b. Auto-assign grid positions for widgets that have grid_col=0 (unplaced)
-    GRID_COLS = 4
-    GRID_ROWS = 3
-    occupied = set()  # set of (col, row) tuples
-    # First, register explicitly placed widgets
-    for w in active_widgets:
-        uw = user_layout.get(w["id"])
-        if uw and uw.grid_col > 0 and uw.grid_row > 0:
-            w["grid_col"] = uw.grid_col
-            w["grid_row"] = uw.grid_row
-            sw, sh = w.get("size_w", 1), w.get("size_h", 1)
-            for dc in range(sw):
-                for dr in range(sh):
-                    c, r = uw.grid_col + dc, uw.grid_row + dr
-                    if 1 <= c <= GRID_COLS and 1 <= r <= GRID_ROWS:
-                        occupied.add((c, r))
-        else:
-            w["grid_col"] = 0
-            w["grid_row"] = 0
-    # Auto-assign positions for unplaced widgets (greedy left-to-right, top-to-bottom)
-    for w in active_widgets:
-        if w["grid_col"] > 0:
-            continue
-        sw, sh = w.get("size_w", 1), w.get("size_h", 1)
-        placed = False
-        for row in range(1, GRID_ROWS + 1):
-            for col in range(1, GRID_COLS + 1):
-                # Check if widget fits at (col, row) without overlap
-                fits = True
-                for dc in range(sw):
-                    for dr in range(sh):
-                        c, r = col + dc, row + dr
-                        if c > GRID_COLS or r > GRID_ROWS or (c, r) in occupied:
-                            fits = False
-                            break
-                    if not fits:
-                        break
-                if fits:
-                    w["grid_col"] = col
-                    w["grid_row"] = row
-                    for dc in range(sw):
-                        for dr in range(sh):
-                            occupied.add((col + dc, row + dr))
-                    placed = True
-                    break
-            if placed:
-                break
-        if not placed:
-            # Fallback: place at (1,1) even if overlapping
-            w["grid_col"] = 1
-            w["grid_row"] = 1
-
-    # 5. Load widget data (async queries per widget type)
     async with db_session() as s:
         widget_data = await load_widget_data(s, active_widget_ids, recent)
 
-    # Available widgets not yet on dashboard (for add menu)
-    available_to_add = [
-        w for w in available_widgets
-        if w["id"] not in active_widget_ids
-    ]
+    available_to_add = [w for w in available_widgets if w["id"] not in active_widget_ids]
 
     return _render(
         request,

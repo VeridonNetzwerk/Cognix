@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import hashlib
+import uuid as _uuid
 from base64 import b64decode as _b64decode
-from datetime import UTC
-from datetime import datetime as _dt2
+from datetime import UTC, datetime as _dt2
+from typing import Any
 
+import discord
 from fastapi import Cookie, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 
+from bot.config.logging import get_logger
 from bot.runtime import get_bot
 from bot.database.models.content.bot_profile import BotProfile
 from bot.database.models.auth.web_user import BackupCode, WebRole, WebUser
@@ -24,21 +28,43 @@ from bot.pages._shared import _render, _require_cog, _require_user, router
 from web.security import totp as _totp
 from web.security.permissions import get_permission_map, has_permission
 
+log = get_logger("web.pages.settings")
 
-def _get_bot_guilds() -> list[dict]:
+_VALID_THEMES = ("dark", "light", "system")
+_VALID_REFRESH_INTERVALS = (1, 5, 10, 30)
+_VALID_ACTIVITY_TYPES = ("none", "playing", "listening", "watching", "competing", "streaming")
+_VALID_STATUSES = ("online", "idle", "dnd", "invisible")
+
+_ACTIVITY_TYPE_MAP = {
+    "playing": discord.ActivityType.playing,
+    "listening": discord.ActivityType.listening,
+    "watching": discord.ActivityType.watching,
+    "competing": discord.ActivityType.competing,
+    "streaming": discord.ActivityType.streaming,
+}
+
+_STATUS_MAP = {
+    "online": discord.Status.online,
+    "idle": discord.Status.idle,
+    "dnd": discord.Status.dnd,
+    "invisible": discord.Status.invisible,
+}
+
+
+def _get_bot_guilds() -> list[dict[str, Any]]:
     """Return list of guilds the bot is in, with name and icon."""
     bot = get_bot()
     if bot is None:
         return []
-    result = []
-    for g in bot.guilds:
-        result.append({
+    return [
+        {
             "id": str(g.id),
             "name": g.name,
             "icon_url": str(g.icon.url) if g.icon else None,
             "member_count": g.member_count or 0,
-        })
-    return result
+        }
+        for g in bot.guilds
+    ]
 
 
 async def _get_or_create_settings(session, user) -> WebUserSettings:
@@ -47,6 +73,15 @@ async def _get_or_create_settings(session, user) -> WebUserSettings:
         row = WebUserSettings(user_id=user.id, updated_at=_dt2.now(tz=UTC))
         session.add(row)
     return row
+
+
+async def _delete_backup_codes(session, user_id: _uuid.UUID) -> None:
+    """Delete all existing backup codes for a user."""
+    existing = (
+        await session.scalars(select(BackupCode).where(BackupCode.user_id == user_id))
+    ).all()
+    for old in existing:
+        await session.delete(old)
 
 
 @router.get("/settings", response_class=HTMLResponse)
@@ -90,13 +125,13 @@ async def settings_appearance(
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
 ) -> Response:
     user = await _require_user(access_token)
-    if theme not in ("dark", "light", "system"):
+    if theme not in _VALID_THEMES:
         theme = "system"
     try:
         ri = int(refresh_interval)
     except (ValueError, TypeError):
         ri = 5
-    if ri not in (1, 5, 10, 30):
+    if ri not in _VALID_REFRESH_INTERVALS:
         ri = 5
     async with db_session() as s:
         row = await _get_or_create_settings(s, user)
@@ -144,7 +179,6 @@ async def settings_2fa_verify(
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
 ) -> Response:
     user = await _require_user(access_token)
-    import hashlib as _h
     async with db_session() as s:
         target = await s.get(WebUser, user.id)
         if not target.totp_secret_encrypted:
@@ -153,14 +187,10 @@ async def settings_2fa_verify(
         if not _totp.verify(secret, code):
             raise HTTPException(400, "invalid code")
         target.totp_enabled = True
-        existing = (
-            await s.scalars(select(BackupCode).where(BackupCode.user_id == user.id))
-        ).all()
-        for old in existing:
-            await s.delete(old)
+        await _delete_backup_codes(s, user.id)
         codes = _totp.generate_backup_codes(8)
         for raw in codes:
-            s.add(BackupCode(user_id=user.id, code_hash=_h.sha256(raw.encode()).hexdigest()))
+            s.add(BackupCode(user_id=user.id, code_hash=hashlib.sha256(raw.encode()).hexdigest()))
     return _render(request, "settings/settings_2fa_codes.html", user=user, codes=codes)
 
 
@@ -180,11 +210,7 @@ async def settings_2fa_disable(
         target = await s.get(WebUser, user.id)
         target.totp_enabled = False
         target.totp_secret_encrypted = ""
-        existing = (
-            await s.scalars(select(BackupCode).where(BackupCode.user_id == user.id))
-        ).all()
-        for old in existing:
-            await s.delete(old)
+        await _delete_backup_codes(s, user.id)
     return RedirectResponse("/settings", status_code=303)
 
 
@@ -198,7 +224,6 @@ async def settings_permissions_update(
     if me.role != WebRole.ADMIN:
         raise HTTPException(403, "admin only")
     form = await request.form()
-    import uuid as _uuid
     target_id = _uuid.UUID(user_id)
     async with db_session() as s:
         target = await s.get(WebUser, target_id)
@@ -275,53 +300,44 @@ async def bot_profile_save(
             prof.avatar_data = avatar_data[:1_000_000]
         if banner_data.startswith("data:"):
             prof.banner_data = banner_data[:2_000_000]
-        prof.activity_type = activity_type if activity_type in ("none","playing","listening","watching","competing","streaming") else "none"
+        prof.activity_type = activity_type if activity_type in _VALID_ACTIVITY_TYPES else "none"
         prof.activity_text = activity_text[:128]
-        prof.status = status if status in ("online","idle","dnd","invisible") else "online"
+        prof.status = status if status in _VALID_STATUSES else "online"
         prof.updated_at = _dt2.now(tz=UTC)
 
     bot = get_bot()
-    if bot is not None and bot.user is not None:
-        try:
-            import discord as _d
-            kwargs: dict = {}
-            if display_name and display_name != bot.user.name:
-                kwargs["username"] = display_name
-            if avatar_data.startswith("data:image"):
-                try:
-                    raw = _b64decode(avatar_data.split(",", 1)[1])
-                    kwargs["avatar"] = raw
-                except Exception:
-                    pass
-            if banner_data.startswith("data:image"):
-                try:
-                    raw = _b64decode(banner_data.split(",", 1)[1])
-                    kwargs["banner"] = raw
-                except Exception:
-                    pass
-            if kwargs:
-                try:
-                    await bot.user.edit(**kwargs)
-                except Exception:
-                    pass
-            atype_map = {
-                "playing": _d.ActivityType.playing,
-                "listening": _d.ActivityType.listening,
-                "watching": _d.ActivityType.watching,
-                "competing": _d.ActivityType.competing,
-                "streaming": _d.ActivityType.streaming,
-            }
-            status_map = {
-                "online": _d.Status.online,
-                "idle": _d.Status.idle,
-                "dnd": _d.Status.dnd,
-                "invisible": _d.Status.invisible,
-            }
-            if activity_type == "none":
-                activity = None
-            else:
-                activity = _d.Activity(type=atype_map.get(activity_type, _d.ActivityType.playing), name=activity_text or "Cognix")
-            await bot.change_presence(activity=activity, status=status_map.get(status, _d.Status.online))
-        except Exception:
-            pass
+    if bot is None or bot.user is None:
+        return RedirectResponse("/bot-profile", status_code=303)
+
+    try:
+        kwargs: dict[str, Any] = {}
+        if display_name and display_name != bot.user.name:
+            kwargs["username"] = display_name
+        if avatar_data.startswith("data:image"):
+            try:
+                kwargs["avatar"] = _b64decode(avatar_data.split(",", 1)[1])
+            except (IndexError, ValueError):
+                log.warning("avatar_decode_failed", exc_info=True)
+        if banner_data.startswith("data:image"):
+            try:
+                kwargs["banner"] = _b64decode(banner_data.split(",", 1)[1])
+            except (IndexError, ValueError):
+                log.warning("banner_decode_failed", exc_info=True)
+        if kwargs:
+            try:
+                await bot.user.edit(**kwargs)
+            except discord.HTTPException:
+                log.warning("bot_profile_edit_failed", exc_info=True)
+        activity = None
+        if activity_type != "none":
+            activity = discord.Activity(
+                type=_ACTIVITY_TYPE_MAP.get(activity_type, discord.ActivityType.playing),
+                name=activity_text or "Cognix",
+            )
+        await bot.change_presence(
+            activity=activity,
+            status=_STATUS_MAP.get(status, discord.Status.online),
+        )
+    except discord.HTTPException:
+        log.warning("bot_presence_update_failed", exc_info=True)
     return RedirectResponse("/bot-profile", status_code=303)
