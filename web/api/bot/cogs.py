@@ -333,6 +333,13 @@ async def store_install_cog_stream(req: CogInstallRequest):
             done_data["warning"] = "; ".join(warnings)
         yield _sse_event("done", done_data)
 
+        # Auto-seed embed templates from the newly installed cog
+        try:
+            from bot.database.seed_embeds import seed_default_embed_templates
+            await seed_default_embed_templates()
+        except Exception:  # noqa: BLE001
+            pass
+
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 

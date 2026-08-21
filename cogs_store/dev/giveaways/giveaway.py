@@ -15,6 +15,23 @@ COG_INFO = {
     "version": "0.1.0",
 }
 
+EMBED_TEMPLATES = [
+    {
+        "key": "giveaway_create",
+        "title": "🎉 Giveaway!",
+        "description": "Prize: **{prize}**\nEnds: {ends_at}\nEntries: {entries}\n\nReact with 🎉 to enter!",
+        "color": 0xFACC15,
+        "footer_text": "Powered by Cognix · Made by 食べ物",
+    },
+    {
+        "key": "giveaway_end",
+        "title": "Giveaway ended!",
+        "description": "Prize: **{prize}**\nWinner: {winner}\nTotal entries: {entries}",
+        "color": 0xFACC15,
+        "footer_text": "Powered by Cognix · Made by 食べ物",
+    },
+]
+
 WIDGETS = [
     {
         "id": "giveaways_active",

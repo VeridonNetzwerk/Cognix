@@ -24,6 +24,31 @@ COG_INFO = {
     "version": "0.1.0",
 }
 
+EMBED_TEMPLATES = [
+    {
+        "key": "ticket_panel",
+        "title": "Support Tickets",
+        "description": "Click the button below to open a private support ticket.\nA staff member will be with you shortly.",
+        "color": 0x60A5FA,
+        "footer_text": "Powered by Cognix · Made by 食べ物",
+        "extras": {"button_label": "Open ticket", "button_emoji": "🎫"},
+    },
+    {
+        "key": "ticket_opened",
+        "title": "Ticket opened",
+        "description": "Hi {user_mention}, support has been notified.\nUse the buttons below to manage this ticket.",
+        "color": 0x4ADE80,
+        "footer_text": "Powered by Cognix · Made by 食べ物",
+    },
+    {
+        "key": "ticket_closed",
+        "title": "Ticket closed",
+        "description": "Closed by {closer_mention}. Archiving the thread...",
+        "color": 0xF59E0B,
+        "footer_text": "Powered by Cognix · Made by 食べ物",
+    },
+]
+
 WIDGETS = [
     {
         "id": "tickets_open",

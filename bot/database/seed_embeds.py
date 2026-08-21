@@ -1,4 +1,10 @@
-"""Seed default global embed templates so they appear in the dashboard."""
+"""Seed default global embed templates so they appear in the dashboard.
+
+Also auto-discovers EMBED_TEMPLATES from installed cogs and seeds them
+into the database. This makes embed templates universal — any cog that
+declares EMBED_TEMPLATES will have its templates appear in the dashboard
+automatically.
+"""
 
 from __future__ import annotations
 
@@ -72,9 +78,14 @@ DEFAULT_TEMPLATES: list[dict] = [
 
 
 async def seed_default_embed_templates() -> int:
-    """Insert any missing global ``EmbedTemplate`` rows. Returns count inserted."""
+    """Insert any missing global ``EmbedTemplate`` rows. Returns count inserted.
+
+    Seeds both the hardcoded DEFAULT_TEMPLATES and any EMBED_TEMPLATES
+    discovered from installed cogs.
+    """
     inserted = 0
     async with db_session() as s:
+        # 1. Seed hardcoded defaults
         for tpl in DEFAULT_TEMPLATES:
             exists = await s.scalar(
                 select(EmbedTemplate.id).where(
@@ -103,4 +114,58 @@ async def seed_default_embed_templates() -> int:
             )
             s.add(row)
             inserted += 1
+
+        # 2. Seed embed templates from installed cogs
+        try:
+            from bot.cogs.registry import discover_embed_templates
+            cog_templates = discover_embed_templates()
+        except Exception:  # noqa: BLE001
+            cog_templates = []
+
+        for tpl in cog_templates:
+            key = tpl["key"]
+            existing = await s.scalar(
+                select(EmbedTemplate).where(
+                    EmbedTemplate.key == key,
+                    EmbedTemplate.server_id.is_(None),
+                )
+            )
+            extras = tpl.get("extras", {})
+            extras["_cog_module"] = tpl.get("_cog_module", "")
+            extras["_cog_name"] = tpl.get("_cog_name", "")
+            extras["_cog_category"] = tpl.get("_cog_category", "")
+            extras["source"] = "cog"
+
+            if existing is not None:
+                # Update cog metadata in extras but preserve user edits to content
+                existing_extras = existing.extras or {}
+                existing_extras.update({
+                    "_cog_module": tpl.get("_cog_module", ""),
+                    "_cog_name": tpl.get("_cog_name", ""),
+                    "_cog_category": tpl.get("_cog_category", ""),
+                    "source": "cog",
+                })
+                existing.extras = existing_extras
+                continue
+
+            row = EmbedTemplate(
+                server_id=None,
+                key=key,
+                enabled=True,
+                title=tpl.get("title", ""),
+                description=tpl.get("description", ""),
+                color=tpl.get("color", 0x60A5FA),
+                footer_text=tpl.get("footer_text", "Powered by Cognix · Made by 食べ物"),
+                footer_icon_url=tpl.get("footer_icon_url", ""),
+                thumbnail_url=tpl.get("thumbnail_url", ""),
+                image_url=tpl.get("image_url", ""),
+                author_name=tpl.get("author_name", ""),
+                author_icon_url=tpl.get("author_icon_url", ""),
+                author_url=tpl.get("author_url", ""),
+                fields=tpl.get("fields", []),
+                extras=extras,
+            )
+            s.add(row)
+            inserted += 1
+
     return inserted

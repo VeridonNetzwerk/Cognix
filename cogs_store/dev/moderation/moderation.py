@@ -15,6 +15,23 @@ COG_INFO = {
     "version": "0.1.0",
 }
 
+EMBED_TEMPLATES = [
+    {
+        "key": "moderation_action",
+        "title": "Moderation action",
+        "description": "**{action}** against {target}\nReason: {reason}",
+        "color": 0xEF4444,
+        "footer_text": "Powered by Cognix · Made by 食べ物",
+    },
+    {
+        "key": "moderation_warn",
+        "title": "Warning issued",
+        "description": "{user_mention} has been warned by {moderator}.\nReason: {reason}\nTotal warnings: {count}",
+        "color": 0xF59E0B,
+        "footer_text": "Powered by Cognix · Made by 食べ物",
+    },
+]
+
 WIDGETS = [
     {
         "id": "moderation_recent",

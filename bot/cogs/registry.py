@@ -381,6 +381,38 @@ def is_cog_installed(module_name: str) -> bool:
     return py_file.exists()
 
 
+def discover_embed_templates() -> list[dict[str, Any]]:
+    """Scan all installed cogs for EMBED_TEMPLATES declarations.
+
+    Each cog may optionally define ``EMBED_TEMPLATES`` — a list of dicts with
+    keys like: key, title, description, color, footer_text, thumbnail_url,
+    image_url, author_name, fields, extras.
+
+    Returns a list of template dicts augmented with cog metadata:
+    ``_cog_module``, ``_cog_name``, ``_cog_category``.
+    """
+    templates: list[dict[str, Any]] = []
+    for cog in _discover_cogs_cached():
+        module_name = cog["module"]
+        try:
+            mod = importlib.import_module(module_name)
+        except Exception:  # noqa: BLE001
+            continue
+        embed_templates = getattr(mod, "EMBED_TEMPLATES", None)
+        if not embed_templates or not isinstance(embed_templates, list):
+            continue
+        for tpl in embed_templates:
+            if not isinstance(tpl, dict) or not tpl.get("key"):
+                continue
+            augmented = dict(tpl)
+            augmented["_cog_module"] = module_name
+            augmented["_cog_name"] = cog.get("name", module_name)
+            augmented["_cog_category"] = cog.get("category", "Utility")
+            augmented.setdefault("source", "cog")
+            templates.append(augmented)
+    return templates
+
+
 def _parse_version(v: str) -> tuple[int, ...]:
     """Parse a semver-like string into a comparable tuple."""
     parts: list[int] = []

@@ -20,6 +20,23 @@ COG_INFO = {
     "version": "0.1.0",
 }
 
+EMBED_TEMPLATES = [
+    {
+        "key": "music_now_playing",
+        "title": "Now playing",
+        "description": "**{title}**\n{artist}",
+        "color": 0x8B5CF6,
+        "footer_text": "Powered by Cognix · Made by 食べ物",
+    },
+    {
+        "key": "music_queue",
+        "title": "Music Queue",
+        "description": "Up next:\n{queue}",
+        "color": 0x8B5CF6,
+        "footer_text": "Powered by Cognix · Made by 食べ物",
+    },
+]
+
 WIDGETS = [
     {
         "id": "music_now_playing",

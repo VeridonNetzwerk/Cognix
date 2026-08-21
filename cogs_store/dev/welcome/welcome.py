@@ -21,6 +21,30 @@ COG_INFO = {
     "version": "0.2.0",
 }
 
+EMBED_TEMPLATES = [
+    {
+        "key": "welcome_join",
+        "title": "Welcome to the server!",
+        "description": "Hey {user.mention}, welcome to **{guild.name}**! You are member #{guild.member_count}.",
+        "color": 0x4ADE80,
+        "footer_text": "Powered by Cognix · Made by 食べ物",
+    },
+    {
+        "key": "welcome_leave",
+        "title": "Goodbye!",
+        "description": "{user.name} has left the server. We now have {guild.member_count} members.",
+        "color": 0xF43F5E,
+        "footer_text": "Powered by Cognix · Made by 食べ物",
+    },
+    {
+        "key": "welcome_boost",
+        "title": "Thanks for boosting!",
+        "description": "{user.mention} just boosted **{guild.name}**! Thank you for the support!",
+        "color": 0xA855F7,
+        "footer_text": "Powered by Cognix · Made by 食べ物",
+    },
+]
+
 WIDGETS = [
     {
         "id": "welcome_recent",

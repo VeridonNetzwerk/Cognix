@@ -3,33 +3,60 @@
 {% block content %}
 <div x-data="embedEditor()" x-init="load()" class="space-y-6">
   <div class="flex items-center justify-between">
-    <h1 class="text-xl font-bold tracking-tight">Embed Templates</h1>
+    <div>
+      <h1 class="text-xl font-bold tracking-tight">Embed Templates</h1>
+      <p class="text-sm mt-0.5" style="color: var(--color-muted-foreground);">Customize embed messages for cogs and create your own</p>
+    </div>
     <button class="px-3 py-1.5 rounded-xl text-sm font-medium flex items-center gap-1.5"
             style="background: var(--color-primary); color: var(--color-primary-foreground);"
             @click="newTemplate()">
-      <i class="ph ph-plus text-sm"></i> New
+      <i class="ph ph-plus text-sm"></i> New Template
     </button>
   </div>
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-    <!-- list -->
+    <!-- categorized list -->
     <aside class="rounded-2xl border p-3 max-h-[70vh] overflow-y-auto scroll-thin"
            style="background: var(--color-card); border-color: var(--color-border);">
-      <template x-for="t in templates" :key="t.id ?? ('new-' + t.key)">
-        <button class="w-full text-left px-3 py-2 rounded-xl transition-colors"
-                :class="selected && selected.key === t.key && selected.server_id === t.server_id ? '' : ''"
-                :style="selected && selected.key === t.key && selected.server_id === t.server_id ? 'background: var(--color-muted);' : ''"
-                @click="select(t)">
-          <div class="font-medium text-sm" x-text="t.key"></div>
-          <div class="text-xs" style="color: var(--color-muted-foreground);" x-text="t.server_id ? ('server ' + t.server_id) : 'global'"></div>
-        </button>
+      <template x-for="cat in categorized" :key="cat.name">
+        <div class="mb-3">
+          <div class="flex items-center gap-2 px-2 py-1.5 mb-1">
+            <i class="ph text-sm" :class="cat.icon"></i>
+            <span class="text-xs font-semibold uppercase tracking-wide" style="color: var(--color-muted-foreground);" x-text="cat.name"></span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded-full" style="background: var(--color-muted); color: var(--color-muted-foreground);" x-text="cat.items.length"></span>
+          </div>
+          <template x-for="t in cat.items" :key="t.id ?? ('new-' + t.key)">
+            <button class="w-full text-left px-3 py-2 rounded-xl transition-colors mb-0.5"
+                    :style="selected && selected.key === t.key && (selected.server_id || null) === (t.server_id || null) ? 'background: var(--color-muted);' : ''"
+                    @click="select(t)">
+              <div class="flex items-center gap-2">
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium text-sm truncate" x-text="t.title || t.key"></div>
+                  <div class="text-xs truncate" style="color: var(--color-muted-foreground);" x-text="t.key"></div>
+                </div>
+                <div x-show="(t.extras || {}).source === 'cog'" class="shrink-0">
+                  <i class="ph ph-plugs-connected text-xs" style="color: var(--color-primary);" title="From cog"></i>
+                </div>
+              </div>
+            </button>
+          </template>
+        </div>
       </template>
+      <div x-show="templates.length === 0" class="text-center py-8 text-sm" style="color: var(--color-muted-foreground);">
+        No templates yet
+      </div>
     </aside>
 
     <!-- editor -->
     <section class="lg:col-span-2 grid grid-cols-1 xl:grid-cols-2 gap-4">
       <form @submit.prevent="save()" class="rounded-2xl border p-5 space-y-4" x-show="selected"
             style="background: var(--color-card); border-color: var(--color-border);">
+        <div class="flex items-center gap-2 mb-2" x-show="selected && (selected.extras || {}).source === 'cog'">
+          <i class="ph ph-plugs-connected text-sm" style="color: var(--color-primary);"></i>
+          <span class="text-xs" style="color: var(--color-muted-foreground);">
+            From cog: <span x-text="(selected.extras || {})._cog_name || ''"></span>
+          </span>
+        </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs uppercase mb-1" style="color: var(--color-muted-foreground);">Key</label>
@@ -174,13 +201,33 @@ function embedEditor() {
       const r = await fetch('/api/v1/embeds', { credentials: 'include' });
       this.templates = await r.json();
     },
+    get categorized() {
+      const cats = {};
+      const catIcons = {
+        'Utility': 'ph-wrench',
+        'Fun': 'ph-smiley',
+        'Moderation': 'ph-shield-warning',
+        'Support': 'ph-ticket',
+        'Logging': 'ph-scroll',
+        'Administration': 'ph-gear',
+        'Analytics': 'ph-chart-bar',
+        'Custom': 'ph-pencil-simple',
+      };
+      for (const t of this.templates) {
+        const extras = t.extras || {};
+        const cat = extras._cog_category || (extras.source === 'cog' ? 'Cog' : 'Custom');
+        if (!cats[cat]) cats[cat] = { name: cat, icon: catIcons[cat] || 'ph-package', items: [] };
+        cats[cat].items.push(t);
+      }
+      return Object.values(cats).sort((a, b) => a.name.localeCompare(b.name));
+    },
     select(t) { this.selected = JSON.parse(JSON.stringify(t)); },
     newTemplate() {
       this.selected = { id: null, key: 'new_template', server_id: null, enabled: true,
         title: '', description: '', color: 0x60A5FA,
         footer_icon_url: '', thumbnail_url: '', image_url: '',
         author_name: '', author_icon_url: '', author_url: '',
-        fields: [], extras: {} };
+        fields: [], extras: { source: 'custom' } };
     },
     addField() { this.selected.fields.push({ name: '', value: '', inline: true }); },
     async save() {
