@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime as _dt
+from typing import Any
 
-from fastapi import Cookie, Request
-from fastapi.responses import HTMLResponse
 from sqlalchemy import desc, select
 
 from bot.database.models.auth.audit_log import AuditLog
@@ -16,6 +15,21 @@ from bot.database.models.auth.web_user import WebRole, WebUser
 from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE
 from bot.pages._shared import _render, _require_cog, _require_user, _get_selected_server_id, router
+
+from fastapi import Cookie, Request
+from fastapi.responses import HTMLResponse
+
+
+def _apply_date_filter(q, column, date_str: str | None, *, is_upper: bool) -> Any:
+    """Apply a date filter to a query, returning the modified query.
+    Silently ignores invalid date strings."""
+    if not date_str:
+        return q
+    try:
+        dt = _dt.fromisoformat(date_str)
+    except ValueError:
+        return q
+    return q.where(column <= dt) if is_upper else q.where(column >= dt)
 
 
 @router.get("/audit", response_class=HTMLResponse)
@@ -38,16 +52,8 @@ async def audit_view(request: Request,
                 q = q.where(AuditLog.actor_id == uuid.UUID(actor_id))
             except ValueError:
                 pass
-        if date_from:
-            try:
-                q = q.where(AuditLog.created_at >= _dt.fromisoformat(date_from))
-            except ValueError:
-                pass
-        if date_to:
-            try:
-                q = q.where(AuditLog.created_at <= _dt.fromisoformat(date_to))
-            except ValueError:
-                pass
+        q = _apply_date_filter(q, AuditLog.created_at, date_from, is_upper=False)
+        q = _apply_date_filter(q, AuditLog.created_at, date_to, is_upper=True)
         rows = (await s.scalars(q)).all()
     return _render(
         request,
@@ -87,16 +93,8 @@ async def discord_log_view(request: Request,
                 pass
         if user_id and user_id.isdigit():
             q = q.where(DiscordEvent.user_id == int(user_id))
-        if date_from:
-            try:
-                q = q.where(DiscordEvent.created_at >= _dt.fromisoformat(date_from))
-            except ValueError:
-                pass
-        if date_to:
-            try:
-                q = q.where(DiscordEvent.created_at <= _dt.fromisoformat(date_to))
-            except ValueError:
-                pass
+        q = _apply_date_filter(q, DiscordEvent.created_at, date_from, is_upper=False)
+        q = _apply_date_filter(q, DiscordEvent.created_at, date_to, is_upper=True)
         rows = (await s.scalars(q)).all()
         servers = (await s.scalars(select(Server).order_by(Server.name))).all()
     server_lookup = {sv.id: sv.name for sv in servers}
@@ -121,7 +119,6 @@ async def discord_log_view(request: Request,
 @router.get("/log", response_class=HTMLResponse)
 async def log_view(request: Request, tab: str = "web",
                    access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
-    from typing import Any
     user = await _require_user(access_token)
     _require_cog("cogs.logging.activity_log")
     if tab not in ("web", "discord"):

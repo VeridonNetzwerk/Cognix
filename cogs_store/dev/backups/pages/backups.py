@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from fastapi import Cookie, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import desc, select
 
+from bot.config.logging import get_logger
 from bot.runtime import get_bot
 from bot.database.models.backups.backup import Backup
 from bot.database.models.auth.role_permission import RolePermission
@@ -16,6 +18,19 @@ from bot.database.models.auth.web_user import WebRole
 from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE
 from bot.pages._shared import _render, _require_cog, _require_user, router
+
+log = get_logger("web.pages.backups")
+
+
+def _get_backups_cog() -> Any:
+    """Resolve the Backups cog, raising HTTPException if unavailable."""
+    bot = get_bot()
+    if bot is None:
+        raise HTTPException(503, "bot offline")
+    cog = bot.get_cog("Backups")
+    if cog is None:
+        raise HTTPException(503, "Backups cog not loaded")
+    return cog
 
 
 @router.get("/backups", response_class=HTMLResponse)
@@ -40,12 +55,7 @@ async def backups_create(server_id: int = Form(...),
                          access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     _require_cog("cogs.backups.backups")
     me = await _require_user(access_token)
-    bot = get_bot()
-    if bot is None:
-        raise HTTPException(503, "bot offline")
-    cog = bot.get_cog("Backups")
-    if cog is None:
-        raise HTTPException(503, "Backups cog not loaded")
+    cog = _get_backups_cog()
     await cog._ipc_create({  # type: ignore[attr-defined]
         "server_id": server_id,
         "name": name,
@@ -62,12 +72,7 @@ async def backups_load(backup_id: str,
                        access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> Response:
     await _require_user(access_token)
     _require_cog("cogs.backups.backups")
-    bot = get_bot()
-    if bot is None:
-        raise HTTPException(503, "bot offline")
-    cog = bot.get_cog("Backups")
-    if cog is None:
-        raise HTTPException(503, "Backups cog not loaded")
+    cog = _get_backups_cog()
     await cog._ipc_restore({  # type: ignore[attr-defined]
         "target_server_id": target_server_id,
         "backup_id": backup_id,

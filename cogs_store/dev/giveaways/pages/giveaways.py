@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC
-from datetime import datetime as _dt
-from datetime import timedelta as _td
+from datetime import UTC, datetime as _dt, timedelta as _td
 
+import discord
 from fastapi import Cookie, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import desc, select
 
+from bot.config.logging import get_logger
 from bot.runtime import get_bot
 from bot.database.models.auth.audit_log import AuditLog
 from bot.database.models.giveaways.giveaway import Giveaway, GiveawayStatus
@@ -18,6 +18,8 @@ from bot.database.models.server.server import Server
 from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE
 from bot.pages._shared import _render, _require_cog, _require_user, _get_selected_server_id, router
+
+log = get_logger("web.pages.giveaways")
 
 
 @router.get("/giveaways", response_class=HTMLResponse)
@@ -80,8 +82,8 @@ async def giveaways_end(giveaway_id: str,
         if cog is not None:
             try:
                 await cog._end_giveaway(uuid.UUID(giveaway_id))  # type: ignore[attr-defined]
-            except Exception:
-                pass
+            except discord.HTTPException:
+                log.warning("giveaway_end_failed", giveaway_id=giveaway_id, exc_info=True)
     return RedirectResponse("/giveaways", status_code=303)
 
 
@@ -125,10 +127,10 @@ async def giveaways_reroll(giveaway_id: str,
                                 await channel.send(
                                     f"\N{PARTY POPPER} New winners for **{g2.prize}**: {mentions}"
                                 )
-                            except Exception:
-                                pass
-            except Exception:
-                pass
+                            except discord.HTTPException:
+                                log.warning("giveaway_reroll_announce_failed", giveaway_id=giveaway_id, exc_info=True)
+            except discord.HTTPException:
+                log.warning("giveaway_reroll_failed", giveaway_id=giveaway_id, exc_info=True)
     return RedirectResponse(f"/giveaways/{giveaway_id}", status_code=303)
 
 
@@ -196,12 +198,11 @@ async def giveaways_create(
     delta = _parse_duration(duration)
     if delta is None:
         raise HTTPException(400, "invalid duration (use e.g. 30m, 2h, 1d)")
-    import discord as _d
     guild = bot.get_guild(int(server_id))
     if guild is None:
         raise HTTPException(404, "guild not found")
     channel = guild.get_channel(int(channel_id))
-    if not isinstance(channel, _d.TextChannel):
+    if not isinstance(channel, discord.TextChannel):
         raise HTTPException(400, "channel must be a text channel")
     role_id_int: int | None = None
     if required_role_id and str(required_role_id).strip().isdigit():
@@ -221,7 +222,7 @@ async def giveaways_create(
     try:
         msg = await channel.send(embed=_build_embed(g))
         await msg.add_reaction(PARTY)
-    except _d.HTTPException as exc:
+    except discord.HTTPException as exc:
         raise HTTPException(400, f"discord error: {exc}") from exc
     g.message_id = msg.id
     async with db_session() as s:

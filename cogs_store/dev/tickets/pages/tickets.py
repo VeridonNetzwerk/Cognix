@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import Cookie, Form, Request, Response
+from fastapi import Cookie, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import desc, select
 
+from bot.config.logging import get_logger
 from bot.runtime import get_bot
+from bot.database.models.auth.audit_log import AuditLog
 from bot.database.models.stats.discord_message_cache import DiscordMessageCache
 from bot.database.models.server.server import Server
 from bot.database.models.server.server_config import ServerConfig
@@ -17,6 +19,8 @@ from bot.database.models.tickets.ticket_panel import TicketPanel, TicketType
 from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE
 from bot.pages._shared import _render, _require_cog, _require_user, router
+
+log = get_logger("web.pages.tickets")
 
 
 @router.get("/tickets", response_class=HTMLResponse)
@@ -50,6 +54,7 @@ async def tickets_close(ticket_id: str,
     try:
         await get_ipc().call("ticket.close", {"ticket_id": ticket_id}, timeout=5.0)
     except Exception:
+        log.warning("ticket_ipc_close_failed", ticket_id=ticket_id, exc_info=True)
         bot = get_bot()
         if bot is not None:
             cog = bot.get_cog("Tickets")
@@ -129,7 +134,6 @@ async def ticket_view(
     async with db_session() as s:
         ticket = await s.get(Ticket, uuid.UUID(ticket_id))
         if ticket is None:
-            from fastapi import HTTPException
             raise HTTPException(404)
         msgs = (
             await s.scalars(
@@ -168,7 +172,6 @@ async def ticket_types_create(server_id: int = Form(...), name: str = Form(...),
             welcome_embed={},
         )
         s.add(t)
-        from bot.database.models.auth.audit_log import AuditLog
         s.add(AuditLog(actor_id=user.id, action="ticket_type.create", target=name))
     return RedirectResponse("/ticket-types", status_code=303)
 
@@ -180,7 +183,6 @@ async def ticket_types_delete(type_id: str,
     async with db_session() as s:
         t = await s.get(TicketType, uuid.UUID(type_id))
         if t is not None:
-            from bot.database.models.auth.audit_log import AuditLog
             s.add(AuditLog(actor_id=user.id, action="ticket_type.delete", target=t.name))
             await s.delete(t)
     return RedirectResponse("/ticket-types", status_code=303)
@@ -204,7 +206,6 @@ async def ticket_panels_create(server_id: int = Form(...), name: str = Form(...)
     async with db_session() as s:
         p = TicketPanel(server_id=int(server_id), name=name[:64], embed={}, buttons=[])
         s.add(p)
-        from bot.database.models.auth.audit_log import AuditLog
         s.add(AuditLog(actor_id=user.id, action="ticket_panel.create", target=name))
     return RedirectResponse("/ticket-panels", status_code=303)
 
@@ -216,7 +217,6 @@ async def ticket_panels_delete(panel_id: str,
     async with db_session() as s:
         p = await s.get(TicketPanel, uuid.UUID(panel_id))
         if p is not None:
-            from bot.database.models.auth.audit_log import AuditLog
             s.add(AuditLog(actor_id=user.id, action="ticket_panel.delete", target=p.name))
             await s.delete(p)
     return RedirectResponse("/ticket-panels", status_code=303)

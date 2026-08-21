@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import Cookie, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy import select
@@ -26,7 +28,7 @@ async def music_view(request: Request,
 async def music_state_api(
     server_id: int,
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
-):
+) -> dict[str, Any]:
     await _require_user(access_token)
     from bot.services.audio_player import get_manager
     mgr = get_manager()
@@ -41,7 +43,7 @@ async def music_play_api(
     server_id: int,
     request: Request,
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
-):
+) -> dict[str, Any]:
     user = await _require_user(access_token)
     body = await request.json()
     query = (body.get("query") or "").strip()
@@ -71,7 +73,7 @@ async def music_action_api(
     action: str,
     request: Request,
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
-):
+) -> dict[str, Any]:
     await _require_user(access_token)
     from bot.services.audio_player import get_manager
     mgr = get_manager()
@@ -106,7 +108,7 @@ async def music_action_api(
 async def music_playlists_api(
     server_id: int,
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
-):
+) -> list[dict[str, Any]]:
     await _require_user(access_token)
     async with db_session() as s:
         rows = (
