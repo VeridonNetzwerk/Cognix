@@ -9,6 +9,7 @@ Usage:
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import signal
 import sys
@@ -118,7 +119,7 @@ async def _serve_bot(stop: asyncio.Event) -> None:
             continue
 
 
-async def _main() -> int:
+async def _main(dev_mode: bool = False) -> int:
     configure_logging()
     settings = get_settings()
     log = get_logger("main")
@@ -127,7 +128,11 @@ async def _main() -> int:
         env=settings.app_env,
         db=settings.db_kind,
         redis_enabled=settings.redis_enabled,
+        dev_mode=dev_mode,
     )
+    if dev_mode:
+        from bot.cogs.registry import set_dev_mode
+        set_dev_mode(True)
     try:
         await _run_migrations()
     except Exception as exc:  # noqa: BLE001
@@ -168,7 +173,10 @@ async def _main() -> int:
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="CogniX Discord Bot")
+    parser.add_argument("--dev", action="store_true", help="Load cogs from cogs_store/dev/ instead of release/")
+    args = parser.parse_args()
     try:
-        raise SystemExit(asyncio.run(_main()))
+        raise SystemExit(asyncio.run(_main(dev_mode=args.dev)))
     except KeyboardInterrupt:
         raise SystemExit(0) from None

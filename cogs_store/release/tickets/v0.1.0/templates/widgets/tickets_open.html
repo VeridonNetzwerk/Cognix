@@ -1,0 +1,24 @@
+{# Tickets widget: open tickets count + list #}
+<div class="space-y-3">
+  <div class="flex items-center gap-3">
+    <div class="w-12 h-12 rounded-lg shrink-0 flex items-center justify-center"
+         style="background: color-mix(in oklch, var(--color-warning) 20%, transparent);">
+      <i class="ph-fill ph-ticket text-xl" style="color: var(--color-warning);"></i>
+    </div>
+    <div>
+      <p class="font-mono font-bold text-2xl">{{ widget_data.tickets_open_count }}</p>
+      <p class="text-xs" style="color: var(--color-muted-foreground);">open tickets</p>
+    </div>
+  </div>
+  {% if widget_data.tickets_open %}
+  <div class="space-y-1.5 max-h-40 overflow-y-auto pr-2 scroll-thin">
+    {% for t in widget_data.tickets_open %}
+    <div class="flex items-center justify-between p-2 rounded-lg gap-2"
+         style="background: color-mix(in oklch, var(--color-secondary) 30%, transparent);">
+      <span class="text-sm truncate">{{ t.subject }}</span>
+      <span class="text-xs shrink-0" style="color: var(--color-muted-foreground);">{{ t.created_at.strftime('%m-%d') }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>

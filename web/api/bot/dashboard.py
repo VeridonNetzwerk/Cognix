@@ -74,6 +74,32 @@ async def add_widget(
     size_str = widget_def.get("size", "small") if widget_def else "small"
     dw, dh = default_widget_size(size_str)
 
+    # Find first free grid cell (greedy, left-to-right/top-to-bottom) so the
+    # new widget doesn't overlap widgets already placed on the dashboard.
+    GRID_COLS, GRID_ROWS = 4, 3
+    occupied: set[tuple[int, int]] = set()
+    for w in existing_widgets:
+        if not w.visible or w.grid_col < 1 or w.grid_row < 1:
+            continue
+        sw, sh = max(1, w.size_w or 1), max(1, w.size_h or 1)
+        for dc in range(sw):
+            for dr in range(sh):
+                occupied.add((w.grid_col + dc, w.grid_row + dr))
+    col, row = 1, 1
+    placed = False
+    for r in range(1, GRID_ROWS + 1):
+        for c in range(1, GRID_COLS + 1):
+            if all(
+                (c + dc, r + dr) not in occupied
+                for dc in range(dw) for dr in range(dh)
+                if c + dc <= GRID_COLS and r + dr <= GRID_ROWS
+            ) and c + dw - 1 <= GRID_COLS and r + dh - 1 <= GRID_ROWS:
+                col, row = c, r
+                placed = True
+                break
+        if placed:
+            break
+
     session.add(UserDashboardWidget(
         user_id=user.id,
         widget_id=req.widget_id,
@@ -81,11 +107,11 @@ async def add_widget(
         visible=True,
         size_w=dw,
         size_h=dh,
-        grid_col=0,
-        grid_row=0,
+        grid_col=col,
+        grid_row=row,
         updated_at=datetime.now(tz=UTC),
     ))
-    return {"ok": True}
+    return {"ok": True, "grid_col": col, "grid_row": row, "size_w": dw, "size_h": dh}
 
 
 @router.post("/widgets/remove")

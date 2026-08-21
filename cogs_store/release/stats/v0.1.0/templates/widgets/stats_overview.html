@@ -1,0 +1,19 @@
+{# Stats widget: server statistics overview #}
+<div class="grid grid-cols-2 gap-3">
+  <div class="p-3 rounded-lg text-center" style="background: color-mix(in oklch, var(--color-primary) 10%, transparent);">
+    <p class="text-xs uppercase tracking-wider mb-1" style="color: var(--color-muted-foreground);">Messages</p>
+    <p class="font-mono font-bold text-xl">{{ widget_data.stats_messages }}</p>
+  </div>
+  <div class="p-3 rounded-lg text-center" style="background: color-mix(in oklch, var(--color-accent) 10%, transparent);">
+    <p class="text-xs uppercase tracking-wider mb-1" style="color: var(--color-muted-foreground);">Commands</p>
+    <p class="font-mono font-bold text-xl">{{ widget_data.stats_commands }}</p>
+  </div>
+  <div class="p-3 rounded-lg text-center" style="background: color-mix(in oklch, var(--color-success) 10%, transparent);">
+    <p class="text-xs uppercase tracking-wider mb-1" style="color: var(--color-muted-foreground);">Joins</p>
+    <p class="font-mono font-bold text-xl">{{ widget_data.stats_joins }}</p>
+  </div>
+  <div class="p-3 rounded-lg text-center" style="background: color-mix(in oklch, var(--color-warning) 10%, transparent);">
+    <p class="text-xs uppercase tracking-wider mb-1" style="color: var(--color-muted-foreground);">Leaves</p>
+    <p class="font-mono font-bold text-xl">{{ widget_data.stats_leaves }}</p>
+  </div>
+</div>

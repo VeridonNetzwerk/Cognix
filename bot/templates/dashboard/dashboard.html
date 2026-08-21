@@ -257,6 +257,17 @@ function dashboardWidgets() {
       this.dropCanFit = false;
     },
 
+    fitsAt(id, col, row, w, h) {
+      if (col < 1 || row < 1 || col + w - 1 > 4 || row + h - 1 > 3) return false;
+      for (const [wid, p] of Object.entries(this.widgetPositions)) {
+        if (wid === id) continue;
+        const overlap = !(col + w - 1 < p.col || col > p.col + p.w - 1 ||
+                         row + h - 1 < p.row || row > p.row + p.h - 1);
+        if (overlap) return false;
+      }
+      return true;
+    },
+
     canPlace(id, col, row) {
       const pos = this.widgetPositions[id];
       if (!pos) return false;
@@ -297,11 +308,15 @@ function dashboardWidgets() {
         if (!this.resizeStart) return;
         const dx = ev.clientX - this.resizeStart.startX;
         const dy = ev.clientY - this.resizeStart.startY;
-        const newW = Math.max(1, Math.min(4, Math.round(this.resizeStart.startW + dx / this.resizeStart.colWidth)));
-        const newH = Math.max(1, Math.min(3, Math.round(this.resizeStart.startH + dy / this.resizeStart.rowHeight)));
-        if (this.widgetPositions[id].w !== newW || this.widgetPositions[id].h !== newH) {
-          this.widgetPositions[id].w = newW;
-          this.widgetPositions[id].h = newH;
+        let newW = Math.max(1, Math.min(4, Math.round(this.resizeStart.startW + dx / this.resizeStart.colWidth)));
+        let newH = Math.max(1, Math.min(3, Math.round(this.resizeStart.startH + dy / this.resizeStart.rowHeight)));
+        const pos = this.widgetPositions[id];
+        // Stop growth cleanly at neighboring widgets instead of overlapping them
+        while (newW > 1 && !this.fitsAt(id, pos.col, pos.row, newW, newH)) newW--;
+        while (newH > 1 && !this.fitsAt(id, pos.col, pos.row, newW, newH)) newH--;
+        if (pos.w !== newW || pos.h !== newH) {
+          pos.w = newW;
+          pos.h = newH;
         }
       };
 
@@ -376,8 +391,16 @@ function dashboardWidgets() {
           body: JSON.stringify({ widget_id: widgetId }),
         });
         if (resp.ok) {
+          const data = await resp.json();
+          this.widgetPositions[widgetId] = {
+            col: data.grid_col || 1,
+            row: data.grid_row || 1,
+            w: data.size_w || 1,
+            h: data.size_h || 1,
+          };
           cognixToastSuccess('Widget hinzugefügt');
-          this.refreshWidgets();
+          await this.refreshWidgets();
+          this.$nextTick(() => location.reload());
         } else {
           cognixToastError('Widget konnte nicht hinzugefügt werden');
         }

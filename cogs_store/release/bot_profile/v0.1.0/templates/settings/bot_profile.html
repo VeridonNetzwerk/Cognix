@@ -1,0 +1,498 @@
+{% extends "base.html" %}
+{% block title %}Bot profile · {{ bot_info.name }}{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Bot profile</h1>
+<script type="application/json" id="profile-data">{"display_name":{{ profile.display_name|tojson }},"about_me":{{ profile.about_me|tojson }},"avatar_data":{{ profile.avatar_data|tojson }},"banner_data":{{ profile.banner_data|tojson }},"activity_type":{{ profile.activity_type|tojson }},"activity_text":{{ profile.activity_text|tojson }},"status":{{ profile.status|tojson }},"avatarFallback":{{ bot_info.avatar_url|tojson }}}</script>
+<div class="grid lg:grid-cols-2 gap-6"
+     x-data="{
+       display_name: '',
+       about_me: '',
+       avatar_data: '',
+       banner_data: '',
+       activity_type: 'none',
+       activity_text: '',
+       status: 'online',
+       avatarFallback: '',
+       previewSize: 'large',
+       bioExpanded: false,
+       guildsExpanded: false,
+       botGuilds: [],
+       activityLine() {
+         const verb = (this.activity_type || '').toLowerCase();
+         const text = this.activity_text || '';
+         if (verb === 'none' || !text) return '';
+         return text.toLowerCase().startsWith(verb) ? text : (verb + ' ' + text);
+       },
+       statusColor() {
+         return this.status==='online' ? '#23a55a' : this.status==='idle' ? '#f0b232' : this.status==='dnd' ? '#f23f43' : '#80848e';
+       },
+       statusLabel() {
+         return this.status==='dnd' ? 'Nicht stören' : this.status==='idle' ? 'Abwesend' : this.status==='invisible' ? 'Offline' : 'Online';
+       },
+       activityVerb() {
+         if (this.activity_type === 'none') return '';
+         return {playing:'Spielt', listening:'Hört', watching:'Schaut zu', competing:'Nimmt teil an', streaming:'Streamt'}[this.activity_type] || 'Spielt';
+       },
+       activityIcon() {
+         return {playing:'ph-game-controller', listening:'ph-headphones', watching:'ph-eye', competing:'ph-trophy', streaming:'ph-video-camera', none:'ph-circle'}[this.activity_type] || 'ph-game-controller';
+       },
+       init() {
+         const d = JSON.parse(document.getElementById('profile-data').textContent);
+         this.display_name = d.display_name;
+         this.about_me = d.about_me;
+         this.avatar_data = d.avatar_data;
+         this.banner_data = d.banner_data;
+         this.activity_type = d.activity_type || 'none';
+         this.activity_text = d.activity_text;
+         this.status = d.status;
+         this.avatarFallback = d.avatarFallback;
+         this.botGuilds = {{ guilds | tojson }};
+       },
+       loadFile(ev, key, max){
+         const f = ev.target.files[0]; if(!f) return;
+         if(f.size > max){ alert('File too large'); return; }
+         const r = new FileReader();
+         r.onload = () => { this[key] = r.result; };
+         r.readAsDataURL(f);
+       }
+     }">
+  <form method="post" action="/bot-profile" class="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
+    <input type="hidden" name="avatar_data" :value="avatar_data">
+    <input type="hidden" name="banner_data" :value="banner_data">
+    <label class="block">
+      <span class="text-xs text-slate-400">Display name</span>
+      <input name="display_name" maxlength="32" x-model="display_name"
+             class="w-full mt-1 bg-slate-800 border border-slate-700 rounded px-3 py-2">
+    </label>
+    <label class="block">
+      <span class="text-xs text-slate-400">About me / bio (stored locally)</span>
+      <textarea name="about_me" rows="3" maxlength="512" x-model="about_me"
+                class="w-full mt-1 bg-slate-800 border border-slate-700 rounded px-3 py-2"></textarea>
+    </label>
+    <label class="block">
+      <span class="text-xs text-slate-400">Avatar (PNG/JPG, &lt;1 MB)</span>
+      <input type="file" accept="image/*"
+             @change="loadFile($event,'avatar_data',1_000_000)"
+             class="block mt-1 text-xs">
+    </label>
+    <label class="block">
+      <span class="text-xs text-slate-400">Banner (&lt;2 MB)</span>
+      <input type="file" accept="image/*"
+             @change="loadFile($event,'banner_data',2_000_000)"
+             class="block mt-1 text-xs">
+    </label>
+    <div class="grid grid-cols-3 gap-3">
+      <label class="block">
+        <span class="text-xs text-slate-400">Activity</span>
+        <select name="activity_type" x-model="activity_type" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded px-2 py-2">
+          <option value="none">none</option>
+          {% for t in ["playing","listening","watching","competing","streaming"] %}
+          <option value="{{ t }}">{{ t }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="block col-span-2">
+        <span class="text-xs text-slate-400">Activity text</span>
+        <input name="activity_text" maxlength="128" x-model="activity_text"
+               :disabled="activity_type === 'none'"
+               :style="activity_type === 'none' ? 'opacity:0.4;cursor:not-allowed;' : ''"
+               class="w-full mt-1 bg-slate-800 border border-slate-700 rounded px-3 py-2">
+      </label>
+      <label class="block col-span-3">
+        <span class="text-xs text-slate-400">Status</span>
+        <select name="status" x-model="status" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded px-2 py-2">
+          {% for s in ["online","idle","dnd","invisible"] %}
+          <option value="{{ s }}">{{ s }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+    <button class="px-4 py-2 bg-brand-600 hover:bg-brand-500 rounded text-sm">Save profile</button>
+  </form>
+
+  {# Discord-style profile preview #}
+  <div class="flex flex-col items-center gap-4">
+
+    {# Size toggle #}
+    <div class="inline-flex rounded-lg p-1 gap-1" style="background: #2b2d31;">
+      <button type="button" @click="previewSize = 'small'"
+              class="px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
+              :style="previewSize==='small' ? 'background:#404249;color:#fff' : 'color:#b5bac1'">
+        Kompakt
+      </button>
+      <button type="button" @click="previewSize = 'large'"
+              class="px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
+              :style="previewSize==='large' ? 'background:#404249;color:#fff' : 'color:#b5bac1'">
+        Vollständig
+      </button>
+    </div>
+
+    {# ============ SMALL / COMPACT POPUP CARD ============ #}
+    {# Exact replica of Discord's user-profile-popout structure #}
+    <div x-show="previewSize === 'small'" x-cloak
+         style="width:300px;border-radius:8px;overflow:hidden;background:#232428;box-shadow:0 2px 10px 0 rgba(0,0,0,.1),0 0 0 1px rgba(0,0,0,.04),0 0 16px rgba(0,0,0,.12);position:relative;">
+
+      {# inner_c0bea0 #}
+      <div style="display:flex;flex-direction:column;gap:8px;padding-bottom:4px;">
+
+        {# wrapper_da5890 - top bar with "Mehr" button #}
+        <div style="display:flex;gap:8px;position:absolute;z-index:3;right:12px;top:8px;">
+          <div style="width:32px;height:32px;border-radius:50%;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path fill="currentColor" fill-rule="evenodd" d="M4 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm10-2a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm8 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z" clip-rule="evenodd"/></svg>
+          </div>
+        </div>
+
+        {# header__5be3e #}
+        <div style="min-height:140px;position:relative;">
+          {# banner_f7e69e - 105px height #}
+          <div style="height:105px;width:100%;position:relative;">
+            <div :style="banner_data
+                ? `height:100%;width:100%;background-image:url(${banner_data});background-size:cover;background-position:center;border-radius:8px 8px 0 0;`
+                : `height:100%;width:100%;background:linear-gradient(135deg,#5865f2,#eb459e);border-radius:8px 8px 0 0;`">
+            </div>
+          </div>
+          {# avatar__75742 - 80px, absolute at left:16px, top:61px #}
+          <div style="position:absolute;left:16px;top:61px;z-index:0;">
+            <div style="position:relative;width:80px;height:80px;">
+              <img :src="avatar_data || avatarFallback" alt=""
+                   style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:6px solid #232428;background:#2b2d31;">
+              {# Status indicator - 16px at bottom-right #}
+              <div style="position:absolute;bottom:5px;right:5px;width:16px;height:16px;border-radius:50%;border:4px solid #232428;"
+                   :style="{ background: statusColor() }"></div>
+            </div>
+          </div>
+        </div>
+
+        {# body__5be3e - padding: 4px 16px 8px, gap: 12px #}
+        <div style="display:flex;flex-direction:column;gap:12px;padding:4px 16px 8px;">
+
+          {# displayNameRow__26b1f #}
+          <div style="display:flex;align-items:center;gap:8px;line-height:24px;">
+            <div style="cursor:pointer;">
+              <span style="font-size:20px;font-weight:700;color:#f2f3f5;font-family:'gg sans','Noto Sans',sans-serif;word-break:break-word;" x-text="display_name || '{{ bot_info.name }}'"></span>
+              <span style="display:inline-flex;align-items:center;font-size:10px;text-transform:uppercase;vertical-align:top;background:#5865f2;color:#fff;border-radius:4px;height:16px;padding:0 4px;font-weight:600;margin-left:4px;line-height:16px;">APP</span>
+            </div>
+            <div style="margin-left:auto;display:flex;align-items:center;height:24px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="color:#949ba4;cursor:pointer;"><path fill="currentColor" fill-rule="evenodd" d="M5 2a3 3 0 0 0-3 3v14a3 3 0 0 0 3 3h9c.1 0 .12-.11.04-.15a3 3 0 0 1-2.03-3.16c.04-.34-.2-.69-.55-.69H6a1 1 0 1 1 0-2h9.5a.5.5 0 0 0 .5-.5V15a3 3 0 0 1 .19-1.05c.15-.4-.11-.95-.54-.95H6a1 1 0 1 1 0-2h12a1 1 0 0 1 .88.52c.13.24.35.48.62.52A3 3 0 0 1 21.83 14v.02c.02.06.17.05.17-.02V5a3 3 0 0 0-3-3H5Zm1 4a1 1 0 0 0 0 2h5a1 1 0 1 0 0-2H6Z" clip-rule="evenodd"/><path fill="currentColor" d="M19 14a1 1 0 0 1 1 1v3h3a1 1 0 1 1 0 2h-3v3a1 1 0 1 1-2 0v-3h-3a1 1 0 1 1 0-2h3v-3a1 1 0 0 1 1-1Z"/></svg>
+            </div>
+          </div>
+
+          {# usernameAndPronounsRow__26b1f - isBot has margin-top:8px #}
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <div style="cursor:pointer;font-size:14px;font-weight:400;line-height:18px;">
+              <span style="color:#f2f3f5;" x-text="'{{ bot_info.username }}'"></span>
+            </div>
+            {# Badges container #}
+            <div style="display:flex;align-items:center;gap:4px;" aria-label="Nutzerabzeichen">
+              {# "Unterstützt Befehle" badge placeholder #}
+              <div style="width:16px;height:16px;border-radius:50%;background:#5865f2;display:flex;align-items:center;justify-content:center;" title="Unterstützt Befehle">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path fill="#fff" d="M13 6a1 1 0 1 0-2 0v5H6a1 1 0 1 0 0 2h5v5a1 1 0 1 0 2 0v-5h5a1 1 0 1 0 0-2h-5V6Z"/></svg>
+              </div>
+            </div>
+          </div>
+
+          {# mutuals__530ce #}
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+              {# Server icons (up to 3, then +N) #}
+              <ul style="display:flex;align-items:center;list-style:none;padding:0;margin:0;">
+                <template x-for="(g, i) in botGuilds.slice(0, 3)" :key="g.id">
+                  <li style="width:16px;height:16px;margin-right:-4px;">
+                    <div style="width:16px;height:16px;border-radius:4px;overflow:hidden;background:#3a3c42;display:flex;align-items:center;justify-content:center;border:2px solid #232428;">
+                      <template x-if="g.icon_url">
+                        <img :src="g.icon_url" alt="" style="width:100%;height:100%;object-fit:cover;">
+                      </template>
+                      <template x-if="!g.icon_url">
+                        <i class="ph ph-hash" style="font-size:10px;color:#949ba4;"></i>
+                      </template>
+                    </div>
+                  </li>
+                </template>
+              </ul>
+              <span style="font-size:14px;font-weight:400;color:#dbdee1;">
+                <span x-text="botGuilds.length"></span>&nbsp;gemeinsamer Server
+              </span>
+              <template x-if="botGuilds.length > 3">
+                <span @click="guildsExpanded = !guildsExpanded" style="font-size:12px;color:#5865f2;cursor:pointer;font-weight:600;">
+                  +<span x-text="botGuilds.length - 3"></span>
+                </span>
+              </template>
+            </div>
+          </div>
+          {# Expanded guild list #}
+          <template x-if="guildsExpanded && botGuilds.length > 3">
+            <div style="display:flex;flex-direction:column;gap:4px;margin-top:4px;">
+              <template x-for="g in botGuilds.slice(3)" :key="g.id">
+                <div style="display:flex;align-items:center;gap:6px;padding:2px 0;">
+                  <div style="width:20px;height:20px;border-radius:4px;overflow:hidden;background:#3a3c42;display:flex;align-items:center;justify-content:center;">
+                    <template x-if="g.icon_url">
+                      <img :src="g.icon_url" alt="" style="width:100%;height:100%;object-fit:cover;">
+                    </template>
+                    <template x-if="!g.icon_url">
+                      <i class="ph ph-hash" style="font-size:12px;color:#949ba4;"></i>
+                    </template>
+                  </div>
+                  <span style="font-size:13px;color:#dbdee1;" x-text="g.name"></span>
+                  <span style="font-size:11px;color:#949ba4;" x-text="g.member_count + ' Mitglieder'"></span>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          {# buttons_bc38cd #}
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <button type="button" style="flex:1;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;min-height:30px;padding:5px 11px;border-radius:8px;background:#4e5058;border:1px solid transparent;color:#dbdee1;font-size:14px;font-weight:500;cursor:pointer;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M13 6a1 1 0 1 0-2 0v5H6a1 1 0 1 0 0 2h5v5a1 1 0 1 0 2 0v-5h5a1 1 0 1 0 0-2h-5V6Z"/></svg>
+              <span>App hinzufügen</span>
+            </button>
+          </div>
+
+          {# section_bf424d - Bio #}
+          <template x-if="about_me">
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <div>
+                <div style="font-size:14px;font-weight:400;line-height:18px;color:#f2f3f5;white-space:pre-line;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;"
+                     :style="bioExpanded ? '-webkit-line-clamp:unset;' : '-webkit-line-clamp:3;max-height:55px;'"
+                     x-text="about_me"></div>
+              </div>
+              <div style="margin-top:8px;">
+                <button type="button" @click="bioExpanded = !bioExpanded"
+                        style="background:none;border:none;color:#dbdee1;font-size:12px;font-weight:400;cursor:pointer;padding:0;"
+                        x-text="bioExpanded ? 'Bio einklappen' : 'Vollständige Bio anzeigen'"></button>
+              </div>
+            </div>
+          </template>
+
+          {# Activity (custom, not in Discord's original popout but part of bot profile) #}
+          <template x-if="activity_type !== 'none' && activity_text">
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <div style="background:#2b2d31;border-radius:8px;padding:10px 12px;">
+                <div style="font-size:12px;font-weight:600;color:#b5bac1;margin-bottom:4px;" x-text="activityVerb()"></div>
+                <div style="font-size:14px;font-weight:700;color:#f2f3f5;" x-text="activityLine()"></div>
+              </div>
+            </div>
+          </template>
+
+          {# section_bf424d - Roles #}
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;align-items:center;gap:4px;">
+              <h1 style="font-size:12px;font-weight:600;color:#dbdee1;margin:0;">Rollen</h1>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;">
+              {# Role: bot name (real role from Discord) #}
+              <div style="display:flex;align-items:center;border:1px solid #3a3c42;border-radius:8px;min-height:24px;padding:0 8px 0 2px;max-width:268px;">
+                <span class="w-3 h-3 rounded-full flex-shrink-0" style="margin:0 4px;width:12px;height:12px;border-radius:50%;"
+                      :style="{ background: statusColor() }"></span>
+                <span style="font-size:12px;font-weight:400;color:#dbdee1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="display_name || '{{ bot_info.name }}'"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {# footer__5be3e - padding: 0 16px 12px #}
+        <div style="display:flex;flex-direction:column;padding:0 16px 12px;">
+          {# channelTextArea - message input mock #}
+          <div style="background:#383a40;border:1px solid #383a40;border-radius:8px;">
+            <div style="border-radius:8px;background:#383a40;overflow:hidden;">
+              <div style="display:flex;padding-left:15px;position:relative;align-items:center;min-height:44px;">
+                <span style="font-size:14px;color:#6d6f78;flex:1;" x-text="'Nachricht an @' + (display_name || '{{ bot_info.name }}')"></span>
+                <div style="display:flex;align-items:center;padding-right:8px;">
+                  <div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#949ba4;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm5.66 5.66-2.83 2.83a4 4 0 0 1-5.66 5.66l-2.83 2.83a8 8 0 0 0 11.31-11.31Z"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ============ LARGE / FULL PROFILE CARD ============ #}
+    {# Exact replica of Discord's user-profile-modal structure #}
+    <div x-show="previewSize === 'large'" x-cloak
+         style="width:600px;max-height:720px;border-radius:8px;overflow:hidden;background:#232428;box-shadow:0 0 0 1px rgba(0,0,0,.04),0 8px 16px rgba(0,0,0,.16);position:relative;">
+
+      {# inner_c0bea0 #}
+      <div style="display:flex;flex-direction:column;height:100%;">
+
+        {# wrapper_da5890 - top bar with "Mehr" button #}
+        <div style="display:flex;gap:8px;position:absolute;z-index:3;right:16px;top:12px;">
+          <div style="width:32px;height:32px;border-radius:50%;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path fill="currentColor" fill-rule="evenodd" d="M4 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm10-2a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm8 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z" clip-rule="evenodd"/></svg>
+          </div>
+        </div>
+
+        {# Banner - 210px height #}
+        <div style="height:210px;width:100%;position:relative;">
+          <div :style="banner_data
+              ? `height:100%;width:100%;background-image:url(${banner_data});background-size:cover;background-position:center;border-radius:8px 8px 0 0;`
+              : `height:100%;width:100%;background:linear-gradient(135deg,#5865f2,#eb459e);border-radius:8px 8px 0 0;`">
+          </div>
+        </div>
+
+        {# headerInner__24502 - avatar + header buttons #}
+        <div style="margin-inline-end:16px;min-height:52px;position:relative;display:flex;justify-content:flex-end;">
+          {# avatar__75742 - 120px, absolute at left:24px, top:-68px #}
+          <div style="position:absolute;left:24px;top:-68px;z-index:0;">
+            <div style="position:relative;width:120px;height:120px;">
+              <img :src="avatar_data || avatarFallback" alt=""
+                   style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:8px solid #232428;background:#2b2d31;">
+              {# Status indicator - 24px at bottom-right #}
+              <div style="position:absolute;bottom:8px;right:8px;width:24px;height:24px;border-radius:50%;border:6px solid #232428;"
+                   :style="{ background: statusColor() }"></div>
+            </div>
+          </div>
+          {# headerButtons__24502 #}
+          <div style="display:flex;align-items:center;flex:1;gap:8px;height:32px;padding-top:16px;justify-content:flex-end;">
+            {# "Nachricht" button (text variant) #}
+            <button type="button" style="display:flex;align-items:center;justify-content:center;gap:8px;min-height:30px;padding:5px 11px;border-radius:8px;background:#4e5058;border:1px solid transparent;color:#dbdee1;font-size:14px;font-weight:500;cursor:pointer;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M12 22a10 10 0 1 0-8.45-4.64c.13.19.11.44-.04.61l-2.06 2.37A1 1 0 0 0 2.2 22H12Z"/></svg>
+              <span>Nachricht</span>
+            </button>
+            {# "App hinzufügen" button #}
+            <button type="button" style="display:flex;align-items:center;justify-content:center;gap:8px;min-height:30px;padding:5px 11px;border-radius:8px;background:#4e5058;border:1px solid transparent;color:#dbdee1;font-size:14px;font-weight:500;cursor:pointer;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M13 6a1 1 0 1 0-2 0v5H6a1 1 0 1 0 0 2h5v5a1 1 0 1 0 2 0v-5h5a1 1 0 1 0 0-2h-5V6Z"/></svg>
+              <span>App hinzufügen</span>
+            </button>
+          </div>
+        </div>
+
+        {# body__24502 #}
+        <div style="display:flex;flex:1 1 auto;flex-direction:column;gap:12px;min-height:0;overflow:hidden;">
+
+          {# userInfo__24502 - margin: 16px 16px 0 #}
+          <div style="margin:16px 16px 0;">
+            {# displayNameRow__26b1f lg__26b1f - heading-xl/semibold = 24px font, 600 weight #}
+            <div style="display:flex;align-items:center;gap:8px;line-height:30px;">
+              <div style="cursor:pointer;">
+                <span style="font-size:24px;font-weight:600;color:#f2f3f5;font-family:'gg sans','Noto Sans',sans-serif;word-break:break-word;line-height:32px;" x-text="display_name || '{{ bot_info.name }}'"></span>
+                <span style="display:inline-flex;align-items:center;font-size:10px;text-transform:uppercase;vertical-align:top;background:#5865f2;color:#fff;border-radius:4px;height:16px;padding:0 4px;font-weight:600;margin-left:4px;line-height:16px;">APP</span>
+              </div>
+            </div>
+            {# usernameAndPronounsRow__26b1f isBot__26b1f - margin-block-start:8px #}
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;">
+              <div style="cursor:pointer;font-size:14px;font-weight:400;line-height:18px;">
+                <span style="color:#f2f3f5;" x-text="'{{ bot_info.username }}'"></span>
+              </div>
+              {# Badges container #}
+              <div style="display:flex;align-items:center;gap:4px;" aria-label="Nutzerabzeichen">
+                <div style="width:16px;height:16px;border-radius:50%;background:#5865f2;display:flex;align-items:center;justify-content:center;" title="Unterstützt Befehle">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path fill="#fff" d="M13 6a1 1 0 1 0-2 0v5H6a1 1 0 1 0 0 2h5v5a1 1 0 1 0 2 0v-5h5a1 1 0 1 0 0-2h-5V6Z"/></svg>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {# container_d1d9f3 - tabs + scroller #}
+          <div style="display:flex;flex:1 1 auto;flex-direction:column;min-height:0;overflow:hidden;">
+            {# tabBar_d1d9f3 - border-bottom, gap:32px, margin-top:16px, padding:0 16px #}
+            <div style="border-bottom:1px solid #3a3c42;display:flex;gap:32px;margin-top:16px;padding:0 16px;">
+              {# Selected tab: Bio #}
+              <div style="box-sizing:border-box;height:25px;border-bottom:none;line-height:14px;padding-bottom:16px;position:relative;color:#f2f3f5;cursor:pointer;font-size:14px;font-weight:600;">
+                Bio
+                <div style="background:#f2f3f5;border-top-left-radius:2px;border-top-right-radius:2px;content:'';height:2px;left:0;position:absolute;top:100%;width:100%;margin-top:-2px;"></div>
+              </div>
+              {# Unselected tab: gemeinsamer Server #}
+              <div style="box-sizing:border-box;height:25px;border-bottom:none;line-height:14px;padding-bottom:16px;position:relative;color:#949ba4;cursor:pointer;font-size:14px;font-weight:600;">
+                <span x-text="botGuilds.length"></span>&nbsp;gemeinsamer Server
+              </div>
+              {# Unselected tab: Zugriff auf Daten #}
+              <div style="box-sizing:border-box;height:25px;border-bottom:none;line-height:14px;padding-bottom:16px;position:relative;color:#949ba4;cursor:pointer;font-size:14px;font-weight:600;">
+                Zugriff auf Daten
+              </div>
+            </div>
+
+            {# scroller_fcb628 - padding:16px, gap:20px #}
+            <div style="display:flex;flex-direction:column;gap:20px;padding:16px;overflow-y:auto;">
+
+              {# Bio section #}
+              <section>
+                <template x-if="about_me">
+                  <div style="font-size:14px;font-weight:400;line-height:18px;color:#dbdee1;white-space:pre-line;" x-text="about_me"></div>
+                </template>
+                <template x-if="!about_me">
+                  <div style="font-size:14px;font-weight:400;line-height:18px;color:#6d6f78;font-style:italic;">Keine Bio hinzugefügt.</div>
+                </template>
+              </section>
+
+              {# Activity section (custom, not in Discord's original modal but part of bot profile) #}
+              <template x-if="activity_type !== 'none' && activity_text">
+                <section style="display:flex;flex-direction:column;gap:8px;">
+                  <div style="background:#2b2d31;border-radius:8px;padding:12px;">
+                    <div style="display:flex;align-items:center;gap:4px;margin-bottom:8px;">
+                      <span style="font-size:12px;font-weight:600;color:#b5bac1;" x-text="activityVerb()"></span>
+                    </div>
+                    <div style="display:flex;gap:12px;">
+                      <div style="width:40px;height:40px;border-radius:8px;background:#3a3c42;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <i class="ph text-xl" style="color:#dbdee1;font-size:20px;" :class="activityIcon()"></i>
+                      </div>
+                      <div style="display:flex;flex-direction:column;gap:4px;overflow:hidden;align-self:center;">
+                        <div style="font-size:12px;font-weight:600;color:#b5bac1;" x-text="activityVerb()"></div>
+                        <div style="font-size:14px;font-weight:500;color:#f2f3f5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="activityLine()"></div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </template>
+
+              {# Roles section - section_bf424d #}
+              <section style="display:flex;flex-direction:column;gap:8px;">
+                <div style="display:flex;align-items:center;gap:4px;">
+                  <h2 style="font-size:12px;font-weight:600;color:#dbdee1;margin:0;">Rollen</h2>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;">
+                  {# Role: bot name (real) #}
+                  <div style="display:flex;align-items:center;border:1px solid #3a3c42;border-radius:8px;min-height:24px;padding:0 8px 0 2px;">
+                    <span style="width:12px;height:12px;border-radius:50%;margin:0 4px;flex-shrink:0;"
+                          :style="{ background: statusColor() }"></span>
+                    <span style="font-size:12px;font-weight:400;color:#dbdee1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="display_name || '{{ bot_info.name }}'"></span>
+                  </div>
+                </div>
+              </section>
+
+              {# Erstellt am section - section_bf424d #}
+              <section style="display:flex;flex-direction:column;gap:8px;">
+                <div style="display:flex;align-items:center;gap:4px;">
+                  <h2 style="font-size:12px;font-weight:600;color:#dbdee1;margin:0;">Erstellt am:</h2>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <div style="display:flex;align-items:center;gap:4px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="color:#dbdee1;"><path fill="currentColor" d="M19.73 4.87a18.2 18.2 0 0 0-4.6-1.44c-.21.4-.4.8-.58 1.21-1.69-.25-3.4-.25-5.1 0-.18-.41-.37-.82-.59-1.2-1.6.27-3.14.75-4.6 1.43A19.04 19.04 0 0 0 .96 17.7a18.43 18.43 0 0 0 5.63 2.87c.46-.62.86-1.28 1.2-1.98-.65-.25-1.29-.55-1.9-.92.17-.12.32-.24.47-.37 3.58 1.7 7.7 1.7 11.28 0l.46.37c-.6.36-1.25.67-1.9.92.35.7.75 1.35 1.2 1.98 2.03-.63 3.94-1.6 5.64-2.87.47-4.87-.78-9.09-3.3-12.83ZM8.3 15.12c-1.1 0-2-1.02-2-2.27 0-1.24.88-2.26 2-2.26s2.02 1.02 2 2.26c0 1.25-.89 2.27-2 2.27Zm7.4 0c-1.1 0-2-1.02-2-2.27 0-1.24.88-2.26 2-2.26s2.02 1.02 2 2.26c0 1.25-.88 2.27-2 2.27Z"/></svg>
+                    <span style="font-size:14px;font-weight:400;color:#dbdee1;">{{ bot_info.created_at }}</span>
+                  </div>
+                  <div style="background-color:#dbdee1;border-radius:50%;height:4px;width:4px;"></div>
+                  <div style="display:flex;align-items:center;gap:4px;">
+                    <div style="width:16px;height:16px;border-radius:4px;background:#3a3c42;display:flex;align-items:center;justify-content:center;">
+                      <i class="ph ph-hash" style="font-size:10px;color:#949ba4;"></i>
+                    </div>
+                    <span style="font-size:14px;font-weight:400;color:#dbdee1;">{{ bot_info.id }}</span>
+                  </div>
+                </div>
+                {# How long the bot has been on Discord #}
+                <div style="display:flex;align-items:center;gap:4px;margin-top:4px;">
+                  <i class="ph ph-clock" style="font-size:14px;color:#949ba4;"></i>
+                  <span style="font-size:13px;font-weight:400;color:#949ba4;">Auf Discord seit {{ bot_info.age_text }}</span>
+                </div>
+              </section>
+
+              {# Notiz section - section_bf424d #}
+              <section style="display:flex;flex-direction:column;gap:8px;">
+                <div style="display:flex;align-items:center;gap:4px;">
+                  <h2 style="font-size:12px;font-weight:600;color:#dbdee1;margin:0;">Notiz (nur für dich sichtbar)</h2>
+                </div>
+                <div style="margin:-4px;">
+                  <textarea placeholder="Hier klicken, um eine Notiz hinzuzufügen"
+                    style="background-color:transparent;border:1px solid transparent;border-radius:3px;font-size:14px;line-height:18px;padding:4px;width:100%;resize:none;box-sizing:border-box;color:#dbdee1;height:46px;"
+                    onfocus="this.style.borderColor='#3a3c42';this.style.backgroundColor='#1e1f22';"
+                    onblur="this.style.borderColor='transparent';this.style.backgroundColor='transparent';"></textarea>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

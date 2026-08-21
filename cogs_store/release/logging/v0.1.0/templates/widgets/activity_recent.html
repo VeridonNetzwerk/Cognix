@@ -1,0 +1,20 @@
+{# Activity log widget: recent Discord events #}
+<div class="space-y-2 max-h-64 overflow-y-auto pr-2 scroll-thin">
+  {% for ev in widget_data.activity_recent %}
+  <div class="flex items-center gap-2 p-2 rounded-lg"
+       style="background: color-mix(in oklch, var(--color-secondary) 30%, transparent);">
+    <span class="text-xs px-1.5 py-0.5 rounded font-medium shrink-0"
+          style="background: color-mix(in oklch, var(--color-primary) 20%, transparent); color: var(--color-primary);">
+      {{ ev.event_type }}
+    </span>
+    <span class="text-sm truncate flex-1">{{ ev.summary }}</span>
+    <span class="font-mono text-xs shrink-0" style="color: var(--color-muted-foreground);">
+      {{ ev.created_at.strftime('%H:%M') }}
+    </span>
+  </div>
+  {% else %}
+  <div class="flex items-center justify-center h-32 text-sm" style="color: var(--color-muted-foreground);">
+    No recent activity
+  </div>
+  {% endfor %}
+</div>

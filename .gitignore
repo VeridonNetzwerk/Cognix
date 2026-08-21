@@ -25,11 +25,9 @@ logs/
 # Editors
 .vscode/
 .idea/
+.kilo/
 *.swp
 .DS_Store
-
-# Test install directory
-bot_test/
 
 # Temporary test scripts
 test_login.py

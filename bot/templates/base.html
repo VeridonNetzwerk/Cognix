@@ -498,7 +498,6 @@
              x-data="{ openGroups: {} }">
           {% set items = [
             ('/', 'Dashboard', 'ph-chart-bar', None),
-            ('/servers', 'Servers', 'ph-hard-drives', None),
             ('/cogs', 'Cogs', 'ph-package', None),
             ('/embeds', 'Embeds', 'ph-image', 'cogs.embeds.embeds'),
             ('/music', 'Music', 'ph-music-notes', 'cogs.music.music'),
@@ -654,9 +653,8 @@
                       <i class="ph ph-hard-drives text-xs" style="color: var(--color-muted-foreground);"></i>
                     </div>
                   {% endif %}
-                  <span class="truncate max-w-[140px] font-medium text-left flex-1"
-                        style="{% if not ns.current %}color: var(--color-muted-foreground);{% endif %}">
-                    {{ ns.current.name if ns.current else 'Wähle einen Server' }}
+                  <span class="truncate font-medium text-left flex-1">
+                    {{ ns.current.name if ns.current else 'All servers' }}
                   </span>
                   <i class="ph ph-caret-down text-xs transition-transform shrink-0" style="color: var(--color-muted-foreground);" :class="open ? 'rotate-180' : ''"></i>
                 </button>
@@ -664,7 +662,7 @@
                      x-transition:enter="transition ease-out duration-100"
                      x-transition:enter-start="opacity-0 -translate-y-1"
                      x-transition:enter-end="opacity-100 translate-y-0"
-                     class="absolute right-0 top-full mt-1.5 w-72 rounded-xl border shadow-2xl z-50 max-h-80 overflow-y-auto scroll-thin py-1.5"
+                     class="absolute left-0 top-full mt-1.5 w-72 rounded-xl border shadow-2xl z-50 max-h-80 overflow-y-auto scroll-thin py-1.5"
                      style="background: var(--color-card); border-color: var(--color-border);">
                   <a href="/select-server/0" class="flex items-center gap-2.5 px-3 py-2 mx-1.5 rounded-lg text-sm hover:bg-white/5 transition-colors {% if not selected_server_id %}font-semibold{% endif %}">
                     <div class="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style="background: var(--color-secondary);">

@@ -1,4 +1,4 @@
-"""Dashboard, servers, and server detail routes."""
+"""Dashboard and server-selection routes."""
 
 from __future__ import annotations
 
@@ -16,8 +16,6 @@ from bot.database.models.auth.user_dashboard_widget import UserDashboardWidget
 from bot.database.models.cogs.cog_state import CogState
 from bot.database.models.giveaways.giveaway import Giveaway, GiveawayStatus
 from bot.database.models.moderation.moderation import ModerationAction
-from bot.database.models.server.server import Server
-from bot.database.models.server.server_config import ServerConfig
 from bot.database.models.stats.discord_event import DiscordEvent
 from bot.database.models.tickets.ticket import Ticket, TicketStatus
 from bot.database.session import db_session
@@ -216,6 +214,7 @@ async def select_server(server_id: str, request: Request,
     else:
         response.set_cookie("selected_server_id", str(sid), path="/", max_age=60*60*24*365, httponly=True, samesite="lax")
     return response
+<<<<<<< HEAD
 
 
 @router.get("/servers", response_class=HTMLResponse)

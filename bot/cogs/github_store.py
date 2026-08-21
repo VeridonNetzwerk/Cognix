@@ -126,7 +126,13 @@ async def _do_download(force: bool = False) -> bool:
         _write_marker()
         _last_sync_ok = True
         _last_sync_ts = time.time()
-        log.info("github_store_download_done", cogs=len(list(_STORE_DIR.glob("*"))))
+        # Count cogs in release/ subdir (new structure) or flat (old structure)
+        release_dir = _STORE_DIR / "release"
+        if release_dir.exists():
+            cog_count = len([d for d in release_dir.iterdir() if d.is_dir() and not d.name.startswith("_")])
+        else:
+            cog_count = len(list(_STORE_DIR.glob("*")))
+        log.info("github_store_download_done", cogs=cog_count)
         return True
     except Exception as exc:  # noqa: BLE001
         log.warning("github_store_download_failed", error=str(exc))

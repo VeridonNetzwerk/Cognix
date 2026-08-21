@@ -15,6 +15,7 @@ from bot.database.models.moderation.moderation import ModerationAction, Moderati
 from bot.database.models.music.music_playlist import MusicPlaylist
 from bot.database.models.music.music_play_history import MusicPlayHistory
 from bot.database.models.music.music_settings import MusicSettings
+from bot.database.models.reaction_roles.reaction_role import ReactionRoleMessage
 from bot.database.models.auth.role_permission import RolePermission
 from bot.database.models.server.server import Server
 from bot.database.models.server.server_cog_state import ServerCogState
@@ -63,6 +64,7 @@ __all__ = [
     "MusicPlayHistory",
     "MusicSettings",
     "PermissionLevel",
+    "ReactionRoleMessage",
     "RefreshToken",
     "UserDashboardWidget",
     "RolePermission",

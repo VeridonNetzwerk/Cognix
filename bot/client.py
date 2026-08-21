@@ -119,6 +119,10 @@ class CogniXBot(commands.Bot):
 
         self.tree.interaction_check = _cog_gate  # type: ignore[assignment]
 
+        # Always load the built-in admin cog (cog management commands)
+        from bot.cogs.admin import AdminCog
+        await self.add_cog(AdminCog(self))
+
         # NO auto-load of cogs — they are loaded lazily via admin commands,
         # web interface, or IPC. Use `registry.restore_loaded_cogs(bot)` to
         # restore previously-persisted load state after the bot is ready.

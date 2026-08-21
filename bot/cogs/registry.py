@@ -34,6 +34,22 @@ CogInfo = dict[str, str | bool | None]
 _COGS_DIR = Path(__file__).resolve().parent.parent.parent / "cogs"
 _COGS_STORE_DIR = Path(__file__).resolve().parent.parent.parent / "cogs_store"
 
+# Dev mode flag — when True, cogs are loaded from cogs_store/dev/ (flat structure).
+# When False (default), cogs are loaded from cogs_store/release/<cog>/v<version>/.
+_DEV_MODE: bool = False
+
+
+def set_dev_mode(enabled: bool) -> None:
+    """Enable or disable dev mode for cog store discovery."""
+    global _DEV_MODE, _store_cache
+    _DEV_MODE = enabled
+    _store_cache = None  # invalidate cache
+    log.info("cog_store_mode", mode="dev" if enabled else "release")
+
+
+def is_dev_mode() -> bool:
+    return _DEV_MODE
+
 # ---------------------------------------------------------------------------
 # Category metadata — gradient colors, icons, slogans (Ubuntu App Center style)
 # ---------------------------------------------------------------------------
@@ -217,29 +233,67 @@ _store_cache: list[CogInfo] | None = None
 def _store_root() -> Path | None:
     """Resolve the cog-store source directory.
 
-    Prefers the local ``cogs_store/`` directory; falls back to the GitHub-backed
-    cache (populated by ``bot.cogs.github_store``) so the marketplace works even
-    when cogs are not bundled locally.
+    In dev mode, returns ``cogs_store/dev/``.
+    In release mode, returns ``cogs_store/release/``.
+    Falls back to the GitHub-backed cache if the local directory doesn't exist.
     """
-    if _COGS_STORE_DIR.exists():
-        return _COGS_STORE_DIR
+    subdir = "dev" if _DEV_MODE else "release"
+    local = _COGS_STORE_DIR / subdir
+    if local.exists():
+        return local
     try:
         from bot.cogs.github_store import get_github_store_dir
 
         gh = get_github_store_dir()
         if gh is not None and gh.exists():
-            return gh
+            gh_sub = gh / subdir
+            if gh_sub.exists():
+                return gh_sub
+            return gh  # fallback: flat structure (old github cache)
     except Exception:  # noqa: BLE001
         pass
     return None
 
 
+def _latest_version_dir(cog_root: Path) -> Path | None:
+    """Find the latest version subdirectory inside a release cog folder.
+
+    Expects directories named like ``v0.1.0``, ``v1.2.3``, etc.
+    Returns the highest-version Path, or None if no version dirs exist.
+    """
+    if not cog_root.is_dir():
+        return None
+    version_dirs = []
+    for d in cog_root.iterdir():
+        if d.is_dir() and d.name.startswith("v"):
+            version_dirs.append(d)
+    if not version_dirs:
+        return None
+    # Sort by parsed version tuple
+    version_dirs.sort(key=lambda d: _parse_version(d.name.removeprefix("v")))
+    return version_dirs[-1]
+
+
+def _resolve_store_cog_dir(root: Path, cog_dir_name: str) -> Path | None:
+    """Resolve the actual cog directory within the store root.
+
+    In dev mode: ``root/<cog_dir_name>/`` (flat).
+    In release mode: ``root/<cog_dir_name>/v<latest>/``.
+    """
+    base = root / cog_dir_name
+    if not base.is_dir():
+        return None
+    if _DEV_MODE:
+        return base
+    # Release mode: find latest version subdirectory
+    return _latest_version_dir(base) or base
+
+
 def _discover_store_cogs() -> list[CogInfo]:
     """Discover all cog modules in the cog store directory.
 
-    These are cogs that are available to install. The store source is either a
-    local ``cogs_store/`` or the GitHub-backed cache. The user can install them
-    via the web panel, which copies them to cogs/.
+    In dev mode, scans ``cogs_store/dev/<cog>/`` (flat structure).
+    In release mode, scans ``cogs_store/release/<cog>/v<version>/``.
     """
     root = _store_root()
     if root is None:
@@ -247,40 +301,51 @@ def _discover_store_cogs() -> list[CogInfo]:
 
     cogs: list[CogInfo] = []
 
-    for py_file in sorted(root.rglob("*.py")):
-        if py_file.name == "__init__.py" or py_file.name.startswith("_"):
-            continue
+    if _DEV_MODE:
+        # Dev mode: flat structure — scan each cog dir directly
+        scan_dirs = []
+        for cog_dir in sorted(root.iterdir()):
+            if not cog_dir.is_dir() or cog_dir.name.startswith("_"):
+                continue
+            scan_dirs.append(cog_dir)
+    else:
+        # Release mode: scan release/<cog>/v<latest>/
+        scan_dirs = []
+        for cog_dir in sorted(root.iterdir()):
+            if not cog_dir.is_dir() or cog_dir.name.startswith("_"):
+                continue
+            latest = _latest_version_dir(cog_dir)
+            if latest is not None:
+                scan_dirs.append(latest)
 
-        # Skip non-cog files: pages/ and templates/ are cog web assets, not discord.py cogs
-        parts_relative = py_file.relative_to(root).parts
-        if any(p in ("pages", "templates") for p in parts_relative[:-1]):
-            continue
+    for cog_dir in scan_dirs:
+        for py_file in sorted(cog_dir.glob("*.py")):
+            if py_file.name == "__init__.py" or py_file.name.startswith("_"):
+                continue
 
-        # Module name lives under cogs.<cog_dir>.<file_stem> after install.
-        module_name = "cogs." + ".".join(py_file.relative_to(root).with_suffix("").parts)
+            # Module name lives under cogs.<cog_dir>.<file_stem> after install.
+            module_name = "cogs." + cog_dir.name + "." + py_file.stem
 
-        # Find cog directory for icon discovery
-        cog_dir = py_file.parent
-        icon_url = _find_cog_icon(cog_dir, module_name)
+            # Find cog directory for icon discovery
+            icon_url = _find_cog_icon(cog_dir, module_name)
 
-        # Read COG_INFO without importing (the module is not importable as cogs.)
-        info = _read_cog_info_from_file(py_file)
-        if info:
-            # Auto-mark as verified if the cog comes from the official store repo
-            info.setdefault("verified", True)
-            cogs.append(_make_cog_info(
-                module_name,
-                name=info.get("name", ""),
-                description=info.get("description", ""),
-                category=info.get("category", ""),
-                requires_admin=info.get("requires_admin", False),
-                icon_url=icon_url,
-                version=info.get("version", ""),
-                verified=info.get("verified", False),
-                permissions=info.get("permissions", []),
-            ))
-        else:
-            log.debug("store_cog_skip_no_info", file=str(py_file))
+            # Read COG_INFO without importing (the module is not importable as cogs.)
+            info = _read_cog_info_from_file(py_file)
+            if info:
+                info.setdefault("verified", True)
+                cogs.append(_make_cog_info(
+                    module_name,
+                    name=info.get("name", ""),
+                    description=info.get("description", ""),
+                    category=info.get("category", ""),
+                    requires_admin=info.get("requires_admin", False),
+                    icon_url=icon_url,
+                    version=info.get("version", ""),
+                    verified=info.get("verified", False),
+                    permissions=info.get("permissions", []),
+                ))
+            else:
+                log.debug("store_cog_skip_no_info", file=str(py_file))
 
     return cogs
 
@@ -486,8 +551,9 @@ def get_cog_requirements(module_name: str) -> list[str]:
     if root is None:
         return []
     parts = module_name.split(".")
-    # parts[1] is the cog directory name (e.g. 'music' for cogs.music.music)
-    store_dir = root / parts[1] if len(parts) >= 2 else root
+    store_dir = _resolve_store_cog_dir(root, parts[1]) if len(parts) >= 2 else root
+    if store_dir is None:
+        return []
     req_file = store_dir / "requirements.txt"
     return _parse_requirements(req_file)
 
@@ -498,8 +564,8 @@ def get_cog_files(module_name: str) -> list[dict]:
     if root is None:
         return []
     parts = module_name.split(".")
-    store_dir = root / parts[1] if len(parts) >= 2 else root
-    if not store_dir.exists():
+    store_dir = _resolve_store_cog_dir(root, parts[1]) if len(parts) >= 2 else root
+    if store_dir is None or not store_dir.exists():
         return []
     extra_files: list[dict] = []
     for f in sorted(store_dir.rglob("*")):
@@ -509,6 +575,8 @@ def get_cog_files(module_name: str) -> list[dict]:
             continue
         if f.suffix == ".py":
             continue  # Main cog files aren't "extra"
+        if f.suffix == ".zip":
+            continue  # Release archives aren't cog files
         rel = f.relative_to(store_dir)
         extra_files.append({
             "path": str(rel),
@@ -600,7 +668,9 @@ def _check_host_dependencies(module_name: str) -> dict:
     if root is None:
         return {"ok": True}
     parts = module_name.split(".")
-    store_dir = root / parts[1] if len(parts) >= 2 else root
+    store_dir = _resolve_store_cog_dir(root, parts[1]) if len(parts) >= 2 else root
+    if store_dir is None:
+        return {"ok": True}
     req_file = store_dir / "requirements.txt"
     if not req_file.exists():
         return {"ok": True}
@@ -645,8 +715,10 @@ def install_cog(module_name: str) -> dict:
     if root is None:
         return {"error": "Cog store unavailable (is the bot offline?)"}
 
-    # The store cog directory is <store_root>/<cog_dir> (e.g. cogs_store/music)
-    store_dir = root / parts[1] if len(parts) >= 2 else root
+    # The store cog directory is resolved via _resolve_store_cog_dir
+    store_dir = _resolve_store_cog_dir(root, parts[1]) if len(parts) >= 2 else root
+    if store_dir is None:
+        return {"error": f"Cog not found in store: {module_name}"}
     store_file = store_dir / (parts[-1] + ".py")
 
     cog_parts = parts if parts[0] == "cogs" else ["cogs"] + parts
@@ -670,17 +742,17 @@ def install_cog(module_name: str) -> dict:
             if not init.exists():
                 init.write_text("", encoding="utf-8")
 
-        if store_dir.exists() and store_dir != _COGS_STORE_DIR:
-            for item in store_dir.iterdir():
-                if item.name == "__pycache__":
-                    continue
-                dest = tmp_target / item.name
-                if item.is_dir():
-                    shutil.copytree(str(item), str(dest), dirs_exist_ok=True)
-                else:
-                    shutil.copy2(str(item), str(dest))
-        else:
-            shutil.copy2(str(store_file), tmp_target / store_file.name)
+        for item in store_dir.iterdir():
+            if item.name == "__pycache__":
+                continue
+            # Skip zip archives in release mode
+            if item.suffix == ".zip":
+                continue
+            dest = tmp_target / item.name
+            if item.is_dir():
+                shutil.copytree(str(item), str(dest), dirs_exist_ok=True)
+            else:
+                shutil.copy2(str(item), str(dest))
 
         # Validate import in subprocess
         import_result = _validate_cog_import(module_name, tmp_target)
@@ -705,17 +777,17 @@ def install_cog(module_name: str) -> dict:
 
     # Step 3: Copy validated files to cogs/ (atomic-ish: create dir, then copy)
     cog_dir.mkdir(parents=True, exist_ok=True)
-    if store_dir.exists() and store_dir != _COGS_STORE_DIR:
-        for item in store_dir.iterdir():
-            if item.name == "__pycache__":
-                continue
-            dest = cog_dir / item.name
-            if item.is_dir():
-                shutil.copytree(str(item), str(dest), dirs_exist_ok=True)
-            else:
-                shutil.copy2(str(item), str(dest))
-    else:
-        shutil.copy2(str(store_file), str(cog_file))
+    for item in store_dir.iterdir():
+        if item.name == "__pycache__":
+            continue
+        # Skip zip archives in release mode
+        if item.suffix == ".zip":
+            continue
+        dest = cog_dir / item.name
+        if item.is_dir():
+            shutil.copytree(str(item), str(dest), dirs_exist_ok=True)
+        else:
+            shutil.copy2(str(item), str(dest))
 
     # Refresh caches
     refresh_cogs_cache()
