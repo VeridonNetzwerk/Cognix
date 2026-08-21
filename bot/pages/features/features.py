@@ -128,7 +128,7 @@ async def members_kick(server_id: str, member_id: str, reason: str = Form(defaul
                     pass
     async with db_session() as s:
         s.add(AuditLog(actor_id=user.id, action="member.kick", target=member_id))
-    return RedirectResponse(f"/members?server_id={server_id}", status_code=303)
+    return RedirectResponse("/members", status_code=303)
 
 
 @router.post("/members/{server_id}/{member_id}/ban")
@@ -146,7 +146,7 @@ async def members_ban(server_id: str, member_id: str, reason: str = Form(default
                 pass
     async with db_session() as s:
         s.add(AuditLog(actor_id=user.id, action="member.ban", target=member_id))
-    return RedirectResponse(f"/members?server_id={server_id}", status_code=303)
+    return RedirectResponse("/members", status_code=303)
 
 
 @router.post("/members/{server_id}/{member_id}/timeout")
@@ -170,7 +170,7 @@ async def members_timeout(server_id: str, member_id: str,
     async with db_session() as s:
         s.add(AuditLog(actor_id=me.id, action="member.timeout", target=member_id,
                        details={"minutes": minutes, "reason": reason}))
-    return RedirectResponse(f"/members?server_id={server_id}", status_code=303)
+    return RedirectResponse("/members", status_code=303)
 
 
 @router.post("/members/{server_id}/{member_id}/mute")
@@ -192,7 +192,7 @@ async def members_mute(server_id: str, member_id: str,
                     pass
     async with db_session() as s:
         s.add(AuditLog(actor_id=me.id, action="member.mute", target=member_id, details={"mute": flag}))
-    return RedirectResponse(f"/members?server_id={server_id}", status_code=303)
+    return RedirectResponse("/members", status_code=303)
 
 
 @router.post("/members/{server_id}/{member_id}/deafen")
@@ -214,7 +214,7 @@ async def members_deafen(server_id: str, member_id: str,
                     pass
     async with db_session() as s:
         s.add(AuditLog(actor_id=me.id, action="member.deafen", target=member_id, details={"deafen": flag}))
-    return RedirectResponse(f"/members?server_id={server_id}", status_code=303)
+    return RedirectResponse("/members", status_code=303)
 
 
 @router.post("/members/{server_id}/{member_id}/dm")
@@ -234,7 +234,7 @@ async def members_dm(server_id: str, member_id: str,
     async with db_session() as s:
         s.add(AuditLog(actor_id=me.id, action="member.dm", target=member_id,
                        details={"length": len(message)}))
-    return RedirectResponse(f"/members?server_id={server_id}", status_code=303)
+    return RedirectResponse("/members", status_code=303)
 
 
 # ---------- Welcome / leave / boost -----------------------------------------
@@ -315,7 +315,7 @@ async def welcome_save(
             "color": _hex_to_int(boost_color, 0xA855F7),
         }
         s.add(AuditLog(actor_id=user.id, action="welcome.save", target=str(server_id)))
-    return RedirectResponse(f"/welcome?server_id={server_id}", status_code=303)
+    return RedirectResponse("/welcome", status_code=303)
 
 
 # ---------- Invite tracker ---------------------------------------------------
