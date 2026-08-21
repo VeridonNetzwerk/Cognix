@@ -597,6 +597,15 @@ def _refresh_template_loader() -> None:
         log.warning("template_loader_refresh_failed", error=str(exc))
 
 
+def _refresh_cog_pages() -> None:
+    """Re-import cog page modules so new routes are registered without restart."""
+    try:
+        from bot.pages import refresh_cog_pages
+        refresh_cog_pages()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("cog_pages_refresh_failed", error=str(exc))
+
+
 def _validate_cog_import(module_name: str, cog_dir: Path) -> dict:
     """Validate that a cog can be imported in a subprocess.
 
@@ -826,6 +835,7 @@ def install_cog(module_name: str) -> dict:
     refresh_cogs_cache()
     refresh_store_cache()
     _refresh_template_loader()
+    _refresh_cog_pages()
 
     log.info("cog_installed", cog=module_name)
     result: dict = {"ok": True}
@@ -888,6 +898,7 @@ def uninstall_cog(module_name: str) -> dict:
     refresh_cogs_cache()
     refresh_store_cache()
     _refresh_template_loader()
+    _refresh_cog_pages()
 
     log.info("cog_uninstalled", cog=module_name)
     return {"ok": True}
