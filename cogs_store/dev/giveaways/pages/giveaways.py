@@ -17,7 +17,7 @@ from bot.database.models.giveaways.giveaway import Giveaway, GiveawayStatus
 from bot.database.models.server.server import Server
 from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE
-from bot.pages._shared import _render, _require_cog, _require_user, router
+from bot.pages._shared import _render, _require_cog, _require_user, _get_selected_server_id, router
 
 
 @router.get("/giveaways", response_class=HTMLResponse)
@@ -32,7 +32,8 @@ async def giveaways_view(request: Request,
             )
         ).all()
         servers = (await s.scalars(select(Server).order_by(Server.name))).all()
-    return _render(request, "giveaways/giveaways.html", user=user, giveaways=rows, servers=servers)
+    return _render(request, "giveaways/giveaways.html", user=user, giveaways=rows, servers=servers,
+                   selected_server_id=_get_selected_server_id(request))
 
 
 @router.get("/giveaways/{giveaway_id}", response_class=HTMLResponse)

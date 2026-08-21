@@ -70,19 +70,16 @@
 <dialog id="createGiveaway" class="bg-slate-900 text-slate-100 border border-slate-700 rounded-xl p-6 w-full max-w-lg backdrop:bg-black/60">
   <form method="post" action="/giveaways/create" class="space-y-3">
     <h2 class="text-lg font-semibold mb-2">New Giveaway</h2>
-    <div>
-      <label class="block text-xs uppercase text-slate-400 mb-1">Server</label>
-      <select name="server_id" required onchange="loadGiveawayForm(this.value)"
-              class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2">
-        <option value="">— pick a server —</option>
-        {% for s in servers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
-      </select>
-    </div>
+    {% if selected_server_id %}
+    <input type="hidden" name="server_id" value="{{ selected_server_id }}" />
+    {% else %}
+    <div class="text-sm text-amber-400 mb-2">Select a server from the top-right dropdown first.</div>
+    {% endif %}
     <div>
       <label class="block text-xs uppercase text-slate-400 mb-1">Channel</label>
       <select name="channel_id" id="gw-channel" required
               class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2">
-        <option value="">— pick a server first —</option>
+        <option value="">— select —</option>
       </select>
     </div>
     <div class="grid grid-cols-2 gap-3">
@@ -118,12 +115,14 @@
 </dialog>
 
 <script>
+  const SELECTED_SERVER = "{{ selected_server_id or '' }}";
+
   async function loadGiveawayForm(serverId) {
     const channelSel = document.getElementById('gw-channel');
     const roleSel = document.getElementById('gw-role');
+    if (!serverId) { return; }
     channelSel.innerHTML = '<option value="">loading…</option>';
     roleSel.innerHTML = '<option value="">— none —</option>';
-    if (!serverId) { channelSel.innerHTML = '<option value="">— pick a server first —</option>'; return; }
     try {
       const [chRes, rRes] = await Promise.all([
         fetch('/api/v1/servers/' + serverId + '/channels', { credentials: 'same-origin' }),
@@ -157,5 +156,12 @@
       channelSel.innerHTML = '<option value="">error loading channels</option>';
     }
   }
+
+  // Auto-load when the create dialog is opened
+  document.getElementById('createGiveaway').addEventListener('show', () => {
+    if (SELECTED_SERVER) loadGiveawayForm(SELECTED_SERVER);
+  });
+  // Also load immediately if server is already selected
+  if (SELECTED_SERVER) loadGiveawayForm(SELECTED_SERVER);
 </script>
 {% endblock %}

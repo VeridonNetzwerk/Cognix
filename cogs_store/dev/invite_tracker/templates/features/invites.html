@@ -9,16 +9,9 @@
 </div>
 {% endif %}
 
-<form method="get" action="/invites" class="mb-6 flex gap-2 items-center">
-  <label class="text-sm text-slate-400">Server</label>
-  <select name="server_id" onchange="this.form.submit()"
-          class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm">
-    <option value="">All servers</option>
-    {% for s in servers %}
-      <option value="{{ s.id }}" {% if selected_server_id == s.id %}selected{% endif %}>{{ s.name }}</option>
-    {% endfor %}
-  </select>
-</form>
+{% if not selected_server_id %}
+<div class="mb-6 text-slate-500 text-sm">Select a server from the top-right dropdown to view invite data.</div>
+{% endif %}
 
 <div class="grid lg:grid-cols-2 gap-6">
   <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">

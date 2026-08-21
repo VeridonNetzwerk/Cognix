@@ -13,7 +13,7 @@ from bot.database.models.music.music_playlist import MusicPlaylist
 from bot.database.models.server.server import Server
 from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE
-from bot.pages._shared import _render, _require_cog, _require_user, router
+from bot.pages._shared import _render, _require_cog, _require_user, _get_selected_server_id, router
 
 
 @router.get("/music", response_class=HTMLResponse)
@@ -21,12 +21,8 @@ async def music_view(request: Request,
                      access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
     _require_cog("cogs.music.music")
-    async with db_session() as s:
-        servers = (await s.scalars(select(Server).order_by(Server.name))).all()
-    servers_json = json.dumps(
-        [{"id": str(srv.id), "name": srv.name} for srv in servers]
-    )
-    return _render(request, "music/music.html", user=user, servers_json=servers_json)
+    return _render(request, "music/music.html", user=user,
+                   selected_server_id=_get_selected_server_id(request))
 
 
 @router.get("/api/v1/music/{server_id}/state")

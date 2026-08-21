@@ -5,12 +5,6 @@
   <div class="flex items-center justify-between flex-wrap gap-3">
     <h1 class="text-2xl font-semibold">Music</h1>
     <div class="flex items-center gap-3">
-      <label class="text-xs text-slate-400">Server</label>
-      <select x-model="serverId" @change="refresh()" class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm">
-        <template x-for="s in servers" :key="s.id">
-          <option :value="s.id" x-text="s.name || s.id"></option>
-        </template>
-      </select>
       <span class="text-xs px-2 py-0.5 rounded"
             :class="state.is_playing ? 'bg-emerald-700/40 text-emerald-300' : (state.is_paused ? 'bg-amber-700/40 text-amber-300' : 'bg-slate-700 text-slate-300')"
             x-text="state.is_playing ? 'playing' : (state.is_paused ? 'paused' : 'idle')"></span>
@@ -287,8 +281,8 @@
 <script>
 function musicPanel() {
   return {
-    serverId: '',
-    servers: {{ servers_json|safe if servers_json else '[]' }},
+    serverId: '{{ selected_server_id or '' }}',
+    servers: [],
     state: { current: null, queue: [], volume: 1.0, loop: 'off',
              is_playing: false, is_paused: false, position: 0, eq_preset: 'flat', auto_play: false },
     playlists: [],
@@ -311,14 +305,7 @@ function musicPanel() {
     plAddUrl: '',
 
     async boot() {
-      try {
-        const r = await fetch('/api/v1/servers', { credentials: 'same-origin' });
-        if (r.ok) {
-          const data = await r.json();
-          this.servers = Array.isArray(data) ? data : (data.items || []);
-        }
-      } catch (e) {}
-      if (!this.serverId && this.servers.length) this.serverId = String(this.servers[0].id);
+      if (!this.serverId) return;
       await this.refresh();
       await this.loadPlaylists();
       this._timer = setInterval(() => this.refresh(true), 3000);

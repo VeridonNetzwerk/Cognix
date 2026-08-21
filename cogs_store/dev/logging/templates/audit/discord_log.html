@@ -4,16 +4,7 @@
 <h1 class="text-2xl font-semibold mb-1">Discord activity log</h1>
 <p class="text-sm text-slate-400 mb-6">Per-server stream of Discord-side events: messages, member changes, voice, slash commands.</p>
 
-<form method="get" action="/discord-log" class="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-6 grid grid-cols-1 md:grid-cols-6 gap-3">
-  <div>
-    <label class="block text-xs uppercase text-slate-400 mb-1">Server</label>
-    <select name="server_id" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2">
-      <option value="">All</option>
-      {% for sv in servers %}
-      <option value="{{ sv.id }}" {% if filters.server_id == (sv.id|string) %}selected{% endif %}>{{ sv.name }}</option>
-      {% endfor %}
-    </select>
-  </div>
+<form method="get" action="/discord-log" class="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-6 grid grid-cols-1 md:grid-cols-5 gap-3">
   <div>
     <label class="block text-xs uppercase text-slate-400 mb-1">Event type</label>
     <select name="event_type" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2">

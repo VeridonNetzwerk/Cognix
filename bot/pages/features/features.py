@@ -76,21 +76,16 @@ async def info_embed_save(server_id: int = Form(...), name: str = Form("info"),
 
 @router.get("/members", response_class=HTMLResponse)
 async def members_view(request: Request,
-                       server_id: str | None = None,
                        q: str = "",
                        access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
     _require_cog("cogs.moderation.moderation")
-    async with db_session() as s:
-        servers = (await s.scalars(select(Server).order_by(Server.name))).all()
+    server_id = _get_selected_server_id(request)
     members: list[dict[str, Any]] = []
     selected: int | None = None
     bot = get_bot()
     if server_id and bot is not None:
-        try:
-            sid = int(server_id)
-        except ValueError:
-            sid = 0
+        sid = int(server_id)
         guild = bot.get_guild(sid) if sid else None
         if guild is not None:
             selected = guild.id
@@ -111,7 +106,7 @@ async def members_view(request: Request,
                 if len(members) >= 500:
                     break
     return _render(
-        request, "features/members.html", user=user, servers=servers,
+        request, "features/members.html", user=user,
         members=members, selected_server_id=selected, query=q,
     )
 
@@ -328,11 +323,11 @@ async def welcome_save(
 @router.get("/invites", response_class=HTMLResponse)
 async def invites_view(
     request: Request,
-    server_id: str | None = None,
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE),
 ) -> HTMLResponse:
     user = await _require_user(access_token)
     _require_cog("cogs.invite_tracker.invite_tracker")
+    server_id = _get_selected_server_id(request)
     rows = []
     recent = []
     servers = []
@@ -341,7 +336,7 @@ async def invites_view(
     try:
         async with db_session() as s:
             servers = (await s.scalars(select(Server).order_by(Server.name))).all()
-            if server_id and server_id.isdigit():
+            if server_id:
                 stmt = (
                     select(InviteStats)
                     .where(InviteStats.server_id == int(server_id))
@@ -382,18 +377,10 @@ async def invites_view(
                     })
             recent_stmt = select(InviteUse).order_by(desc(InviteUse.created_at)).limit(50)
             if server_id:
-                try:
-                    recent_stmt = recent_stmt.where(InviteUse.server_id == int(server_id))
-                except ValueError:
-                    pass
+                recent_stmt = recent_stmt.where(InviteUse.server_id == int(server_id))
             recent = (await s.scalars(recent_stmt)).all()
     except Exception as exc:
         invite_error = f"Invite-Daten konnten nicht geladen werden: {exc}"
-        try:
-            async with db_session() as s:
-                servers = (await s.scalars(select(Server).order_by(Server.name))).all()
-        except Exception:
-            servers = []
     bot = get_bot()
     user_names: dict[int, str] = {}
     if bot is not None:
@@ -416,7 +403,7 @@ async def invites_view(
         recent=recent,
         user_names=user_names,
         invite_error=invite_error,
-        selected_server_id=int(server_id) if server_id and server_id.isdigit() else None,
+        selected_server_id=int(server_id) if server_id else None,
     )
 
 

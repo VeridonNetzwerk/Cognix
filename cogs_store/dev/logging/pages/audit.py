@@ -15,7 +15,7 @@ from bot.database.models.server.server import Server
 from bot.database.models.auth.web_user import WebRole, WebUser
 from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE
-from bot.pages._shared import _render, _require_cog, _require_user, router
+from bot.pages._shared import _render, _require_cog, _require_user, _get_selected_server_id, router
 
 
 @router.get("/audit", response_class=HTMLResponse)
@@ -65,7 +65,6 @@ async def audit_view(request: Request,
 
 @router.get("/discord-log", response_class=HTMLResponse)
 async def discord_log_view(request: Request,
-                           server_id: str | None = None,
                            event_type: str | None = None,
                            user_id: str | None = None,
                            date_from: str | None = None,
@@ -76,9 +75,10 @@ async def discord_log_view(request: Request,
     if me.role == WebRole.VIEWER:
         return _render(request, "error.html", user=me, status=403,
                        title="Forbidden", detail="Moderator+ only.")
+    server_id = _get_selected_server_id(request)
     async with db_session() as s:
         q = select(DiscordEvent).order_by(desc(DiscordEvent.created_at)).limit(500)
-        if server_id and server_id.isdigit():
+        if server_id:
             q = q.where(DiscordEvent.server_id == int(server_id))
         if event_type:
             try:
@@ -126,6 +126,7 @@ async def log_view(request: Request, tab: str = "web",
     _require_cog("cogs.logging.activity_log")
     if tab not in ("web", "discord"):
         tab = "web"
+    server_id = _get_selected_server_id(request)
     web_rows: list[Any] = []
     discord_rows: list[Any] = []
     actor_names: dict[str, str] = {}
@@ -141,9 +142,10 @@ async def log_view(request: Request, tab: str = "web",
                 )).all()
                 actor_names = {str(u.id): u.username for u in users}
         else:
-            discord_rows = (await s.scalars(
-                select(DiscordEvent).order_by(desc(DiscordEvent.created_at)).limit(200)
-            )).all()
+            discord_q = select(DiscordEvent).order_by(desc(DiscordEvent.created_at)).limit(200)
+            if server_id:
+                discord_q = discord_q.where(DiscordEvent.server_id == int(server_id))
+            discord_rows = (await s.scalars(discord_q)).all()
     return _render(
         request, "audit/log.html", user=user, tab=tab, web_rows=web_rows,
         discord_rows=discord_rows, actor_names=actor_names,
