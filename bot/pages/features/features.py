@@ -23,7 +23,7 @@ from bot.database.models.auth.web_user import WebRole
 from bot.database.models.auth.web_user_settings import WebUserSettings
 from bot.database.session import db_session
 from web.deps import ACCESS_COOKIE
-from bot.pages._shared import _render, _require_cog, _require_user, router
+from bot.pages._shared import _render, _require_cog, _require_user, _get_selected_server_id, router
 
 
 def discord_obj_for(user_id: int) -> Any:
@@ -245,17 +245,17 @@ async def members_dm(server_id: str, member_id: str,
 # ---------- Welcome / leave / boost -----------------------------------------
 
 @router.get("/welcome", response_class=HTMLResponse)
-async def welcome_view(request: Request, server_id: int | None = None,
+async def welcome_view(request: Request,
                        access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE)) -> HTMLResponse:
     user = await _require_user(access_token)
     _require_cog("cogs.welcome.welcome")
+    server_id = _get_selected_server_id(request)
     async with db_session() as s:
-        servers = (await s.scalars(select(Server).order_by(Server.name))).all()
         cfg: ServerEventConfig | None = None
         if server_id:
             cfg = await s.get(ServerEventConfig, int(server_id))
     return _render(
-        request, "features/welcome.html", user=user, servers=servers, cfg=cfg,
+        request, "features/welcome.html", user=user, cfg=cfg,
         selected_server_id=server_id,
     )
 

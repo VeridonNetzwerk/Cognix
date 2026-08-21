@@ -1,0 +1,24 @@
+{# Welcome widget: recent member joins #}
+<div class="space-y-2 max-h-64 overflow-y-auto pr-2 scroll-thin">
+  {% for m in widget_data.welcome_recent %}
+  <div class="flex items-center gap-3 p-2 rounded-lg"
+       style="background: color-mix(in oklch, var(--color-secondary) 30%, transparent);">
+    {% if m.avatar_url %}
+    <img src="{{ m.avatar_url }}" class="w-8 h-8 rounded-full shrink-0" />
+    {% else %}
+    <div class="w-8 h-8 rounded-full shrink-0 flex items-center justify-center"
+         style="background: color-mix(in oklch, var(--color-primary) 20%, transparent);">
+      <i class="ph ph-user" style="color: var(--color-primary);"></i>
+    </div>
+    {% endif %}
+    <div class="min-w-0 flex-1">
+      <p class="text-sm truncate">{{ m.display_name }}</p>
+      <p class="text-xs" style="color: var(--color-muted-foreground);">{{ m.joined_at.strftime('%Y-%m-%d %H:%M') }}</p>
+    </div>
+  </div>
+  {% else %}
+  <div class="flex items-center justify-center h-32 text-sm" style="color: var(--color-muted-foreground);">
+    No recent joins
+  </div>
+  {% endfor %}
+</div>
