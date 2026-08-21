@@ -145,17 +145,42 @@ async def cogs_view(request: Request,
 
 @router.get("/cogs/icon/{cog_dir}/{filename}")
 async def cog_icon(cog_dir: str, filename: str) -> Response:
-    """Serve a cog icon from cogs/, cogs_store/, or the GitHub store cache."""
+    """Serve a cog icon from cogs/, cogs_store/dev/, cogs_store/release/, or GitHub cache."""
     base = Path(__file__).resolve().parent.parent.parent.parent
-    roots = [base / "cogs", base / "cogs_store"]
+    search_paths: list[Path] = []
+
+    # 1. Installed cogs
+    search_paths.append(base / "cogs" / cog_dir / filename)
+
+    # 2. Dev store (flat: cogs_store/dev/<cog>/)
+    search_paths.append(base / "cogs_store" / "dev" / cog_dir / filename)
+
+    # 3. Release store (versioned: cogs_store/release/<cog>/v<latest>/)
+    release_cog_root = base / "cogs_store" / "release" / cog_dir
+    if release_cog_root.is_dir():
+        for vdir in sorted(release_cog_root.iterdir(), reverse=True):
+            if vdir.is_dir() and vdir.name.startswith("v"):
+                search_paths.append(vdir / filename)
+
+    # 4. Legacy flat cogs_store (old structure)
+    search_paths.append(base / "cogs_store" / cog_dir / filename)
+
+    # 5. GitHub cache
     try:
         from bot.cogs.github_store import get_github_store_base
 
-        roots.append(get_github_store_base() / "cogs_store")
+        gh_base = get_github_store_base() / "cogs_store"
+        search_paths.append(gh_base / "dev" / cog_dir / filename)
+        gh_release = gh_base / "release" / cog_dir
+        if gh_release.is_dir():
+            for vdir in sorted(gh_release.iterdir(), reverse=True):
+                if vdir.is_dir() and vdir.name.startswith("v"):
+                    search_paths.append(vdir / filename)
+        search_paths.append(gh_base / cog_dir / filename)
     except Exception:  # noqa: BLE001
         pass
-    for root in roots:
-        candidate = root / cog_dir / filename
+
+    for candidate in search_paths:
         if candidate.exists() and candidate.is_file():
             if candidate.suffix in (".png", ".svg", ".jpg", ".jpeg", ".webp", ".gif"):
                 return FileResponse(str(candidate))

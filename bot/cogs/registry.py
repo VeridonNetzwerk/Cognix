@@ -119,8 +119,10 @@ def _find_cog_icon(cog_dir: Path, module_name: str) -> str | None:
     for icon_name in ("icon.png", "icon.svg"):
         icon_path = cog_dir / icon_name
         if icon_path.exists():
-            # Build a stable URL path: /static/cog-icons/<cog_dir_name>/<icon_name>
-            return f"/cogs/icon/{cog_dir.name}/{icon_name}"
+            # Extract cog dir name from module_name (e.g. 'cogs.moderation.moderation' -> 'moderation')
+            parts = module_name.split(".")
+            cog_slug = parts[1] if len(parts) >= 2 else cog_dir.name
+            return f"/cogs/icon/{cog_slug}/{icon_name}"
     return None
 
 
@@ -700,14 +702,15 @@ def _check_host_dependencies(module_name: str) -> dict:
 def install_cog(module_name: str) -> dict:
     """Install a cog from cogs_store/ to cogs/ directory.
 
-    Copies the entire cog directory (including templates, static files, etc.)
-    into a temp dir first, validates the import in a subprocess, installs pip
-    requirements, and only then moves files to cogs/. This ensures a broken cog
-    doesn't leave the bot in a broken state.
+    In release mode: extracts the cog's zip archive to a temp dir, validates,
+    and installs from the extracted files.
+    In dev mode: copies files directly from the cog's dev directory.
+    Temp files are cleaned up automatically.
     Returns {'ok': True} on success, {'error': '...'} on failure.
     """
     import shutil
     import tempfile
+    import zipfile
 
     # module_name is like 'cogs.moderation.moderation'
     parts = module_name.split(".")
@@ -732,7 +735,14 @@ def install_cog(module_name: str) -> dict:
     dep_check = _check_host_dependencies(module_name)
     dep_warnings = dep_check.get("warnings", [])
 
-    # Step 1: Copy to temp dir and validate import
+    # In release mode, look for a zip archive to extract from
+    zip_file: Path | None = None
+    if not _DEV_MODE:
+        for z in store_dir.glob("*.zip"):
+            zip_file = z
+            break
+
+    # Step 1: Prepare source files in temp dir and validate import
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_target = Path(tmpdir) / "cogs" / parts[1] if len(parts) >= 2 else Path(tmpdir) / "cogs"
         tmp_target.mkdir(parents=True, exist_ok=True)
@@ -742,52 +752,55 @@ def install_cog(module_name: str) -> dict:
             if not init.exists():
                 init.write_text("", encoding="utf-8")
 
-        for item in store_dir.iterdir():
-            if item.name == "__pycache__":
-                continue
-            # Skip zip archives in release mode
-            if item.suffix == ".zip":
-                continue
-            dest = tmp_target / item.name
-            if item.is_dir():
-                shutil.copytree(str(item), str(dest), dirs_exist_ok=True)
-            else:
-                shutil.copy2(str(item), str(dest))
+        if zip_file is not None and zip_file.exists():
+            # Release mode: extract zip to temp dir
+            log.info("cog_install_from_zip", cog=module_name, zip=zip_file.name)
+            with zipfile.ZipFile(str(zip_file), "r") as zf:
+                zf.extractall(str(tmp_target))
+        else:
+            # Dev mode or no zip: copy files directly
+            for item in store_dir.iterdir():
+                if item.name == "__pycache__" or item.suffix == ".zip":
+                    continue
+                dest = tmp_target / item.name
+                if item.is_dir():
+                    shutil.copytree(str(item), str(dest), dirs_exist_ok=True)
+                else:
+                    shutil.copy2(str(item), str(dest))
 
         # Validate import in subprocess
         import_result = _validate_cog_import(module_name, tmp_target)
         if not import_result.get("ok"):
             return {"error": import_result.get("error", "import validation failed")}
 
-    # Step 2: Install pip requirements if present
-    req_file = store_dir / "requirements.txt" if store_dir.exists() else None
-    if req_file and req_file.exists():
-        packages = _parse_requirements(req_file)
-        if packages:
-            pip_result = _pip_install(packages)
-            if not pip_result.get("ok"):
-                log.warning("cog_pip_install_failed", cog=module_name, error=pip_result.get("error"))
+        # Step 2: Install pip requirements if present (from temp dir)
+        req_file = tmp_target / "requirements.txt"
+        if req_file and req_file.exists():
+            packages = _parse_requirements(req_file)
+            if packages:
+                pip_result = _pip_install(packages)
+                if not pip_result.get("ok"):
+                    log.warning("cog_pip_install_failed", cog=module_name, error=pip_result.get("error"))
+                    tracking = _load_pkg_tracking()
+                    tracking[module_name] = packages
+                    _save_pkg_tracking(tracking)
+                    return {"ok": True, "warning": f"Cog installed but pip install failed: {pip_result.get('error')}"}
                 tracking = _load_pkg_tracking()
                 tracking[module_name] = packages
                 _save_pkg_tracking(tracking)
-                return {"ok": True, "warning": f"Cog installed but pip install failed: {pip_result.get('error')}"}
-            tracking = _load_pkg_tracking()
-            tracking[module_name] = packages
-            _save_pkg_tracking(tracking)
 
-    # Step 3: Copy validated files to cogs/ (atomic-ish: create dir, then copy)
-    cog_dir.mkdir(parents=True, exist_ok=True)
-    for item in store_dir.iterdir():
-        if item.name == "__pycache__":
-            continue
-        # Skip zip archives in release mode
-        if item.suffix == ".zip":
-            continue
-        dest = cog_dir / item.name
-        if item.is_dir():
-            shutil.copytree(str(item), str(dest), dirs_exist_ok=True)
-        else:
-            shutil.copy2(str(item), str(dest))
+        # Step 3: Copy validated files from temp to cogs/
+        cog_dir.mkdir(parents=True, exist_ok=True)
+        for item in tmp_target.iterdir():
+            if item.name == "__pycache__":
+                continue
+            dest = cog_dir / item.name
+            if item.is_dir():
+                shutil.copytree(str(item), str(dest), dirs_exist_ok=True)
+            else:
+                shutil.copy2(str(item), str(dest))
+
+    # Temp dir is automatically cleaned up by the context manager
 
     # Refresh caches
     refresh_cogs_cache()
