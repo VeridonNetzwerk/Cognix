@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from bot.database.models.content.embed_template import EmbedTemplate
+from bot.utils.embeds import FOOTER_TEXT
 from web.deps import SessionDep, require_admin, require_mod
 
 router = APIRouter(prefix="/embeds", tags=["embeds"], dependencies=[Depends(require_mod)])
@@ -27,7 +28,6 @@ class EmbedTemplateIn(BaseModel):
     title: str = ""
     description: str = ""
     color: int = 0x60A5FA
-    footer_text: str = ""
     footer_icon_url: str = ""
     thumbnail_url: str = ""
     image_url: str = ""
@@ -74,6 +74,7 @@ async def create_template(payload: EmbedTemplateIn, session: SessionDep) -> dict
     t = EmbedTemplate(**{
         **payload.model_dump(),
         "fields": [f.model_dump() for f in payload.fields],
+        "footer_text": FOOTER_TEXT,
     })
     session.add(t)
     await session.flush()
@@ -87,6 +88,7 @@ async def update_template(tpl_id: int, payload: EmbedTemplateIn, session: Sessio
         raise HTTPException(status.HTTP_404_NOT_FOUND, "not found")
     data = payload.model_dump()
     data["fields"] = [f.model_dump() if hasattr(f, "model_dump") else f for f in payload.fields]
+    data["footer_text"] = FOOTER_TEXT
     for k, v in data.items():
         setattr(t, k, v)
     return _serialize(t)
