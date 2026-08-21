@@ -3,59 +3,8 @@
 {% block content %}
 <h1 class="text-2xl font-semibold mb-6">Bot profile</h1>
 <script type="application/json" id="profile-data">{"display_name":{{ profile.display_name|tojson }},"about_me":{{ profile.about_me|tojson }},"avatar_data":{{ profile.avatar_data|tojson }},"banner_data":{{ profile.banner_data|tojson }},"activity_type":{{ profile.activity_type|tojson }},"activity_text":{{ profile.activity_text|tojson }},"status":{{ profile.status|tojson }},"avatarFallback":{{ bot_info.avatar_url|tojson }}}</script>
-<div class="grid lg:grid-cols-2 gap-6"
-     x-data="{
-       display_name: '',
-       about_me: '',
-       avatar_data: '',
-       banner_data: '',
-       activity_type: 'none',
-       activity_text: '',
-       status: 'online',
-       avatarFallback: '',
-       previewSize: 'large',
-       bioExpanded: false,
-       guildsExpanded: false,
-       botGuilds: [],
-       activityLine() {
-         const verb = (this.activity_type || '').toLowerCase();
-         const text = this.activity_text || '';
-         if (verb === 'none' || !text) return '';
-         return text.toLowerCase().startsWith(verb) ? text : (verb + ' ' + text);
-       },
-       statusColor() {
-         return this.status==='online' ? '#23a55a' : this.status==='idle' ? '#f0b232' : this.status==='dnd' ? '#f23f43' : '#80848e';
-       },
-       statusLabel() {
-         return this.status==='dnd' ? 'Nicht stören' : this.status==='idle' ? 'Abwesend' : this.status==='invisible' ? 'Offline' : 'Online';
-       },
-       activityVerb() {
-         if (this.activity_type === 'none') return '';
-         return {playing:'Spielt', listening:'Hört', watching:'Schaut zu', competing:'Nimmt teil an', streaming:'Streamt'}[this.activity_type] || 'Spielt';
-       },
-       activityIcon() {
-         return {playing:'ph-game-controller', listening:'ph-headphones', watching:'ph-eye', competing:'ph-trophy', streaming:'ph-video-camera', none:'ph-circle'}[this.activity_type] || 'ph-game-controller';
-       },
-       init() {
-         const d = JSON.parse(document.getElementById('profile-data').textContent);
-         this.display_name = d.display_name;
-         this.about_me = d.about_me;
-         this.avatar_data = d.avatar_data;
-         this.banner_data = d.banner_data;
-         this.activity_type = d.activity_type || 'none';
-         this.activity_text = d.activity_text;
-         this.status = d.status;
-         this.avatarFallback = d.avatarFallback;
-         this.botGuilds = {{ guilds | tojson }};
-       },
-       loadFile(ev, key, max){
-         const f = ev.target.files[0]; if(!f) return;
-         if(f.size > max){ alert('File too large'); return; }
-         const r = new FileReader();
-         r.onload = () => { this[key] = r.result; };
-         r.readAsDataURL(f);
-       }
-     }">
+<div class="grid lg:grid-cols-2 gap-6" x-data="botProfilePanel()" x-init="init()">
+  {# ---- LEFT: Form ---- #}
   <form method="post" action="/bot-profile" class="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
     <input type="hidden" name="avatar_data" :value="avatar_data">
     <input type="hidden" name="banner_data" :value="banner_data">
@@ -110,7 +59,7 @@
     <button class="px-4 py-2 bg-brand-600 hover:bg-brand-500 rounded text-sm">Save profile</button>
   </form>
 
-  {# Discord-style profile preview #}
+  {# ---- RIGHT: Discord-style profile preview ---- #}
   <div class="flex flex-col items-center gap-4">
 
     {# Size toggle #}
@@ -495,4 +444,62 @@
     </div>
   </div>
 </div>
+
+<script>
+function botProfilePanel() {
+  return {
+    display_name: '',
+    about_me: '',
+    avatar_data: '',
+    banner_data: '',
+    activity_type: 'none',
+    activity_text: '',
+    status: 'online',
+    avatarFallback: '',
+    previewSize: 'large',
+    bioExpanded: false,
+    guildsExpanded: false,
+    botGuilds: [],
+    activityLine() {
+      const verb = (this.activity_type || '').toLowerCase();
+      const text = this.activity_text || '';
+      if (verb === 'none' || !text) return '';
+      return text.toLowerCase().startsWith(verb) ? text : (verb + ' ' + text);
+    },
+    statusColor() {
+      return this.status==='online' ? '#23a55a' : this.status==='idle' ? '#f0b232' : this.status==='dnd' ? '#f23f43' : '#80848e';
+    },
+    statusLabel() {
+      return this.status==='dnd' ? 'Nicht stören' : this.status==='idle' ? 'Abwesend' : this.status==='invisible' ? 'Offline' : 'Online';
+    },
+    activityVerb() {
+      if (this.activity_type === 'none') return '';
+      return {playing:'Spielt', listening:'Hört', watching:'Schaut zu', competing:'Nimmt teil an', streaming:'Streamt'}[this.activity_type] || 'Spielt';
+    },
+    activityIcon() {
+      return {playing:'ph-game-controller', listening:'ph-headphones', watching:'ph-eye', competing:'ph-trophy', streaming:'ph-video-camera', none:'ph-circle'}[this.activity_type] || 'ph-game-controller';
+    },
+    init() {
+      const d = JSON.parse(document.getElementById('profile-data').textContent);
+      this.display_name = d.display_name;
+      this.about_me = d.about_me;
+      this.avatar_data = d.avatar_data;
+      this.banner_data = d.banner_data;
+      this.activity_type = d.activity_type || 'none';
+      this.activity_text = d.activity_text;
+      this.status = d.status;
+      this.avatarFallback = d.avatarFallback;
+      this.botGuilds = {{ guilds | tojson }};
+    },
+    loadFile(ev, key, max) {
+      const f = ev.target.files[0];
+      if (!f) return;
+      if (f.size > max) { alert('File too large'); return; }
+      const r = new FileReader();
+      r.onload = () => { this[key] = r.result; };
+      r.readAsDataURL(f);
+    }
+  };
+}
+</script>
 {% endblock %}
