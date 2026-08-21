@@ -18,7 +18,7 @@ class WebUserSettings(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("web_users.id", ondelete="CASCADE"), primary_key=True
     )
-    theme: Mapped[str] = mapped_column(String(32), default="dark", nullable=False)
+    theme: Mapped[str] = mapped_column(String(32), default="system", nullable=False)
     accent_color: Mapped[str] = mapped_column(String(16), default="#60A5FA", nullable=False)
     font_size: Mapped[str] = mapped_column(String(16), default="medium", nullable=False)
     extras: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)

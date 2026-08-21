@@ -459,13 +459,13 @@ async def user_settings_me(
     from bot.pages._shared import _current_user
     user = await _current_user(access_token)
     if user is None:
-        return {"theme": "dark", "accent_color": "#60A5FA", "font_size": "medium",
+        return {"theme": "system", "accent_color": "#60A5FA", "font_size": "medium",
                 "compact_mode": False, "reduce_motion": False, "refresh_interval": 5,
                 "notifications_enabled": True, "sidebar_collapsed": False}
     async with db_session() as s:
         row = await s.get(WebUserSettings, user.id)
     if row is None:
-        return {"theme": "dark", "accent_color": "#60A5FA", "font_size": "medium",
+        return {"theme": "system", "accent_color": "#60A5FA", "font_size": "medium",
                 "compact_mode": False, "reduce_motion": False, "refresh_interval": 5,
                 "notifications_enabled": True, "sidebar_collapsed": False}
     extras = row.extras or {}

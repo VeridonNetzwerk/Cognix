@@ -105,9 +105,9 @@
         <span class="text-xs font-medium uppercase tracking-wider block mb-2.5" style="color: var(--color-muted-foreground);">Theme</span>
         <div class="grid grid-cols-3 gap-3">
           {% set themes = [
+            ('system', 'ph-monitor', 'System'),
             ('dark', 'ph-moon-stars', 'Dark'),
             ('light', 'ph-sun', 'Light'),
-            ('system', 'ph-monitor', 'System'),
           ] %}
           {% for t_val, t_icon, t_label in themes %}
           <button type="button"

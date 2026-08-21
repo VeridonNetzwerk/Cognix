@@ -80,7 +80,7 @@ async def settings_view(
 @router.post("/settings/appearance")
 async def settings_appearance(
     request: Request,
-    theme: str = Form("dark"),
+    theme: str = Form("system"),
     accent_color: str = Form("#60A5FA"),
     compact_mode: str = Form(""),
     reduce_motion: str = Form(""),
@@ -91,7 +91,7 @@ async def settings_appearance(
 ) -> Response:
     user = await _require_user(access_token)
     if theme not in ("dark", "light", "system"):
-        theme = "dark"
+        theme = "system"
     try:
         ri = int(refresh_interval)
     except (ValueError, TypeError):
