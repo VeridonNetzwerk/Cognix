@@ -45,6 +45,22 @@ from bot.utils.embeds import FOOTER_TEXT
 log = get_logger("bot.cogs.welcome")
 
 
+_DEFAULTS = {
+    "join": {
+        "title": "Welcome to the server!",
+        "description": "Hey {user.mention}, welcome to **{guild.name}**! You are member #{guild.member_count}.",
+    },
+    "leave": {
+        "title": "Goodbye!",
+        "description": "{user.name} has left the server. We now have {guild.member_count} members.",
+    },
+    "boost": {
+        "title": "Thanks for boosting!",
+        "description": "{user.mention} just boosted **{guild.name}**! Thank you for the support!",
+    },
+}
+
+
 def _format(text: str, member: discord.Member | discord.User, guild: discord.Guild) -> str:
     if not isinstance(text, str) or not text:
         return ""
@@ -63,12 +79,12 @@ def _format(text: str, member: discord.Member | discord.User, guild: discord.Gui
 
 
 def _build_embed(
-    payload: dict[str, Any], member: discord.Member | discord.User, guild: discord.Guild
+    payload: dict[str, Any], kind: str, member: discord.Member | discord.User, guild: discord.Guild
 ) -> discord.Embed | None:
     if not payload:
         return None
-    title = _format(payload.get("title", ""), member, guild) or None
-    description = _format(payload.get("description", ""), member, guild) or None
+    title = _format(payload.get("title", _DEFAULTS[kind]["title"]), member, guild) or _DEFAULTS[kind]["title"]
+    description = _format(payload.get("description", _DEFAULTS[kind]["description"]), member, guild) or _DEFAULTS[kind]["description"]
     if not title and not description:
         return None
     color_raw = payload.get("color", 0x60A5FA)
@@ -134,7 +150,7 @@ class Welcome(commands.Cog):
         channel = guild.get_channel(channel_id)
         if not isinstance(channel, discord.TextChannel):
             return
-        embed = _build_embed(payload or {}, member, guild)
+        embed = _build_embed(payload or {}, kind, member, guild)
         if embed is None:
             return
         try:
