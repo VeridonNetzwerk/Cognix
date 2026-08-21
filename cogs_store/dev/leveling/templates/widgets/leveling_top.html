@@ -1,0 +1,25 @@
+<div class="space-y-3">
+  {% if not top_members %}
+    <p class="text-sm text-center py-6" style="color: var(--color-muted-foreground);">No data yet</p>
+  {% else %}
+    {% for m in top_members[:5] %}
+      <div class="flex items-center gap-3">
+        <div class="w-6 text-center text-xs font-bold" style="color: var(--color-muted-foreground);">#{{ loop.index }}</div>
+        {% if m.avatar_url %}
+          <img src="{{ m.avatar_url }}" class="w-8 h-8 rounded-full" />
+        {% else %}
+          <div class="w-8 h-8 rounded-full flex items-center justify-center" style="background: var(--color-muted);">
+            <i class="ph ph-user text-xs" style="color: var(--color-muted-foreground);"></i>
+          </div>
+        {% endif %}
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-medium truncate">{{ m.name }}</div>
+          <div class="text-xs" style="color: var(--color-muted-foreground);">{{ "{:,}".format(m.xp) }} XP</div>
+        </div>
+        <div class="text-xs font-bold px-2 py-0.5 rounded-full" style="background: color-mix(in oklch, var(--color-primary) 15%, transparent); color: var(--color-primary);">
+          Lv{{ m.level }}
+        </div>
+      </div>
+    {% endfor %}
+  {% endif %}
+</div>

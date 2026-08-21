@@ -11,6 +11,11 @@ from bot.database.models.content.embed_template import EmbedTemplate
 from bot.database.models.giveaways.giveaway import Giveaway, GiveawayStatus
 from bot.database.models.invites.invite_stats import InviteStats
 from bot.database.models.invites.invite_uses import InviteUse
+from bot.database.models.leveling.leveling import (
+    LevelingConfig,
+    LevelingRoleReward,
+    LevelingUser,
+)
 from bot.database.models.moderation.moderation import ModerationAction, ModerationActionType, Warning_
 from bot.database.models.music.music_playlist import MusicPlaylist
 from bot.database.models.music.music_play_history import MusicPlayHistory
@@ -58,6 +63,9 @@ __all__ = [
     "GiveawayStatus",
     "InviteStats",
     "InviteUse",
+    "LevelingConfig",
+    "LevelingRoleReward",
+    "LevelingUser",
     "ModerationAction",
     "ModerationActionType",
     "MusicPlaylist",

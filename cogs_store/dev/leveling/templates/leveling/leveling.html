@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+{% block title %}Leveling · CogniX{% endblock %}
+{% block content %}
+<div x-data="{ tab: 'settings' }" class="space-y-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-bold tracking-tight">Leveling System</h1>
+      <p class="text-sm mt-0.5" style="color: var(--color-muted-foreground);">XP tracking, role rewards, and leaderboards</p>
+    </div>
+    <div class="flex items-center gap-3">
+      {% if cfg %}
+        <span class="text-xs px-2.5 py-1 rounded-full font-medium"
+              style="background: {% if cfg.enabled %}color-mix(in oklch, var(--color-success) 15%, transparent){% else %}var(--color-muted){% endif %}; color: {% if cfg.enabled %}var(--color-success){% else %}var(--color-muted-foreground){% endif %};">
+          {% if cfg.enabled %}● Active{% else %}○ Inactive{% endif %}
+        </span>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if not selected_server_id %}
+    <div class="rounded-2xl border p-8 text-center" style="background: var(--color-card); border-color: var(--color-border);">
+      <i class="ph ph-trophy text-4xl" style="color: var(--color-muted-foreground);"></i>
+      <p class="mt-3 text-sm" style="color: var(--color-muted-foreground);">Select a server to configure leveling.</p>
+    </div>
+  {% else %}
+
+  {# Tab buttons #}
+  <div class="flex gap-2 p-1 rounded-2xl" style="background: var(--color-muted);">
+    {% set tabs = [
+      ('settings', 'Settings', 'ph-gear'),
+      ('leaderboard', 'Leaderboard', 'ph-trophy'),
+      ('rewards', 'Role Rewards', 'ph-medal'),
+    ] %}
+    {% for key, label, icon in tabs %}
+      <button type="button" @click="tab='{{ key }}'"
+              :class="tab==='{{ key }}' ? 'shadow-sm' : 'opacity-60 hover:opacity-100'"
+              class="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all"
+              :style="tab==='{{ key }}' ? 'background: var(--color-card); color: var(--color-foreground);' : 'color: var(--color-muted-foreground);'">
+        <i class="ph {{ icon }} text-base"></i>
+        {{ label }}
+      </button>
+    {% endfor %}
+  </div>
+
+  {# Settings tab #}
+  <div x-show="tab==='settings'" x-cloak class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <form action="/leveling/save" method="POST" class="rounded-2xl border p-5 space-y-4"
+          style="background: var(--color-card); border-color: var(--color-border);">
+      <input type="hidden" name="server_id" value="{{ selected_server_id }}" />
+
+      {# Enable toggle #}
+      <div class="flex items-center justify-between" x-data="{ lvlEnabled: {{ 'true' if cfg and cfg.enabled else 'false' }} }">
+        <div>
+          <h2 class="text-sm font-semibold">Enable Leveling</h2>
+          <p class="text-xs" style="color: var(--color-muted-foreground);">Track XP from messages in this server</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs" :class="lvlEnabled ? 'text-[var(--color-success)]' : 'text-[var(--color-muted-foreground)]'" x-text="lvlEnabled ? 'ON' : 'OFF'"></span>
+          <button type="button" @click="lvlEnabled = !lvlEnabled"
+                  class="relative inline-flex items-center cursor-pointer rounded-full transition-colors duration-200"
+                  :style="lvlEnabled ? 'background: var(--color-success); width: 44px; height: 24px;' : 'background: var(--color-muted); width: 44px; height: 24px;'">
+            <span class="inline-block rounded-full bg-white transition-transform duration-200"
+                  :style="lvlEnabled ? 'transform: translateX(22px); width: 18px; height: 18px; margin: 3px;' : 'transform: translateX(3px); width: 18px; height: 18px; margin: 3px;'"
+                  style="box-shadow: 0 1px 3px rgba(0,0,0,0.3);"></span>
+          </button>
+          <input type="hidden" name="enabled" :value="lvlEnabled ? 'on' : ''" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs uppercase mb-1" style="color: var(--color-muted-foreground);">XP per message (min)</label>
+          <input type="number" name="xp_per_message_min" value="{{ cfg.xp_per_message_min if cfg else 15 }}" min="1"
+                 class="w-full rounded-lg px-3 py-2 text-sm"
+                 style="background: var(--color-muted); border: 1px solid var(--color-border); color: var(--color-foreground);" />
+        </div>
+        <div>
+          <label class="block text-xs uppercase mb-1" style="color: var(--color-muted-foreground);">XP per message (max)</label>
+          <input type="number" name="xp_per_message_max" value="{{ cfg.xp_per_message_max if cfg else 25 }}" min="1"
+                 class="w-full rounded-lg px-3 py-2 text-sm"
+                 style="background: var(--color-muted); border: 1px solid var(--color-border); color: var(--color-foreground);" />
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs uppercase mb-1" style="color: var(--color-muted-foreground);">Cooldown (seconds)</label>
+        <input type="number" name="cooldown_seconds" value="{{ cfg.cooldown_seconds if cfg else 60 }}" min="0"
+               class="w-full rounded-lg px-3 py-2 text-sm"
+               style="background: var(--color-muted); border: 1px solid var(--color-border); color: var(--color-foreground);" />
+        <p class="text-[10px] mt-1" style="color: var(--color-muted-foreground);">Time between XP gains per user</p>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="block text-xs uppercase mb-1" style="color: var(--color-muted-foreground);">Formula Base</label>
+          <input type="number" name="formula_base" value="{{ cfg.formula_base if cfg else 100 }}" min="0"
+                 class="w-full rounded-lg px-3 py-2 text-sm"
+                 style="background: var(--color-muted); border: 1px solid var(--color-border); color: var(--color-foreground);" />
+        </div>
+        <div>
+          <label class="block text-xs uppercase mb-1" style="color: var(--color-muted-foreground);">× Level</label>
+          <input type="number" name="formula_multiplier" value="{{ cfg.formula_multiplier if cfg else 50 }}" min="0"
+                 class="w-full rounded-lg px-3 py-2 text-sm"
+                 style="background: var(--color-muted); border: 1px solid var(--color-border); color: var(--color-foreground);" />
+        </div>
+        <div>
+          <label class="block text-xs uppercase mb-1" style="color: var(--color-muted-foreground);">+ Level² ×</label>
+          <input type="number" name="formula_exponent" value="{{ cfg.formula_exponent if cfg else 10 }}" min="0"
+                 class="w-full rounded-lg px-3 py-2 text-sm"
+                 style="background: var(--color-muted); border: 1px solid var(--color-border); color: var(--color-foreground);" />
+        </div>
+      </div>
+      <p class="text-[10px]" style="color: var(--color-muted-foreground);">XP needed = base + (level × multiplier) + (level² × exponent)</p>
+
+      <div>
+        <label class="block text-xs uppercase mb-1" style="color: var(--color-muted-foreground);">Level-up Channel</label>
+        <select name="levelup_channel_id" class="w-full rounded-lg px-3 py-2 text-sm"
+                style="background: var(--color-muted); border: 1px solid var(--color-border); color: var(--color-foreground);">
+          <option value="">— none (disabled) —</option>
+          {% for ch in channels %}
+            <option value="{{ ch.id }}" {% if cfg and cfg.levelup_channel_id == ch.id %}selected{% endif %}>#{{ ch.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs uppercase mb-1" style="color: var(--color-muted-foreground);">Level-up Message</label>
+        <textarea name="levelup_message" rows="2" class="w-full rounded-lg px-3 py-2 text-sm resize-none"
+                  style="background: var(--color-muted); border: 1px solid var(--color-border); color: var(--color-foreground);">{{ cfg.levelup_message if cfg else '🎉 {user.mention} reached level **{level}**!' }}</textarea>
+        <p class="text-[10px] mt-1" style="color: var(--color-muted-foreground);">Placeholders: {user.mention}, {user.name}, {level}, {guild.name}</p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div x-data="{ dmOn: {{ 'true' if cfg and cfg.levelup_dm else 'false' }} }">
+          <label class="flex items-center gap-2 cursor-pointer" @click="dmOn = !dmOn">
+            <input type="checkbox" name="levelup_dm" value="on" {% if cfg and cfg.levelup_dm %}checked{% endif %} class="sr-only" :checked="dmOn" />
+            <div class="w-4 h-4 rounded border flex items-center justify-center transition-colors"
+                 :style="dmOn ? 'background: var(--color-primary); border-color: var(--color-primary);' : 'border-color: var(--color-border);'"
+                 style="background: var(--color-muted);">
+              <i x-show="dmOn" class="ph ph-check text-xs text-white"></i>
+            </div>
+            <span class="text-sm">Send as DM instead</span>
+          </label>
+        </div>
+        <div x-data="{ stackOn: {{ 'true' if cfg and cfg.stack_rewards else 'false' }} }">
+          <label class="flex items-center gap-2 cursor-pointer" @click="stackOn = !stackOn">
+            <input type="checkbox" name="stack_rewards" value="on" {% if cfg and cfg.stack_rewards %}checked{% endif %} class="sr-only" :checked="stackOn" />
+            <div class="w-4 h-4 rounded border flex items-center justify-center transition-colors"
+                 :style="stackOn ? 'background: var(--color-primary); border-color: var(--color-primary);' : 'border-color: var(--color-border);'"
+                 style="background: var(--color-muted);">
+              <i x-show="stackOn" class="ph ph-check text-xs text-white"></i>
+            </div>
+            <span class="text-sm">Stack role rewards</span>
+          </label>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs uppercase mb-1" style="color: var(--color-muted-foreground);">XP Multiplier</label>
+        <input type="number" name="xp_multiplier" value="{{ cfg.xp_multiplier if cfg else 1.0 }}" step="0.1" min="0"
+               class="w-full rounded-lg px-3 py-2 text-sm"
+               style="background: var(--color-muted); border: 1px solid var(--color-border); color: var(--color-foreground);" />
+        <p class="text-[10px] mt-1" style="color: var(--color-muted-foreground);">2.0 = double XP, 1.0 = normal</p>
+      </div>
+
+      <div>
+        <label class="block text-xs uppercase mb-1" style="color: var(--color-muted-foreground);">Ignored Channels (comma-separated IDs)</label>
+        <input name="ignored_channels" value="{{ (cfg.ignored_channels if cfg else []) | join(', ') }}"
+               class="w-full rounded-lg px-3 py-2 text-sm"
+               style="background: var(--color-muted); border: 1px solid var(--color-border); color: var(--color-foreground);" />
+      </div>
+
+      <div>
+        <label class="block text-xs uppercase mb-1" style="color: var(--color-muted-foreground);">Ignored Roles (comma-separated IDs)</label>
+        <input name="ignored_roles" value="{{ (cfg.ignored_roles if cfg else []) | join(', ') }}"
+               class="w-full rounded-lg px-3 py-2 text-sm"
+               style="background: var(--color-muted); border: 1px solid var(--color-border); color: var(--color-foreground);" />
+      </div>
+
+      <div class="flex justify-end pt-2">
+        <button class="px-5 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2"
+                style="background: var(--color-primary); color: var(--color-primary-foreground);">
+          <i class="ph ph-floppy-disk text-sm"></i> Save Settings
+        </button>
+      </div>
+    </form>
+
+    {# Stats card #}
+    <div class="space-y-4">
+      <div class="rounded-2xl border p-5" style="background: var(--color-card); border-color: var(--color-border);">
+        <h2 class="text-sm font-semibold mb-4">Overview</h2>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="rounded-xl p-4" style="background: var(--color-muted);">
+            <div class="text-2xl font-bold" style="color: var(--color-primary);">{{ total_users }}</div>
+            <div class="text-xs" style="color: var(--color-muted-foreground);">Tracked Users</div>
+          </div>
+          <div class="rounded-xl p-4" style="background: var(--color-muted);">
+            <div class="text-2xl font-bold" style="color: var(--color-primary);">{{ "{:,}".format(total_messages) }}</div>
+            <div class="text-xs" style="color: var(--color-muted-foreground);">Total Messages</div>
+          </div>
+          <div class="rounded-xl p-4" style="background: var(--color-muted);">
+            <div class="text-2xl font-bold" style="color: var(--color-primary);">{{ rewards | length }}</div>
+            <div class="text-xs" style="color: var(--color-muted-foreground);">Role Rewards</div>
+          </div>
+          <div class="rounded-xl p-4" style="background: var(--color-muted);">
+            <div class="text-2xl font-bold" style="color: var(--color-primary);">{{ cfg.xp_multiplier if cfg else 1.0 }}×</div>
+            <div class="text-xs" style="color: var(--color-muted-foreground);">XP Multiplier</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border p-5" style="background: var(--color-card); border-color: var(--color-border);">
+        <h2 class="text-sm font-semibold mb-3">Commands</h2>
+        <div class="space-y-2 text-sm">
+          <div class="flex items-center gap-2">
+            <code class="px-2 py-0.5 rounded text-xs" style="background: var(--color-muted);">/rank</code>
+            <span style="color: var(--color-muted-foreground);">Show your level and XP progress</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <code class="px-2 py-0.5 rounded text-xs" style="background: var(--color-muted);">/leaderboard</code>
+            <span style="color: var(--color-muted-foreground);">Top 10 members by XP</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <code class="px-2 py-0.5 rounded text-xs" style="background: var(--color-muted);">/leveling toggle</code>
+            <span style="color: var(--color-muted-foreground);">Enable/disable (admin)</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <code class="px-2 py-0.5 rounded text-xs" style="background: var(--color-muted);">/leveling set</code>
+            <span style="color: var(--color-muted-foreground);">Set user XP (admin)</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <code class="px-2 py-0.5 rounded text-xs" style="background: var(--color-muted);">/leveling add</code>
+            <span style="color: var(--color-muted-foreground);">Add XP to user (admin)</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <code class="px-2 py-0.5 rounded text-xs" style="background: var(--color-muted);">/leveling reset</code>
+            <span style="color: var(--color-muted-foreground);">Reset user XP (admin)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Leaderboard tab #}
+  <div x-show="tab==='leaderboard'" x-cloak>
+    <div class="rounded-2xl border overflow-hidden" style="background: var(--color-card); border-color: var(--color-border);">
+      <div class="p-5 border-b" style="border-color: var(--color-border);">
+        <h2 class="text-sm font-semibold flex items-center gap-2">
+          <i class="ph ph-trophy" style="color: var(--color-primary);"></i>
+          Leaderboard — Top {{ leaderboard | length }} Members
+        </h2>
+      </div>
+      {% if leaderboard %}
+        <div class="divide-y" style="border-color: var(--color-border);">
+          {% for entry in leaderboard %}
+            <div class="flex items-center gap-4 p-4" style="border-color: var(--color-border);">
+              <div class="w-8 text-center font-bold text-lg" style="color: {% if loop.index <= 3 %}var(--color-primary){% else %}var(--color-muted-foreground){% endif %};">
+                {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}#{{ loop.index }}{% endif %}
+              </div>
+              {% if entry.avatar_url %}
+                <img src="{{ entry.avatar_url }}" class="w-10 h-10 rounded-full" />
+              {% else %}
+                <div class="w-10 h-10 rounded-full flex items-center justify-center" style="background: var(--color-muted);">
+                  <i class="ph ph-user" style="color: var(--color-muted-foreground);"></i>
+                </div>
+              {% endif %}
+              <div class="flex-1 min-w-0">
+                <div class="font-medium text-sm truncate">{{ entry.name }}</div>
+                <div class="text-xs" style="color: var(--color-muted-foreground);">{{ entry.messages }} messages</div>
+              </div>
+              <div class="text-right">
+                <div class="font-bold text-sm" style="color: var(--color-primary);">Level {{ entry.level }}</div>
+                <div class="text-xs" style="color: var(--color-muted-foreground);">{{ "{:,}".format(entry.xp) }} XP</div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="p-12 text-center">
+          <i class="ph ph-trophy text-4xl" style="color: var(--color-muted-foreground);"></i>
+          <p class="mt-3 text-sm" style="color: var(--color-muted-foreground);">No XP data yet. Start chatting to earn XP!</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Role Rewards tab #}
+  <div x-show="tab==='rewards'" x-cloak class="space-y-4">
+    <div class="rounded-2xl border p-5" style="background: var(--color-card); border-color: var(--color-border);">
+      <h2 class="text-sm font-semibold mb-4 flex items-center gap-2">
+        <i class="ph ph-medal" style="color: var(--color-primary);"></i>
+        Add Role Reward
+      </h2>
+      <form action="/leveling/reward/add" method="POST" class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+        <input type="hidden" name="server_id" value="{{ selected_server_id }}" />
+        <div>
+          <label class="block text-xs uppercase mb-1" style="color: var(--color-muted-foreground);">Level</label>
+          <input type="number" name="level" min="1" placeholder="5" required
+                 class="w-full rounded-lg px-3 py-2 text-sm"
+                 style="background: var(--color-muted); border: 1px solid var(--color-border); color: var(--color-foreground);" />
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs uppercase mb-1" style="color: var(--color-muted-foreground);">Role</label>
+          <select name="role_id" required class="w-full rounded-lg px-3 py-2 text-sm"
+                  style="background: var(--color-muted); border: 1px solid var(--color-border); color: var(--color-foreground);"
+                  onchange="this.form.role_name.value = this.options[this.selectedIndex].text;">
+            <option value="">— select role —</option>
+            {% for r in roles %}
+              <option value="{{ r.id }}">{{ r.name }}</option>
+            {% endfor %}
+          </select>
+          <input type="hidden" name="role_name" value="" />
+        </div>
+        <button class="px-4 py-2 rounded-xl text-sm font-medium"
+                style="background: var(--color-primary); color: var(--color-primary-foreground);">
+          <i class="ph ph-plus text-sm"></i> Add
+        </button>
+      </form>
+    </div>
+
+    {% if rewards %}
+      <div class="rounded-2xl border overflow-hidden" style="background: var(--color-card); border-color: var(--color-border);">
+        <div class="divide-y" style="border-color: var(--color-border);">
+          {% for reward in rewards %}
+            <div class="flex items-center gap-4 p-4">
+              <div class="w-12 h-12 rounded-xl flex items-center justify-center"
+                   style="background: color-mix(in oklch, var(--color-primary) 15%, transparent);">
+                <span class="font-bold text-lg" style="color: var(--color-primary);">Lv{{ reward.level }}</span>
+              </div>
+              <div class="flex-1">
+                <div class="font-medium text-sm">{{ reward.role_name or 'Role #' ~ reward.role_id }}</div>
+                <div class="text-xs" style="color: var(--color-muted-foreground);">At level {{ reward.level }}</div>
+              </div>
+              <form action="/leveling/reward/delete" method="POST" onsubmit="return confirm('Delete this reward?')">
+                <input type="hidden" name="reward_id" value="{{ reward.id }}" />
+                <button class="text-sm flex items-center gap-1" style="color: var(--color-destructive);">
+                  <i class="ph ph-trash text-sm"></i>
+                </button>
+              </form>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    {% else %}
+      <div class="rounded-2xl border p-12 text-center" style="background: var(--color-card); border-color: var(--color-border);">
+        <i class="ph ph-medal text-4xl" style="color: var(--color-muted-foreground);"></i>
+        <p class="mt-3 text-sm" style="color: var(--color-muted-foreground);">No role rewards yet. Add one above!</p>
+      </div>
+    {% endif %}
+  </div>
+
+  {% endif %}
+</div>
+{% endblock %}

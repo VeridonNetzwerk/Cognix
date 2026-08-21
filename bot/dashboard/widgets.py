@@ -140,6 +140,32 @@ async def load_widget_data(session, active_widget_ids: list[str], recent: list |
             widget_data[wid] = {"music_queue": []}
         elif wid == "recent_audit":
             widget_data[wid] = {"recent_audit": recent or []}
+        elif wid == "leveling_top":
+            from bot.database.models.leveling.leveling import LevelingUser
+            bot = get_bot()
+            rows = (await session.scalars(
+                select(LevelingUser).order_by(desc(LevelingUser.xp)).limit(5)
+            )).all()
+            members = []
+            for r in rows:
+                guild = bot.get_guild(r.server_id) if bot else None
+                m = guild.get_member(r.user_id) if guild else None
+                members.append({
+                    "name": m.display_name if m else f"User {r.user_id}",
+                    "avatar_url": str(m.display_avatar.url) if m else "",
+                    "xp": r.xp,
+                    "level": r.level,
+                })
+            widget_data[wid] = {"top_members": members}
+        elif wid == "leveling_stats":
+            from bot.database.models.leveling.leveling import LevelingUser
+            total_users = (await session.scalar(
+                select(func.count(LevelingUser.id))
+            )) or 0
+            total_messages = (await session.scalar(
+                select(func.coalesce(func.sum(LevelingUser.messages), 0))
+            )) or 0
+            widget_data[wid] = {"total_users": total_users, "total_messages": total_messages}
     return widget_data
 
 
