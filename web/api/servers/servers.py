@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 
@@ -52,6 +50,12 @@ async def get_config(server_id: int, session: SessionDep) -> dict:
     }
 
 
+def _opt_int(payload: dict, key: str) -> int | None:
+    """Extract an optional int from a payload dict."""
+    val = payload.get(key)
+    return int(val) if val is not None else None
+
+
 @router.put("/{server_id}/config", dependencies=[Depends(require_admin)])
 async def update_config(server_id: int, payload: dict, session: SessionDep) -> dict:
     cfg = await session.scalar(select(ServerConfig).where(ServerConfig.server_id == server_id))
@@ -63,19 +67,19 @@ async def update_config(server_id: int, payload: dict, session: SessionDep) -> d
     if "locale" in payload:
         cfg.locale = str(payload["locale"])[:8]
     if "mod_log_channel_id" in payload:
-        cfg.mod_log_channel_id = int(payload["mod_log_channel_id"]) if payload["mod_log_channel_id"] is not None else None
+        cfg.mod_log_channel_id = _opt_int(payload, "mod_log_channel_id")
     if "mute_role_id" in payload:
-        cfg.mute_role_id = int(payload["mute_role_id"]) if payload["mute_role_id"] is not None else None
+        cfg.mute_role_id = _opt_int(payload, "mute_role_id")
     if "welcome_channel_id" in payload:
-        cfg.welcome_channel_id = int(payload["welcome_channel_id"]) if payload["welcome_channel_id"] is not None else None
+        cfg.welcome_channel_id = _opt_int(payload, "welcome_channel_id")
     if "ticket_category_id" in payload:
-        cfg.ticket_category_id = int(payload["ticket_category_id"]) if payload["ticket_category_id"] is not None else None
+        cfg.ticket_category_id = _opt_int(payload, "ticket_category_id")
     if "ticket_support_role_ids" in payload:
         cfg.ticket_support_role_ids = list(payload["ticket_support_role_ids"])
     if "ticket_auto_close_hours" in payload:
         cfg.ticket_auto_close_hours = max(1, min(720, int(payload["ticket_auto_close_hours"])))
     if "music_dj_role_id" in payload:
-        cfg.music_dj_role_id = int(payload["music_dj_role_id"]) if payload["music_dj_role_id"] is not None else None
+        cfg.music_dj_role_id = _opt_int(payload, "music_dj_role_id")
     # extras field — merge carefully
     if "extras" in payload:
         extra = payload["extras"]

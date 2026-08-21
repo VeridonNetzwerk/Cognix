@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Literal
+import json
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -23,14 +24,28 @@ from bot.cogs.registry import (
     get_cog_files,
     refresh_cogs_cache,
     refresh_store_cache,
+    is_cog_loaded,
+    _COGS_DIR,
+    _refresh_template_loader,
+    _pip_install,
+    _parse_requirements,
+    _load_pkg_tracking,
+    _save_pkg_tracking,
 )
 from bot.cogs import github_store
 from bot.database.models.server.server_config import ServerConfig
-from bot.runtime import get_bot
+from bot.runtime import get_bot, invalidate_cog_state_cache
 from web.deps import SessionDep, require_admin
 from web.services.bot_ipc import get_ipc
 
 router = APIRouter(prefix="/cogs", tags=["cogs"], dependencies=[Depends(require_admin)])
+
+
+def _warnings_result(warnings: list[str]) -> dict[str, Any]:
+    """Build a result dict, including warnings if present."""
+    if warnings:
+        return {"ok": True, "warning": "; ".join(warnings)}
+    return {"ok": True}
 
 
 class CogActionRequest(BaseModel):
@@ -116,18 +131,13 @@ async def store_update_cog(req: CogInstallRequest) -> dict:
     if result.get("warning"):
         warnings.append(result["warning"])
 
-    # Reload the cog if bot is running and cog was loaded
     bot = get_bot()
-    if bot is not None:
-        from bot.cogs.registry import is_cog_loaded
-        if is_cog_loaded(req.module):
-            reload_result = await reload_cog(bot, req.module)
-            if not reload_result.get("ok"):
-                warnings.append(f"Reload failed: {reload_result.get('error')}")
+    if bot is not None and is_cog_loaded(req.module):
+        reload_result = await reload_cog(bot, req.module)
+        if not reload_result.get("ok"):
+            warnings.append(f"Reload failed: {reload_result.get('error')}")
 
-    if warnings:
-        return {"ok": True, "warning": "; ".join(warnings)}
-    return {"ok": True}
+    return _warnings_result(warnings)
 
 
 @router.post("/store/install")
@@ -142,37 +152,29 @@ async def store_install_cog(req: CogInstallRequest) -> dict:
     if result.get("warning"):
         warnings.append(result["warning"])
 
-    # Auto-load the newly installed cog
     bot = get_bot()
     if bot is not None:
         load_result = await load_cog(bot, req.module)
         if not load_result.get("ok"):
             warnings.append(f"Load failed: {load_result.get('error')}")
 
-    if warnings:
-        return {"ok": True, "warning": "; ".join(warnings)}
-    return {"ok": True}
+    return _warnings_result(warnings)
 
 
 @router.post("/store/uninstall")
 async def store_uninstall_cog(req: CogInstallRequest) -> dict:
     """Uninstall a cog — unload it and remove from cogs/."""
-    # Unload first if loaded
     bot = get_bot()
-    if bot is not None:
-        from bot.cogs.registry import is_cog_loaded
-        if is_cog_loaded(req.module):
-            unload_result = await unload_cog(bot, req.module)
-            if not unload_result.get("ok"):
-                raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Failed to unload: {unload_result.get('error')}")
+    if bot is not None and is_cog_loaded(req.module):
+        unload_result = await unload_cog(bot, req.module)
+        if not unload_result.get("ok"):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Failed to unload: {unload_result.get('error')}")
 
     result = uninstall_cog(req.module)
     if not result.get("ok"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, result.get("error", "uninstall failed"))
 
-    if result.get("warning"):
-        return {"ok": True, "warning": result["warning"]}
-    return {"ok": True}
+    return _warnings_result([result["warning"]] if result.get("warning") else [])
 
 
 @router.post("/store/dev-install")
@@ -202,7 +204,6 @@ async def store_dev_install_cog(req: CogDevInstallRequest) -> dict:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "No cog .py file found in the given path")
 
     # Target directory in cogs/
-    from bot.cogs.registry import _COGS_DIR, refresh_cogs_cache, refresh_store_cache, _refresh_template_loader, _pip_install, _parse_requirements, _load_pkg_tracking, _save_pkg_tracking
     target_dir = _COGS_DIR / src_path.name
     target_dir.mkdir(parents=True, exist_ok=True)
     (target_dir.parent / "__init__.py").write_text("", encoding="utf-8")
@@ -225,31 +226,25 @@ async def store_dev_install_cog(req: CogDevInstallRequest) -> dict:
         packages = _parse_requirements(req_file)
         if packages:
             pip_result = _pip_install(packages)
+            tracking = _load_pkg_tracking()
+            tracking[module_name] = packages
+            _save_pkg_tracking(tracking)
             if not pip_result.get("ok"):
-                # Still track and return warning
-                tracking = _load_pkg_tracking()
-                tracking[module_name] = packages
-                _save_pkg_tracking(tracking)
-                # Don't fail — cog files are copied
-            else:
-                tracking = _load_pkg_tracking()
-                tracking[module_name] = packages
-                _save_pkg_tracking(tracking)
+                pass  # Don't fail — cog files are copied
 
     # Refresh caches
     refresh_cogs_cache()
     refresh_store_cache()
     _refresh_template_loader()
 
-    # Auto-load
     bot = get_bot()
-    warnings = []
+    warnings: list[str] = []
     if bot is not None:
         load_result = await load_cog(bot, module_name)
         if not load_result.get("ok"):
             warnings.append(f"Load failed: {load_result.get('error')}")
 
-    result = {"ok": True, "module": module_name}
+    result: dict[str, Any] = {"ok": True, "module": module_name}
     if warnings:
         result["warning"] = "; ".join(warnings)
     return result
@@ -260,9 +255,8 @@ async def store_dev_install_cog(req: CogDevInstallRequest) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _sse_event(event: str, data: dict) -> str:
+def _sse_event(event: str, data: dict[str, Any]) -> str:
     """Format a Server-Sent Event."""
-    import json
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
 
@@ -320,17 +314,15 @@ async def store_uninstall_cog_stream(req: CogInstallRequest):
 
         # Step 1: Unload if loaded
         bot = get_bot()
-        if bot is not None:
-            from bot.cogs.registry import is_cog_loaded
-            if is_cog_loaded(req.module):
-                yield _sse_event("progress", {"percent": 20, "step": "Unloading cog…"})
-                unload_result = await unload_cog(bot, req.module)
-                if not unload_result.get("ok"):
-                    yield _sse_event("error", {"detail": f"Failed to unload: {unload_result.get('error')}"})
-                    return
-                yield _sse_event("progress", {"percent": 40, "step": "Cog unloaded"})
-            else:
-                yield _sse_event("progress", {"percent": 30, "step": "Cog not loaded, skipping unload"})
+        if bot is not None and is_cog_loaded(req.module):
+            yield _sse_event("progress", {"percent": 20, "step": "Unloading cog…"})
+            unload_result = await unload_cog(bot, req.module)
+            if not unload_result.get("ok"):
+                yield _sse_event("error", {"detail": f"Failed to unload: {unload_result.get('error')}"})
+                return
+            yield _sse_event("progress", {"percent": 40, "step": "Cog unloaded"})
+        else:
+            yield _sse_event("progress", {"percent": 30, "step": "Cog not loaded, skipping unload"})
         await asyncio.sleep(0.1)
 
         # Step 2: Remove files
@@ -453,7 +445,6 @@ async def api_cog_global_toggle(cog_name: str, session: SessionDep) -> dict:
         row.enabled = not row.enabled
     enabled = row.enabled
     try:
-        from bot.runtime import invalidate_cog_state_cache
         invalidate_cog_state_cache(cog_name=cog_name)
     except Exception:  # noqa: BLE001
         pass
@@ -544,7 +535,6 @@ async def update_server_enabled_cog(
         cfg.enabled_cogs = enabled
 
     try:
-        from bot.runtime import invalidate_cog_state_cache
         invalidate_cog_state_cache(server_id=server_id, cog_name=cog_name)
     except Exception:  # noqa: BLE001
         pass
