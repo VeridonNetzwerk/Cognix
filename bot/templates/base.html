@@ -815,24 +815,10 @@
               var oldHeader = document.getElementById('spa-header');
               if (newHeader && oldHeader) oldHeader.innerHTML = newHeader.innerHTML;
 
-              // Swap main content — replace element entirely so Alpine cleans up old tree
-              var newContent = doc.getElementById('spa-content');
-              var oldContent = document.getElementById('spa-content');
-              if (newContent && oldContent) {
-                // Destroy old Alpine components
-                oldContent.querySelectorAll('[x-data]').forEach(function(el) {
-                  try { if (window.Alpine && Alpine.destroyTree) Alpine.destroyTree(el); } catch(e) {}
-                });
-                oldContent.innerHTML = newContent.innerHTML;
-                // Initialize new Alpine components
-                try { if (window.Alpine) Alpine.initTree(oldContent); } catch(e) {}
-              }
-
-              // Swap page-specific scripts
+              // Swap page-specific scripts FIRST so functions like botProfilePanel() are defined
               var newScripts = doc.getElementById('spa-scripts');
               var oldScripts = document.getElementById('spa-scripts');
               if (oldScripts) {
-                // Remove old script elements
                 while (oldScripts.firstChild) oldScripts.removeChild(oldScripts.firstChild);
                 if (newScripts) {
                   newScripts.querySelectorAll('script').forEach(function(oldScript) {
@@ -842,6 +828,19 @@
                     oldScripts.appendChild(ns);
                   });
                 }
+              }
+
+              // Swap main content — replace element entirely so Alpine cleans up old tree
+              var newContent = doc.getElementById('spa-content');
+              var oldContent = document.getElementById('spa-content');
+              if (newContent && oldContent) {
+                // Destroy old Alpine components
+                oldContent.querySelectorAll('[x-data]').forEach(function(el) {
+                  try { if (window.Alpine && Alpine.destroyTree) Alpine.destroyTree(el); } catch(e) {}
+                });
+                oldContent.innerHTML = newContent.innerHTML;
+                // Initialize new Alpine components — scripts are already loaded above
+                try { if (window.Alpine) Alpine.initTree(oldContent); } catch(e) {}
               }
 
               // Update document title

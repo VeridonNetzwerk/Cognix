@@ -837,6 +837,10 @@ function cogMarketplace(data) {
         const data = await resp.json();
         if (data.cogs) {
           this.cogs = data.cogs;
+          if (this.selectedCog) {
+            const updated = this.cogs.find(c => c.module === this.selectedCog.module);
+            if (updated) this.selectedCog = updated;
+          }
         }
       } catch (e) {
         // silent fail
@@ -1035,9 +1039,13 @@ function cogMarketplace(data) {
       });
     },
 
-    _processQueue() {
+    async _processQueue() {
       if (this._installQueue.length === 0) {
-        this.refreshCogsData();
+        await this.refreshCogsData();
+        if (this.selectedCog) {
+          const updated = this.cogs.find(c => c.module === this.selectedCog.module);
+          if (updated) this.selectedCog = updated;
+        }
         if (window.__cognixRefreshSidebar) window.__cognixRefreshSidebar();
         return;
       }
