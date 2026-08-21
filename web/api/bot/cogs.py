@@ -73,32 +73,63 @@ class CogDevInstallRequest(BaseModel):
 
 @router.get("/store")
 async def list_store_cogs() -> dict:
-    """Return all cogs available in the store (not yet installed)."""
-    # Pull the store catalog from GitHub (cached) if no local cogs_store exists.
+    """Return all cogs: installed + store (merged, deduped by module)."""
     ok = await github_store.ensure_store_cache()
     refresh_store_cache()
     store_cogs = get_store_cog_info()
     installed_cogs = get_all_cog_info()
     installed_modules = {c["module"] for c in installed_cogs}
 
-    return {
-        "cogs": [
-            {
+    # Determine loaded set from the bot runtime
+    bot = get_bot()
+    loaded_set: set[str] = set()
+    if bot is not None and bot.extensions:
+        loaded_set = set(bot.extensions.keys())
+
+    # Build installed cog entries
+    all_cogs: list[dict[str, Any]] = []
+    for info in installed_cogs:
+        all_cogs.append({
+            "name": info["name"],
+            "module": info["module"],
+            "description": info.get("description", ""),
+            "category": info.get("category", ""),
+            "requires_admin": info.get("requires_admin", False),
+            "icon_url": info.get("icon_url"),
+            "version": info.get("version", ""),
+            "installed": True,
+            "loaded": info["module"] in loaded_set,
+            "enabled": True,
+            "requirements": [],
+            "extra_files": [],
+            "verified": info.get("verified", False),
+            "permissions": info.get("permissions", []),
+        })
+
+    # Add store cogs that are not installed
+    installed_in_list = {c["module"] for c in all_cogs}
+    for info in store_cogs:
+        if info["module"] not in installed_in_list:
+            all_cogs.append({
                 "name": info["name"],
                 "module": info["module"],
                 "description": info.get("description", ""),
                 "category": info.get("category", ""),
                 "requires_admin": info.get("requires_admin", False),
+                "icon_url": info.get("icon_url"),
                 "version": info.get("version", ""),
-                "installed": info["module"] in installed_modules,
+                "installed": False,
+                "loaded": False,
+                "enabled": False,
                 "requirements": get_cog_requirements(info["module"]),
                 "extra_files": get_cog_files(info["module"]),
                 "verified": info.get("verified", False),
                 "permissions": info.get("permissions", []),
-            }
-            for info in store_cogs
-        ],
-        "total": len(store_cogs),
+            })
+
+    return {
+        "cogs": all_cogs,
+        "total": len(all_cogs),
         "store_available": ok,
         "sync": github_store.get_sync_status(),
     }
