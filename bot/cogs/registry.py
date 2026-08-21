@@ -621,7 +621,10 @@ def _validate_cog_import(module_name: str, cog_dir: Path) -> dict:
         # Create the subdirectory structure
         target_dir = tmp_cogs / rel_path.parent
         target_dir.mkdir(parents=True, exist_ok=True)
+        _tmp_root = Path(tmpdir)
         for p in target_dir.parents:
+            if p == _tmp_root:
+                break
             init = p / "__init__.py"
             if not init.exists():
                 init.write_text("", encoding="utf-8")
@@ -712,6 +715,8 @@ def install_cog(module_name: str) -> dict:
     import tempfile
     import zipfile
 
+    log.info("cog_install_start", cog=module_name, dev_mode=_DEV_MODE)
+
     # module_name is like 'cogs.moderation.moderation'
     parts = module_name.split(".")
     root = _store_root()
@@ -730,6 +735,8 @@ def install_cog(module_name: str) -> dict:
 
     if not store_file.exists():
         return {"error": f"Cog not found in store: {module_name}"}
+
+    log.info("cog_install_store_resolved", cog=module_name, store_dir=str(store_dir), store_file=str(store_file))
 
     # Pre-install validation: check host dependencies
     dep_check = _check_host_dependencies(module_name)
@@ -757,11 +764,13 @@ def install_cog(module_name: str) -> dict:
 
         if zip_file is not None and zip_file.exists():
             # Release mode: extract zip to temp dir
-            log.info("cog_install_from_zip", cog=module_name, zip=zip_file.name)
+            log.info("cog_install_extract_zip", cog=module_name, zip=zip_file.name, size=zip_file.stat().st_size)
             with zipfile.ZipFile(str(zip_file), "r") as zf:
                 zf.extractall(str(tmp_target))
+            log.info("cog_install_extract_done", cog=module_name, files=[f.name for f in tmp_target.iterdir()])
         else:
             # Dev mode or no zip: copy files directly
+            log.info("cog_install_copy_files", cog=module_name, src=str(store_dir))
             for item in store_dir.iterdir():
                 if item.name == "__pycache__" or item.suffix == ".zip":
                     continue
@@ -770,17 +779,22 @@ def install_cog(module_name: str) -> dict:
                     shutil.copytree(str(item), str(dest), dirs_exist_ok=True)
                 else:
                     shutil.copy2(str(item), str(dest))
+            log.info("cog_install_copy_done", cog=module_name, files=[f.name for f in tmp_target.iterdir()])
 
         # Validate import in subprocess
+        log.info("cog_install_validating", cog=module_name)
         import_result = _validate_cog_import(module_name, tmp_target)
         if not import_result.get("ok"):
+            log.warning("cog_install_validation_failed", cog=module_name, error=import_result.get("error"))
             return {"error": import_result.get("error", "import validation failed")}
+        log.info("cog_install_validation_ok", cog=module_name)
 
         # Step 2: Install pip requirements if present (from temp dir)
         req_file = tmp_target / "requirements.txt"
         if req_file and req_file.exists():
             packages = _parse_requirements(req_file)
             if packages:
+                log.info("cog_install_pip", cog=module_name, packages=packages)
                 pip_result = _pip_install(packages)
                 if not pip_result.get("ok"):
                     log.warning("cog_pip_install_failed", cog=module_name, error=pip_result.get("error"))
@@ -791,8 +805,10 @@ def install_cog(module_name: str) -> dict:
                 tracking = _load_pkg_tracking()
                 tracking[module_name] = packages
                 _save_pkg_tracking(tracking)
+                log.info("cog_install_pip_done", cog=module_name)
 
         # Step 3: Copy validated files from temp to cogs/
+        log.info("cog_install_copy_to_cogs", cog=module_name, dest=str(cog_dir))
         cog_dir.mkdir(parents=True, exist_ok=True)
         for item in tmp_target.iterdir():
             if item.name == "__pycache__":
@@ -802,6 +818,7 @@ def install_cog(module_name: str) -> dict:
                 shutil.copytree(str(item), str(dest), dirs_exist_ok=True)
             else:
                 shutil.copy2(str(item), str(dest))
+        log.info("cog_install_copy_to_cogs_done", cog=module_name)
 
     # Temp dir is automatically cleaned up by the context manager
 

@@ -108,7 +108,7 @@ async def store_refresh() -> dict:
 async def store_update_cog(req: CogInstallRequest) -> dict:
     """Update an installed cog — re-install from store (overwrites installed copy)."""
     await github_store.ensure_store_cache()
-    result = install_cog(req.module)
+    result = await asyncio.to_thread(install_cog, req.module)
     if not result.get("ok"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, result.get("error", "update failed"))
 
@@ -134,7 +134,7 @@ async def store_update_cog(req: CogInstallRequest) -> dict:
 async def store_install_cog(req: CogInstallRequest) -> dict:
     """Install a cog from the store into cogs/ and load it."""
     await github_store.ensure_store_cache()
-    result = install_cog(req.module)
+    result = await asyncio.to_thread(install_cog, req.module)
     if not result.get("ok"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, result.get("error", "install failed"))
 
@@ -273,10 +273,11 @@ async def store_install_cog_stream(req: CogInstallRequest):
         yield _sse_event("progress", {"percent": 5, "step": "Starting installation…"})
         await asyncio.sleep(0.1)
 
-        # Step 1: Copy files
+        # Step 1: Copy files (run in thread to avoid blocking event loop)
         yield _sse_event("progress", {"percent": 15, "step": "Copying cog files…"})
         await github_store.ensure_store_cache()
-        result = install_cog(req.module)
+        yield _sse_event("progress", {"percent": 25, "step": "Extracting and validating cog…"})
+        result = await asyncio.to_thread(install_cog, req.module)
         if not result.get("ok"):
             yield _sse_event("error", {"detail": result.get("error", "install failed")})
             return
