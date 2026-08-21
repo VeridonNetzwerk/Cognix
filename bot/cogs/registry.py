@@ -309,7 +309,7 @@ def _discover_store_cogs() -> list[CogInfo]:
         for cog_dir in sorted(root.iterdir()):
             if not cog_dir.is_dir() or cog_dir.name.startswith("_"):
                 continue
-            scan_dirs.append(cog_dir)
+            scan_dirs.append((cog_dir, cog_dir.name))
     else:
         # Release mode: scan release/<cog>/v<latest>/
         scan_dirs = []
@@ -318,15 +318,15 @@ def _discover_store_cogs() -> list[CogInfo]:
                 continue
             latest = _latest_version_dir(cog_dir)
             if latest is not None:
-                scan_dirs.append(latest)
+                scan_dirs.append((latest, cog_dir.name))
 
-    for cog_dir in scan_dirs:
+    for cog_dir, cog_slug in scan_dirs:
         for py_file in sorted(cog_dir.glob("*.py")):
             if py_file.name == "__init__.py" or py_file.name.startswith("_"):
                 continue
 
-            # Module name lives under cogs.<cog_dir>.<file_stem> after install.
-            module_name = "cogs." + cog_dir.name + "." + py_file.stem
+            # Module name lives under cogs.<cog_slug>.<file_stem> after install.
+            module_name = "cogs." + cog_slug + "." + py_file.stem
 
             # Find cog directory for icon discovery
             icon_url = _find_cog_icon(cog_dir, module_name)
