@@ -62,6 +62,7 @@ _LOADING_HTML = """<!doctype html>
         gap: 0;
       }
       @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes pulseLogo { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
       .text-logo {
         font-size: 3.5rem; font-weight: 800; margin: 0 0 1rem;
         letter-spacing: -0.03em;
@@ -118,7 +119,7 @@ _LOADING_HTML = """<!doctype html>
   </head>
   <body>
     <div class="container">
-      <div class="text-logo">CogniX</div>
+      <img src="/static/logo.png" alt="CogniX" style="width:96px;height:96px;margin:0 0 1.5rem;animation:pulseLogo 2s ease-in-out infinite;" />
       <p class="status" id="status">Initializing…</p>
       <div class="progress-track">
         <div class="progress-bar" id="progressBar"></div>
