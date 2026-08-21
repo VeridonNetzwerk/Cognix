@@ -334,10 +334,10 @@
            class="flex items-start gap-3 px-4 py-3 rounded-xl border shadow-lg max-w-sm"
            style="pointer-events: auto; background: var(--color-card); border-color: var(--color-border);">
         <i class="ph text-lg shrink-0 mt-0.5"
-           :class="toast.type === 'error' ? 'ph-warning-circle' : (toast.type === 'warning' ? 'ph-warning' : 'ph-check-circle')"
-           :style="toast.type === 'error' ? 'color: var(--color-destructive)' : (toast.type === 'warning' ? 'color: var(--color-warning)' : 'color: var(--color-success)')"></i>
+           :class="toast.type === 'error' ? 'ph-warning-circle' : (toast.type === 'warning' ? 'ph-warning' : (toast.type === 'info' ? 'ph-info' : 'ph-check-circle'))"
+           :style="toast.type === 'error' ? 'color: var(--color-destructive)' : (toast.type === 'warning' ? 'color: var(--color-warning)' : (toast.type === 'info' ? 'color: var(--color-primary)' : 'color: var(--color-success)'))"></i>
         <div class="flex-1 min-w-0">
-          <p class="text-sm font-medium" style="color: var(--color-foreground);" x-text="toast.type === 'error' ? 'Error' : (toast.type === 'warning' ? 'Warning' : 'Success')"></p>
+          <p class="text-sm font-medium" style="color: var(--color-foreground);" x-text="toast.type === 'error' ? 'Error' : (toast.type === 'warning' ? 'Warning' : (toast.type === 'info' ? 'Queued' : 'Success'))"></p>
           <p class="text-xs mt-0.5" style="color: var(--color-muted-foreground);" x-text="toast.msg"></p>
         </div>
         <button @click="toasts = toasts.filter(t => t.id !== toast.id)" class="shrink-0">
@@ -671,6 +671,7 @@ function cogMarketplace(data) {
     progress: 0,
     progressStep: '',
     toasts: [],
+    _installQueue: [],
 
     toggleSearch() {
       this.searchOpen = !this.searchOpen;
@@ -893,6 +894,15 @@ function cogMarketplace(data) {
     },
 
     installCog(cog) {
+      if (this.busy) {
+        this._installQueue.push(cog);
+        this.showToast(cog.name + ' queued', 'info');
+        return;
+      }
+      this._runInstall(cog);
+    },
+
+    _runInstall(cog) {
       this.busy = cog.module;
       this.startProgress();
       fetch('/api/v1/cogs/store/install-stream', {
@@ -921,10 +931,12 @@ function cogMarketplace(data) {
                 this.showToast(data.detail || 'Install failed', 'error');
                 this.stopProgress();
                 this.busy = null;
+                this._processQueue();
               } else if (currentEvent === 'done') {
                 if (data.warning) this.showToast(data.warning, 'warning');
                 this.stopProgress();
-                setTimeout(() => window.location.reload(), 600);
+                this.busy = null;
+                this._processQueue();
               }
               currentEvent = '';
             }
@@ -932,13 +944,14 @@ function cogMarketplace(data) {
         };
         const read = () => {
           reader.read().then(({done, value}) => {
-            if (done) { this.busy = null; return; }
+            if (done) { this.busy = null; this._processQueue(); return; }
             processChunk(decoder.decode(value, {stream: true}));
             read();
           }).catch(() => {
             this.showToast('Network error during install', 'error');
             this.stopProgress();
             this.busy = null;
+            this._processQueue();
           });
         };
         read();
@@ -946,7 +959,17 @@ function cogMarketplace(data) {
         this.showToast('Network error during install', 'error');
         this.stopProgress();
         this.busy = null;
+        this._processQueue();
       });
+    },
+
+    _processQueue() {
+      if (this._installQueue.length === 0) {
+        setTimeout(() => window.location.reload(), 600);
+        return;
+      }
+      const next = this._installQueue.shift();
+      this._runInstall(next);
     },
 
     updateCog(upd) {
