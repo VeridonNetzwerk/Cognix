@@ -882,9 +882,28 @@
           // Allow modifier-clicks (new tab, etc.)
           if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
           var link = e.target.closest('a.nav-link');
-          if (!link) return;
+          if (!link) {
+            // Handle server selector links (not nav-link class)
+            var serverLink = e.target.closest('a[href^="/select-server/"]');
+            if (serverLink) {
+              e.preventDefault();
+              var serverHref = serverLink.getAttribute('href');
+              // Fetch with redirect: manual to set the cookie, then SPA-reload current page
+              fetch(serverHref, { credentials: 'same-origin', redirect: 'manual' })
+                .then(function() {
+                  // Cookie is now set; SPA-navigate to current page to refresh content
+                  navigate(window.location.pathname, false);
+                  // Also refresh sidebar to update selected server
+                  if (window.__cognixRefreshSidebar) window.__cognixRefreshSidebar();
+                })
+                .catch(function() {
+                  window.location.href = serverHref;
+                });
+            }
+            return;
+          }
           var href = link.getAttribute('href');
-          if (!href || href === '#' || href.startsWith('http') || href.startsWith('/logout') || href.startsWith('/select-server/')) return;
+          if (!href || href === '#' || href.startsWith('http') || href.startsWith('/logout')) return;
           e.preventDefault();
           navigate(href, true);
         });
