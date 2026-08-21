@@ -354,7 +354,7 @@
            :style="`width: ${progress}%; background: linear-gradient(90deg, var(--color-primary), var(--color-accent));`"></div>
     </div>
     <div class="px-4 py-1.5 text-xs flex items-center gap-2" style="background: var(--color-card); color: var(--color-muted-foreground);">
-      <i class="ph ph-spinner animate-spin"></i>
+      <span class="loader"></span>
       <span x-text="progressStep"></span>
       <span class="font-mono ml-auto" x-text="Math.round(progress) + '%'"></span>
     </div>
@@ -469,7 +469,7 @@
                        :style="`width: ${progress}%; background: linear-gradient(90deg, var(--color-primary), var(--color-accent));`"></div>
                 </div>
                 <p class="text-xs flex items-center gap-2" style="color: var(--color-muted-foreground);">
-                  <i class="ph ph-spinner animate-spin"></i>
+                  <span class="loader"></span>
                   <span x-text="progressStep || (selectedCog.installed ? 'Uninstalling…' : 'Installing…')"></span>
                   <span class="font-mono" x-text="Math.round(progress) + '%'"></span>
                 </p>
@@ -535,6 +535,118 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+.loader {
+  --color-1: #ffffff;
+  --color-2: rgba(255, 255, 255, 0.2);
+  --color-3: rgba(255, 255, 255, 0.5);
+  --color-4: rgba(255, 255, 255, 0.7);
+  --size: 1px;
+
+  font-size: calc(10 * var(--size));
+  width: 1em;
+  height: 1em;
+  border-radius: 50%;
+  position: relative;
+  text-indent: -9999em;
+  animation: mulShdSpin 1.1s infinite ease;
+  transform: translateZ(0);
+  display: inline-block;
+  vertical-align: middle;
+}
+@keyframes mulShdSpin {
+  0%,
+  100% {
+    box-shadow:
+      0em -2.6em 0em 0em var(--color-1),
+      1.8em -1.8em 0 0em var(--color-2),
+      2.5em 0em 0 0em var(--color-2),
+      1.75em 1.75em 0 0em var(--color-2),
+      0em 2.5em 0 0em var(--color-2),
+      -1.8em 1.8em 0 0em var(--color-2),
+      -2.6em 0em 0 0em var(--color-3),
+      -1.8em -1.8em 0 0em var(--color-4);
+  }
+  12.5% {
+    box-shadow:
+      0em -2.6em 0em 0em var(--color-4),
+      1.8em -1.8em 0 0em var(--color-1),
+      2.5em 0em 0 0em var(--color-2),
+      1.75em 1.75em 0 0em var(--color-2),
+      0em 2.5em 0 0em var(--color-2),
+      -1.8em 1.8em 0 0em var(--color-2),
+      -2.6em 0em 0 0em var(--color-2),
+      -1.8em -1.8em 0 0em var(--color-3);
+  }
+  25% {
+    box-shadow:
+      0em -2.6em 0em 0em var(--color-3),
+      1.8em -1.8em 0 0em var(--color-4),
+      2.5em 0em 0 0em var(--color-1),
+      1.75em 1.75em 0 0em var(--color-2),
+      0em 2.5em 0 0em var(--color-2),
+      -1.8em 1.8em 0 0em var(--color-2),
+      -2.6em 0em 0 0em var(--color-2),
+      -1.8em -1.8em 0 0em var(--color-2);
+  }
+  37.5% {
+    box-shadow:
+      0em -2.6em 0em 0em var(--color-2),
+      1.8em -1.8em 0 0em var(--color-3),
+      2.5em 0em 0 0em var(--color-4),
+      1.75em 1.75em 0 0em var(--color-1),
+      0em 2.5em 0 0em var(--color-2),
+      -1.8em 1.8em 0 0em var(--color-2),
+      -2.6em 0em 0 0em var(--color-2),
+      -1.8em -1.8em 0 0em var(--color-2);
+  }
+  50% {
+    box-shadow:
+      0em -2.6em 0em 0em var(--color-2),
+      1.8em -1.8em 0 0em var(--color-2),
+      2.5em 0em 0 0em var(--color-3),
+      1.75em 1.75em 0 0em var(--color-4),
+      0em 2.5em 0 0em var(--color-1),
+      -1.8em 1.8em 0 0em var(--color-2),
+      -2.6em 0em 0 0em var(--color-2),
+      -1.8em -1.8em 0 0em var(--color-2);
+  }
+  62.5% {
+    box-shadow:
+      0em -2.6em 0em 0em var(--color-2),
+      1.8em -1.8em 0 0em var(--color-2),
+      2.5em 0em 0 0em var(--color-2),
+      1.75em 1.75em 0 0em var(--color-3),
+      0em 2.5em 0 0em var(--color-4),
+      -1.8em 1.8em 0 0em var(--color-1),
+      -2.6em 0em 0 0em var(--color-2),
+      -1.8em -1.8em 0 0em var(--color-2);
+  }
+  75% {
+    box-shadow:
+      0em -2.6em 0em 0em var(--color-2),
+      1.8em -1.8em 0 0em var(--color-2),
+      2.5em 0em 0 0em var(--color-2),
+      1.75em 1.75em 0 0em var(--color-2),
+      0em 2.5em 0 0em var(--color-3),
+      -1.8em 1.8em 0 0em var(--color-4),
+      -2.6em 0em 0 0em var(--color-1),
+      -1.8em -1.8em 0 0em var(--color-2);
+  }
+  87.5% {
+    box-shadow:
+      0em -2.6em 0em 0em var(--color-2),
+      1.8em -1.8em 0 0em var(--color-2),
+      2.5em 0em 0 0em var(--color-2),
+      1.75em 1.75em 0 0em var(--color-2),
+      0em 2.5em 0 0em var(--color-2),
+      -1.8em 1.8em 0 0em var(--color-3),
+      -2.6em 0em 0 0em var(--color-4),
+      -1.8em -1.8em 0 0em var(--color-1);
+  }
+}
+</style>
+
 <script>
 function cogMarketplace(data) {
   return {
