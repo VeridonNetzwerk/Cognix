@@ -398,6 +398,7 @@
           window.__CognixNotifications = s.notifications_enabled !== false;
           {# Refresh interval (seconds) — exposed for dashboard widgets #}
           window.__CognixRefreshInterval = (s.refresh_interval || 5) * 1000;
+          window.dispatchEvent(new CustomEvent('cognix:refresh-interval', { detail: window.__CognixRefreshInterval }));
           {# Sidebar collapsed default #}
           window.__CognixSidebarCollapsed = s.sidebar_collapsed === true;
           {# Apply sidebar collapsed state if sidebar exists #}
