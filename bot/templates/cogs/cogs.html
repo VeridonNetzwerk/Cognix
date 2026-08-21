@@ -348,7 +348,7 @@
   </div>
 
   {# ================= PROGRESS BAR OVERLAY ================= #}
-  <div x-show="progress > 0" style="display: none;" class="fixed bottom-0 left-0 right-0 z-[55]">
+  <div x-show="progress > 0 || _installQueue.length > 0" style="display: none;" class="fixed bottom-0 left-0 right-0 z-[55]">
     <div class="h-1 w-full" style="background: var(--color-muted);">
       <div class="h-full transition-all duration-300 ease-out rounded-full"
            :style="`width: ${progress}%; background: linear-gradient(90deg, var(--color-primary), var(--color-accent));`"></div>
@@ -358,6 +358,30 @@
       <span x-text="progressStep"></span>
       <span class="font-mono ml-auto" x-text="Math.round(progress) + '%'"></span>
     </div>
+    {# Queue indicator #}
+    <template x-if="_installQueue.length > 0">
+      <div class="px-4 py-2 flex items-center gap-2 border-t" style="background: var(--color-muted); border-color: var(--color-border);">
+        <div class="flex items-center gap-1.5 shrink-0">
+          <i class="ph ph-queue text-xs" style="color: var(--color-primary);"></i>
+          <span class="text-xs font-medium" style="color: var(--color-foreground);">Queue</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded-full font-mono"
+                style="background: var(--color-primary); color: var(--color-primary-foreground);"
+                x-text="_installQueue.length"></span>
+        </div>
+        <div class="flex items-center gap-1.5 overflow-x-auto scroll-thin min-w-0">
+          <template x-for="(qc, qi) in _installQueue" :key="qc.module">
+            <div class="flex items-center gap-1 px-2 py-1 rounded-lg shrink-0"
+                 style="background: var(--color-card); border: 1px solid var(--color-border);">
+              <span class="w-1.5 h-1.5 rounded-full" style="background: var(--color-muted-foreground);"></span>
+              <span class="text-xs truncate max-w-[120px]" style="color: var(--color-muted-foreground);" x-text="qc.name"></span>
+              <button @click="_installQueue.splice(qi, 1)" class="shrink-0 -mr-0.5" title="Remove from queue">
+                <i class="ph ph-x text-[10px]" style="color: var(--color-muted-foreground);"></i>
+              </button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </template>
   </div>
 
   {# ================= DETAIL DRAWER ================= #}
