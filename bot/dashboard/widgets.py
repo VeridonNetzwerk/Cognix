@@ -123,10 +123,10 @@ async def load_widget_data(session, active_widget_ids: list[str], recent: list |
                 select(func.count(StatEvent.id)).where(StatEvent.event_type == StatEventType.COMMAND)
             )) or 0
             join_count = (await session.scalar(
-                select(func.count(StatEvent.id)).where(StatEvent.event_type == StatEventType.MEMBER_JOIN)
+                select(func.count(StatEvent.id)).where(StatEvent.event_type == StatEventType.JOIN)
             )) or 0
             leave_count = (await session.scalar(
-                select(func.count(StatEvent.id)).where(StatEvent.event_type == StatEventType.MEMBER_LEAVE)
+                select(func.count(StatEvent.id)).where(StatEvent.event_type == StatEventType.LEAVE)
             )) or 0
             widget_data[wid] = {
                 "stats_messages": msg_count,

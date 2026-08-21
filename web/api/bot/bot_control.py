@@ -26,7 +26,7 @@ from web.services.bot_ipc import get_ipc
 router = APIRouter(prefix="/bot", tags=["bot"])
 
 
-@router.get("/status", response_model=BotStatus)
+@router.get("/status", response_model=BotStatus, dependencies=[Depends(require_admin)])
 async def status_endpoint() -> BotStatus:
     # Prefer in-process info (we share an event loop with the bot when running
     # under main.py). Fall back to IPC if the bot hasn't been registered yet.

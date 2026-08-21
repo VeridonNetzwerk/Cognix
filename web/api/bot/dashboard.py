@@ -40,6 +40,11 @@ class ResizeRequest(BaseModel):
     size_h: int
 
 
+class ReorderRequest(BaseModel):
+    source_id: str
+    target_id: str
+
+
 @router.post("/widgets/add")
 async def add_widget(
     req: WidgetIdRequest,
@@ -255,4 +260,62 @@ async def resize_widget(
             grid_row=0,
             updated_at=datetime.now(tz=UTC),
         ))
+    return {"ok": True}
+
+
+@router.post("/widgets/reorder")
+async def reorder_widgets(
+    req: ReorderRequest,
+    session: SessionDep,
+    user=Depends(get_current_user),
+) -> dict:
+    """Swap the positions of two widgets on the user's dashboard."""
+    src = await session.scalar(
+        select(UserDashboardWidget).where(
+            UserDashboardWidget.user_id == user.id,
+            UserDashboardWidget.widget_id == req.source_id,
+        )
+    )
+    tgt = await session.scalar(
+        select(UserDashboardWidget).where(
+            UserDashboardWidget.user_id == user.id,
+            UserDashboardWidget.widget_id == req.target_id,
+        )
+    )
+
+    all_widgets = (await session.scalars(
+        select(UserDashboardWidget)
+        .where(UserDashboardWidget.user_id == user.id)
+        .order_by(UserDashboardWidget.position)
+    )).all()
+    max_pos = max((w.position for w in all_widgets), default=-1)
+
+    if src is None:
+        src = UserDashboardWidget(
+            user_id=user.id,
+            widget_id=req.source_id,
+            position=max_pos + 1,
+            visible=True,
+            grid_col=0,
+            grid_row=0,
+            updated_at=datetime.now(tz=UTC),
+        )
+        session.add(src)
+        max_pos += 1
+
+    if tgt is None:
+        tgt = UserDashboardWidget(
+            user_id=user.id,
+            widget_id=req.target_id,
+            position=max_pos + 1,
+            visible=True,
+            grid_col=0,
+            grid_row=0,
+            updated_at=datetime.now(tz=UTC),
+        )
+        session.add(tgt)
+
+    src.position, tgt.position = tgt.position, src.position
+    src.updated_at = datetime.now(tz=UTC)
+    tgt.updated_at = datetime.now(tz=UTC)
     return {"ok": True}
