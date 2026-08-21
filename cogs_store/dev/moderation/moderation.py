@@ -27,6 +27,7 @@ WIDGETS = [
 
 from datetime import UTC, datetime, timedelta
 from typing import Any
+import uuid as _uuid
 
 import discord
 from discord import app_commands
@@ -71,8 +72,6 @@ async def _record(
             channel_id=channel_id,
         )
         if web_user_id:
-            import uuid as _uuid
-
             try:
                 row.web_user_id = _uuid.UUID(web_user_id)
             except ValueError:
@@ -113,10 +112,7 @@ class Moderation(commands.Cog):
         except discord.InteractionResponded:
             pass
         if interaction.guild is None:
-            try:
-                await interaction.followup.send("Guild only", ephemeral=True)
-            except Exception:  # noqa: BLE001
-                pass
+            await interaction.followup.send("Guild only", ephemeral=True)
             return
         try:
             await interaction.guild.ban(user, reason=reason, delete_message_days=delete_days)
@@ -132,9 +128,10 @@ class Moderation(commands.Cog):
                 ephemeral=True,
             )
         except discord.HTTPException as exc:
+            log.warning("ban_failed", user_id=user.id, error=str(exc), exc_info=True)
             try:
                 await interaction.followup.send(embed=err_embed("Ban failed", str(exc)), ephemeral=True)
-            except Exception:  # noqa: BLE001
+            except discord.HTTPException:
                 pass
 
     @app_commands.command(name="unban", description="Unban a user")

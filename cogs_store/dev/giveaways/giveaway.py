@@ -44,6 +44,14 @@ from bot.database.models.giveaways.giveaway import Giveaway, GiveawayStatus
 log = get_logger("bot.cogs.giveaway")
 PARTY = "\N{PARTY POPPER}"
 
+
+def _parse_message_id(s: str) -> int | None:
+    """Parse a message id string, returning None on invalid input."""
+    try:
+        return int(s)
+    except ValueError:
+        return None
+
 DURATION_RE = re.compile(r"^\s*(\d+)\s*([smhdw])\s*$", re.IGNORECASE)
 _UNIT_SECONDS = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 
@@ -274,9 +282,8 @@ class Giveaways(commands.Cog):
     @app_commands.describe(message_id="Giveaway message id")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def end(self, interaction: discord.Interaction, message_id: str) -> None:
-        try:
-            mid = int(message_id)
-        except ValueError:
+        mid = _parse_message_id(message_id)
+        if mid is None:
             await interaction.response.send_message(
                 embed=err_embed("Invalid", "Message id must be numeric."), ephemeral=True
             )
@@ -296,9 +303,8 @@ class Giveaways(commands.Cog):
     @app_commands.describe(message_id="Giveaway message id")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def reroll(self, interaction: discord.Interaction, message_id: str) -> None:
-        try:
-            mid = int(message_id)
-        except ValueError:
+        mid = _parse_message_id(message_id)
+        if mid is None:
             await interaction.response.send_message(
                 embed=err_embed("Invalid", "Message id must be numeric."), ephemeral=True
             )
@@ -329,7 +335,7 @@ class Giveaways(commands.Cog):
                     allowed_mentions=discord.AllowedMentions(users=True),
                 )
             except discord.HTTPException:
-                pass
+                log.warning("giveaway_announce_failed", giveaway_id=str(g.id), exc_info=True)
         await interaction.followup.send(embed=ok_embed("Rerolled", "Winners updated."), ephemeral=True)
 
     @group.command(name="list", description="List active giveaways for this server")
@@ -366,9 +372,8 @@ class Giveaways(commands.Cog):
     @app_commands.describe(message_id="Giveaway message id")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def delete(self, interaction: discord.Interaction, message_id: str) -> None:
-        try:
-            mid = int(message_id)
-        except ValueError:
+        mid = _parse_message_id(message_id)
+        if mid is None:
             await interaction.response.send_message(
                 embed=err_embed("Invalid", "Message id must be numeric."), ephemeral=True
             )
