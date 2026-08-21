@@ -958,6 +958,7 @@ function cogMarketplace(data) {
                 this._processQueue();
               } else if (currentEvent === 'done') {
                 if (data.warning) this.showToast(data.warning, 'warning');
+                else this.showToast((cog.name || cog.module) + ' installed successfully', 'success');
                 this.stopProgress();
                 this.busy = null;
                 this._processQueue();
@@ -989,7 +990,8 @@ function cogMarketplace(data) {
 
     _processQueue() {
       if (this._installQueue.length === 0) {
-        setTimeout(() => window.location.reload(), 600);
+        this.refreshCogsData();
+        if (window.__cognixRefreshSidebar) window.__cognixRefreshSidebar();
         return;
       }
       const next = this._installQueue.shift();
@@ -1176,8 +1178,11 @@ function cogMarketplace(data) {
                 this.busy = null;
               } else if (currentEvent === 'done') {
                 if (data.warning) this.showToast(data.warning, 'warning');
+                else this.showToast((cog.name || cog.module) + ' uninstalled', 'success');
                 this.stopProgress();
-                setTimeout(() => window.location.reload(), 600);
+                this.busy = null;
+                this.refreshCogsData();
+                if (window.__cognixRefreshSidebar) window.__cognixRefreshSidebar();
               }
               currentEvent = '';
             }

@@ -14,12 +14,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" />
-    <link rel="stylesheet"
-      href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
-    <link rel="stylesheet"
-      href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
-    <link rel="stylesheet"
-      href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/duotone/style.css" />
+    <link rel="stylesheet" href="/static/fonts/phosphor-regular.css" />
+    <link rel="stylesheet" href="/static/fonts/phosphor-fill.css" />
+    <link rel="stylesheet" href="/static/fonts/phosphor-duotone.css" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -632,7 +629,7 @@
         <header class="sticky top-0 z-30 border-b backdrop-blur-sm shrink-0"
                 style="background: color-mix(in oklch, var(--color-background) 95%, transparent); border-color: var(--color-border);">
           <div class="flex items-center justify-between px-6 py-4 gap-4">
-            <h1 class="text-2xl md:text-3xl font-bold tracking-tight truncate">{% block header %}{{ bot_info.name or 'CogniX' }}{% endblock %}</h1>
+            <h1 id="spa-header" class="text-2xl md:text-3xl font-bold tracking-tight truncate">{% block header %}{{ bot_info.name or 'CogniX' }}{% endblock %}</h1>
             <div class="flex items-center gap-3 shrink-0">
               {% if user and servers %}
               {% set ns = namespace(current=None) %}
@@ -712,8 +709,8 @@
         </header>
         {% endif %}
 
-        <main class="flex-1 min-w-0 overflow-y-auto scroll-thin">
-          <div class="p-6 min-h-full flex flex-col">
+        <main class="flex-1 min-w-0 overflow-y-auto scroll-thin" id="spa-main">
+          <div class="p-6 min-h-full flex flex-col" id="spa-content">
             {% if flash %}
               <div class="mb-4 px-4 py-3 rounded-lg border"
                    style="background: {% if flash.kind == 'error' %}color-mix(in oklch, var(--color-destructive) 15%, transparent); border-color: color-mix(in oklch, var(--color-destructive) 30%, transparent); color: var(--color-destructive){% else %}color-mix(in oklch, var(--color-success) 15%, transparent); border-color: color-mix(in oklch, var(--color-success) 30%, transparent); color: var(--color-success){% endif %};">
@@ -796,6 +793,128 @@
     </div>
 
     <div aria-hidden="true" style="position:fixed;bottom:8px;right:12px;opacity:0.07;font-size:11px;pointer-events:none;z-index:0;user-select:none;color:var(--color-foreground);">© 2026 VeridonNetzwerk · MIT License · Built with AI 🤖</div>
-    {% block scripts %}{% endblock %}
+    <div id="spa-scripts">{% block scripts %}{% endblock %}</div>
+    <script>
+      // === SPA Navigation — intercept sidebar clicks, swap content without full reload ===
+      (function() {
+        let spaTransitioning = false;
+
+        function navigate(url, pushState) {
+          if (spaTransitioning) return;
+          spaTransitioning = true;
+          const main = document.getElementById('spa-main');
+          if (main) { main.style.opacity = '0.4'; main.style.pointerEvents = 'none'; }
+
+          fetch(url, { credentials: 'same-origin', headers: { 'X-SPA': '1' } })
+            .then(function(r) { return r.text(); })
+            .then(function(html) {
+              var doc = new DOMParser().parseFromString(html, 'text/html');
+
+              // Swap header title
+              var newHeader = doc.getElementById('spa-header');
+              var oldHeader = document.getElementById('spa-header');
+              if (newHeader && oldHeader) oldHeader.innerHTML = newHeader.innerHTML;
+
+              // Swap main content — replace element entirely so Alpine cleans up old tree
+              var newContent = doc.getElementById('spa-content');
+              var oldContent = document.getElementById('spa-content');
+              if (newContent && oldContent) {
+                // Destroy old Alpine components
+                oldContent.querySelectorAll('[x-data]').forEach(function(el) {
+                  try { if (window.Alpine && Alpine.destroyTree) Alpine.destroyTree(el); } catch(e) {}
+                });
+                oldContent.innerHTML = newContent.innerHTML;
+                // Initialize new Alpine components
+                try { if (window.Alpine) Alpine.initTree(oldContent); } catch(e) {}
+              }
+
+              // Swap page-specific scripts
+              var newScripts = doc.getElementById('spa-scripts');
+              var oldScripts = document.getElementById('spa-scripts');
+              if (oldScripts) {
+                // Remove old script elements
+                while (oldScripts.firstChild) oldScripts.removeChild(oldScripts.firstChild);
+                if (newScripts) {
+                  newScripts.querySelectorAll('script').forEach(function(oldScript) {
+                    var ns = document.createElement('script');
+                    if (oldScript.src) ns.src = oldScript.src;
+                    else ns.textContent = oldScript.textContent;
+                    oldScripts.appendChild(ns);
+                  });
+                }
+              }
+
+              // Update document title
+              var newTitle = doc.querySelector('title');
+              if (newTitle) document.title = newTitle.textContent;
+
+              // Update URL
+              if (pushState) history.pushState({}, '', url);
+
+              // Update active nav state
+              updateActiveNav(url);
+
+              // Scroll to top and restore
+              if (main) { main.scrollTop = 0; main.style.opacity = '1'; main.style.pointerEvents = ''; }
+              spaTransitioning = false;
+            })
+            .catch(function() {
+              // Fallback to full page load on error
+              window.location.href = url;
+            });
+        }
+
+        function updateActiveNav(url) {
+          document.querySelectorAll('a.nav-link').forEach(function(link) {
+            var href = link.getAttribute('href');
+            if (!href) return;
+            var isActive = (url === href) || (href !== '/' && url.startsWith(href));
+            link.classList.toggle('active', isActive);
+            var icon = link.querySelector('i');
+            if (icon) {
+              if (isActive) { icon.classList.remove('ph'); icon.classList.add('ph-fill'); }
+              else { icon.classList.remove('ph-fill'); icon.classList.add('ph'); }
+            }
+          });
+        }
+
+        // Intercept sidebar nav clicks
+        document.addEventListener('click', function(e) {
+          // Allow modifier-clicks (new tab, etc.)
+          if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+          var link = e.target.closest('a.nav-link');
+          if (!link) return;
+          var href = link.getAttribute('href');
+          if (!href || href === '#' || href.startsWith('http') || href.startsWith('/logout') || href.startsWith('/select-server/')) return;
+          e.preventDefault();
+          navigate(href, true);
+        });
+
+        // Handle browser back/forward
+        window.addEventListener('popstate', function() {
+          navigate(window.location.pathname, false);
+        });
+
+        // Expose for other scripts (e.g. cog install to refresh sidebar)
+        window.__cognixSPA = { navigate: navigate, updateActiveNav: updateActiveNav };
+
+        // Refresh sidebar nav after cog install/uninstall without full page reload
+        window.__cognixRefreshSidebar = function() {
+          fetch(window.location.pathname, { credentials: 'same-origin', headers: { 'X-SPA': '1' } })
+            .then(function(r) { return r.text(); })
+            .then(function(html) {
+              var doc = new DOMParser().parseFromString(html, 'text/html');
+              var newNav = doc.querySelector('nav');
+              var oldNav = document.querySelector('nav');
+              if (newNav && oldNav) {
+                oldNav.innerHTML = newNav.innerHTML;
+                try { if (window.Alpine) Alpine.initTree(oldNav); } catch(e) {}
+              }
+              updateActiveNav(window.location.pathname);
+            })
+            .catch(function() {});
+        };
+      })();
+    </script>
   </body>
 </html>
