@@ -21,6 +21,10 @@ from bot.database.models.music.music_playlist import MusicPlaylist
 from bot.database.models.music.music_play_history import MusicPlayHistory
 from bot.database.models.music.music_settings import MusicSettings
 from bot.database.models.reaction_roles.reaction_role import ReactionRoleMessage
+from bot.database.models.stream_announcer.stream_announcer import (
+    StreamAnnouncerConfig,
+    StreamSession,
+)
 from bot.database.models.auth.role_permission import RolePermission
 from bot.database.models.server.server import Server
 from bot.database.models.server.server_cog_state import ServerCogState
@@ -74,6 +78,8 @@ __all__ = [
     "PermissionLevel",
     "ReactionRoleMessage",
     "RefreshToken",
+    "StreamAnnouncerConfig",
+    "StreamSession",
     "UserDashboardWidget",
     "RolePermission",
     "Server",

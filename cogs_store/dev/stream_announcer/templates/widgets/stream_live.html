@@ -1,0 +1,21 @@
+<div class="space-y-2">
+  {% if widget_data and widget_data.live_streams %}
+    {% for stream in widget_data.live_streams[:5] %}
+    <div class="flex items-center gap-2">
+      {% if stream.avatar_url %}
+      <img src="{{ stream.avatar_url }}" class="w-8 h-8 rounded-full" alt="" />
+      {% else %}
+      <div class="w-8 h-8 rounded-full" style="background: var(--color-muted);"></div>
+      {% endif %}
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-medium truncate">{{ stream.name }}</p>
+        <p class="text-xs truncate" style="color: var(--color-muted-foreground);">{{ stream.stream_title }}</p>
+      </div>
+      <span class="text-xs px-2 py-0.5 rounded-full font-medium"
+            style="background: color-mix(in oklch, var(--color-danger) 15%, transparent); color: var(--color-danger);">LIVE</span>
+    </div>
+    {% endfor %}
+  {% else %}
+    <p class="text-sm text-center py-4" style="color: var(--color-muted-foreground);">No active streams</p>
+  {% endif %}
+</div>

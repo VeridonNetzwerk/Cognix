@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% block title %}Stream Announcer · CogniX{% endblock %}
+{% block content %}
+<div x-data="{ tab: 'settings' }" class="space-y-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-bold tracking-tight">Stream Announcer</h1>
+      <p class="text-sm mt-0.5" style="color: var(--color-muted-foreground);">Auto-announce when members go live on Twitch, YouTube, or any platform</p>
+    </div>
+    <div class="flex items-center gap-3">
+      {% if cfg %}
+        <span class="text-xs px-2.5 py-1 rounded-full font-medium"
+              style="background: {% if cfg.enabled %}color-mix(in oklch, var(--color-success) 15%, transparent){% else %}var(--color-muted){% endif %}; color: {% if cfg.enabled %}var(--color-success){% else %}var(--color-muted-foreground){% endif %};">
+          {% if cfg.enabled %}● Active{% else %}○ Inactive{% endif %}
+        </span>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if not selected_server_id %}
+    <div class="rounded-2xl border p-8 text-center" style="background: var(--color-card); border-color: var(--color-border);">
+      <i class="ph ph-youtube-logo text-4xl" style="color: var(--color-muted-foreground);"></i>
+      <p class="mt-3 text-sm" style="color: var(--color-muted-foreground);">Select a server to configure the stream announcer.</p>
+    </div>
+  {% else %}
+
+  {# Tab buttons #}
+  <div class="flex gap-2 p-1 rounded-2xl" style="background: var(--color-muted);">
+    {% set tabs = [
+      ('settings', 'Settings', 'ph-gear'),
+      ('live', 'Live Now', 'ph-youtube-logo'),
+    ] %}
+    {% for key, label, icon in tabs %}
+      <button type="button" @click="tab='{{ key }}'"
+              :class="tab==='{{ key }}' ? 'shadow-sm' : 'opacity-60 hover:opacity-100'"
+              class="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all"
+              :style="tab==='{{ key }}' ? 'background: var(--color-card); color: var(--color-foreground);' : 'color: var(--color-muted-foreground);'">
+        <i class="ph {{ icon }} text-base"></i>
+        {{ label }}
+      </button>
+    {% endfor %}
+  </div>
+
+  {# Settings tab #}
+  <div x-show="tab==='settings'" x-cloak class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <form action="/stream-announcer/save" method="POST" class="rounded-2xl border p-5 space-y-4"
+          style="background: var(--color-card); border-color: var(--color-border);">
+      <input type="hidden" name="server_id" value="{{ selected_server_id }}" />
+
+      {# Enable toggle #}
+      <div class="flex items-center justify-between" x-data="{ saEnabled: {{ 'true' if cfg and cfg.enabled else 'false' }} }">
+        <div>
+          <h2 class="text-sm font-semibold">Enable Stream Announcer</h2>
+          <p class="text-xs" style="color: var(--color-muted-foreground);">Auto-announce when members go live</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs" :class="saEnabled ? 'text-[var(--color-success)]' : 'text-[var(--color-muted-foreground)]'" x-text="saEnabled ? 'ON' : 'OFF'"></span>
+          <button type="button" @click="saEnabled = !saEnabled"
+                  class="relative inline-flex items-center cursor-pointer rounded-full transition-colors duration-200"
+                  :style="saEnabled ? 'background: var(--color-success); width: 2.5rem; height: 1.25rem;' : 'background: var(--color-muted); width: 2.5rem; height: 1.25rem;'">
+            <span class="inline-block rounded-full bg-white transition-transform duration-200"
+                  :style="saEnabled ? 'transform: translateX(1.25rem); width: 1rem; height: 1rem; margin: 0.125rem;' : 'transform: translateX(0); width: 1rem; height: 1rem; margin: 0.125rem;'"></span>
+          </button>
+          <input type="hidden" name="enabled" :value="saEnabled ? 'on' : ''" />
+        </div>
+      </div>
+
+      <div>
+        <label class="text-sm font-medium block mb-1">Announcement Channel</label>
+        <select name="announce_channel_id" class="w-full rounded-xl border px-3 py-2 text-sm"
+                style="background: var(--color-input); border-color: var(--color-border);">
+          <option value="">— Select channel —</option>
+          {% for ch in channels %}
+            <option value="{{ ch.id }}" {{ 'selected' if cfg and cfg.announce_channel_id == ch.id else '' }}>#{{ ch.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="text-sm font-medium block mb-1">Announcement Message</label>
+        <textarea name="announce_message" rows="3"
+                  class="w-full rounded-xl border px-3 py-2 text-sm font-mono"
+                  style="background: var(--color-input); border-color: var(--color-border);">{{ cfg.announce_message if cfg else '🔴 **{user.name}** is now streaming!\n**{stream_title}**\n{stream_url}' }}</textarea>
+        <p class="text-xs mt-1" style="color: var(--color-muted-foreground);">
+          Placeholders: {user.mention}, {user.name}, {stream_url}, {stream_title}, {game}, {guild.name}
+        </p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-sm font-medium block mb-1">Tracked Platforms</label>
+          <input type="text" name="tracked_platforms"
+                 value="{{ ','.join(cfg.tracked_platforms) if cfg and cfg.tracked_platforms else '' }}"
+                 placeholder="twitch,youtube,custom (empty = all)"
+                 class="w-full rounded-xl border px-3 py-2 text-sm"
+                 style="background: var(--color-input); border-color: var(--color-border);" />
+        </div>
+        <div>
+          <label class="text-sm font-medium block mb-1">Cooldown (minutes)</label>
+          <input type="number" name="cooldown_minutes" min="0"
+                 value="{{ cfg.cooldown_minutes if cfg else 60 }}"
+                 class="w-full rounded-xl border px-3 py-2 text-sm"
+                 style="background: var(--color-input); border-color: var(--color-border);" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-sm font-medium block mb-1">Streaming Role (auto-add)</label>
+          <select name="streaming_role_id" class="w-full rounded-xl border px-3 py-2 text-sm"
+                  style="background: var(--color-input); border-color: var(--color-border);">
+            <option value="">— None —</option>
+            {% for r in roles %}
+              <option value="{{ r.id }}" {{ 'selected' if cfg and cfg.streaming_role_id == r.id else '' }}>{{ r.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="text-sm font-medium block mb-1">Ping Role</label>
+          <select name="ping_role_id" class="w-full rounded-xl border px-3 py-2 text-sm"
+                  style="background: var(--color-input); border-color: var(--color-border);">
+            <option value="">— None —</option>
+            {% for r in roles %}
+              <option value="{{ r.id }}" {{ 'selected' if cfg and cfg.ping_role_id == r.id else '' }}>{{ r.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-sm font-medium block mb-1">Tracked Roles (empty = all)</label>
+          <input type="text" name="tracked_roles"
+                 value="{{ ','.join(cfg.tracked_roles | map('string') | list) if cfg and cfg.tracked_roles else '' }}"
+                 placeholder="Role IDs, comma-separated"
+                 class="w-full rounded-xl border px-3 py-2 text-sm"
+                 style="background: var(--color-input); border-color: var(--color-border);" />
+        </div>
+        <div>
+          <label class="text-sm font-medium block mb-1">Ignored Roles</label>
+          <input type="text" name="ignored_roles"
+                 value="{{ ','.join(cfg.ignored_roles | map('string') | list) if cfg and cfg.ignored_roles else '' }}"
+                 placeholder="Role IDs, comma-separated"
+                 class="w-full rounded-xl border px-3 py-2 text-sm"
+                 style="background: var(--color-input); border-color: var(--color-border);" />
+        </div>
+      </div>
+
+      {# Delete on end toggle #}
+      <div class="flex items-center justify-between" x-data="{ delOnEnd: {{ 'true' if cfg and cfg.delete_on_end else 'false' }} }">
+        <div>
+          <h2 class="text-sm font-semibold">Delete announcement when stream ends</h2>
+          <p class="text-xs" style="color: var(--color-muted-foreground);">Remove the announcement message automatically</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs" :class="delOnEnd ? 'text-[var(--color-success)]' : 'text-[var(--color-muted-foreground)]'" x-text="delOnEnd ? 'ON' : 'OFF'"></span>
+          <button type="button" @click="delOnEnd = !delOnEnd"
+                  class="relative inline-flex items-center cursor-pointer rounded-full transition-colors duration-200"
+                  :style="delOnEnd ? 'background: var(--color-success); width: 2.5rem; height: 1.25rem;' : 'background: var(--color-muted); width: 2.5rem; height: 1.25rem;'">
+            <span class="inline-block rounded-full bg-white transition-transform duration-200"
+                  :style="delOnEnd ? 'transform: translateX(1.25rem); width: 1rem; height: 1rem; margin: 0.125rem;' : 'transform: translateX(0); width: 1rem; height: 1rem; margin: 0.125rem;'"></span>
+          </button>
+          <input type="hidden" name="delete_on_end" :value="delOnEnd ? 'on' : ''" />
+        </div>
+      </div>
+
+      <button type="submit" class="w-full py-2.5 rounded-xl font-medium text-sm transition-colors"
+              style="background: var(--color-primary); color: var(--color-primary-foreground);">
+        Save Settings
+      </button>
+    </form>
+
+    {# Stats card #}
+    <div class="space-y-4">
+      <div class="rounded-2xl border p-5" style="background: var(--color-card); border-color: var(--color-border);">
+        <h2 class="text-sm font-semibold mb-3">Overview</h2>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="rounded-xl p-3" style="background: var(--color-muted);">
+            <p class="text-xs" style="color: var(--color-muted-foreground);">Total Streams</p>
+            <p class="text-2xl font-bold mt-1">{{ total_streams }}</p>
+          </div>
+          <div class="rounded-xl p-3" style="background: var(--color-muted);">
+            <p class="text-xs" style="color: var(--color-muted-foreground);">Active Now</p>
+            <p class="text-2xl font-bold mt-1" style="color: var(--color-danger);">{{ active_streams|length }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border p-5" style="background: var(--color-card); border-color: var(--color-border);">
+        <h2 class="text-sm font-semibold mb-3">Commands</h2>
+        <div class="space-y-2 text-sm">
+          <div class="flex items-center justify-between">
+            <code class="text-xs px-2 py-1 rounded" style="background: var(--color-muted);">/stream status</code>
+            <span style="color: var(--color-muted-foreground);">Show current config</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <code class="text-xs px-2 py-1 rounded" style="background: var(--color-muted);">/stream toggle</code>
+            <span style="color: var(--color-muted-foreground);">Enable/disable</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <code class="text-xs px-2 py-1 rounded" style="background: var(--color-muted);">/stream test</code>
+            <span style="color: var(--color-muted-foreground);">Send test announcement</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border p-5" style="background: var(--color-card); border-color: var(--color-border);">
+        <h2 class="text-sm font-semibold mb-3">Supported Platforms</h2>
+        <div class="flex flex-wrap gap-2">
+          <span class="text-xs px-3 py-1.5 rounded-full font-medium" style="background: color-mix(in oklch, #9146FF 15%, transparent); color: #9146FF;">🟣 Twitch</span>
+          <span class="text-xs px-3 py-1.5 rounded-full font-medium" style="background: color-mix(in oklch, #FF0000 15%, transparent); color: #FF0000;">🔴 YouTube</span>
+          <span class="text-xs px-3 py-1.5 rounded-full font-medium" style="background: var(--color-muted); color: var(--color-muted-foreground);">🌐 Custom</span>
+        </div>
+        <p class="text-xs mt-3" style="color: var(--color-muted-foreground);">
+          Works with any platform that sets Discord's "Streaming" activity status.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  {# Live Now tab #}
+  <div x-show="tab==='live'" x-cloak>
+    {% if active_streams %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for stream in active_streams %}
+      <div class="rounded-2xl border p-4" style="background: var(--color-card); border-color: var(--color-border);">
+        <div class="flex items-center gap-3 mb-3">
+          {% if stream.avatar_url %}
+          <img src="{{ stream.avatar_url }}" class="w-10 h-10 rounded-full" alt="" />
+          {% else %}
+          <div class="w-10 h-10 rounded-full" style="background: var(--color-muted);"></div>
+          {% endif %}
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold truncate">{{ stream.name }}</p>
+            <p class="text-xs" style="color: var(--color-muted-foreground);">{{ stream.platform|title }}</p>
+          </div>
+          <span class="text-xs px-2 py-1 rounded-full font-medium" style="background: color-mix(in oklch, var(--color-danger) 15%, transparent); color: var(--color-danger);">● LIVE</span>
+        </div>
+        <p class="text-sm font-medium truncate">{{ stream.stream_title }}</p>
+        {% if stream.game %}
+        <p class="text-xs mt-1" style="color: var(--color-muted-foreground);">🎮 {{ stream.game }}</p>
+        {% endif %}
+        {% if stream.stream_url %}
+        <a href="{{ stream.stream_url }}" target="_blank" class="text-xs mt-2 inline-block font-medium" style="color: var(--color-primary);">Watch stream →</a>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="rounded-2xl border p-8 text-center" style="background: var(--color-card); border-color: var(--color-border);">
+      <i class="ph ph-youtube-logo text-4xl" style="color: var(--color-muted-foreground);"></i>
+      <p class="mt-3 text-sm" style="color: var(--color-muted-foreground);">No active streams right now.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  {% endif %}
+</div>
+{% endblock %}

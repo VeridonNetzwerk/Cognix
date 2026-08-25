@@ -166,6 +166,28 @@ async def load_widget_data(session, active_widget_ids: list[str], recent: list |
                 select(func.coalesce(func.sum(LevelingUser.messages), 0))
             )) or 0
             widget_data[wid] = {"total_users": total_users, "total_messages": total_messages}
+        elif wid == "stream_live":
+            from bot.database.models.stream_announcer.stream_announcer import StreamSession
+            bot = get_bot()
+            rows = (await session.scalars(
+                select(StreamSession)
+                .where(StreamSession.is_active.is_(True))
+                .order_by(desc(StreamSession.started_at))
+                .limit(5)
+            )).all()
+            live_streams = []
+            for r in rows:
+                guild = bot.get_guild(r.server_id) if bot else None
+                m = guild.get_member(r.user_id) if guild else None
+                live_streams.append({
+                    "name": m.display_name if m else f"User {r.user_id}",
+                    "avatar_url": str(m.display_avatar.url) if m else "",
+                    "platform": r.platform,
+                    "stream_title": r.stream_title,
+                    "stream_url": r.stream_url,
+                    "game": r.game,
+                })
+            widget_data[wid] = {"live_streams": live_streams}
     return widget_data
 
 
